@@ -1,0 +1,5 @@
+@tailwind base;@tailwind components;@tailwind utilities;
+body{background:#09090B;color:#fafafa;font-family:Inter,system-ui,sans-serif}
+.glass{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);backdrop-filter:blur(20px);border-radius:20px;box-shadow:0 8px 40px rgba(0,0,0,.35)}
+.glow{background:radial-gradient(60% 50% at 50% 0%,rgba(37,99,235,.35),transparent),radial-gradient(40% 40% at 80% 20%,rgba(124,58,237,.3),transparent)}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}

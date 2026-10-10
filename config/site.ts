@@ -1,0 +1,2 @@
+export const site={name:"KYNOVA",product:"KYNOVA OS",ai:"NEX",tagline:"The AI Operating System for Business.",url:"https://kynova.ai"};
+export const nav=[["Dashboard","/dashboard"],["NEX","/nex"],["Sales","/sales"],["Marketing","/marketing"],["Clients","/clients"],["Properties","/properties"],["Automation","/automation"],["Finance","/finance"],["Analytics","/analytics"],["Settings","/settings"]] as const;
