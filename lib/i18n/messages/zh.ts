@@ -195,6 +195,7 @@ export const zh: Messages = {
     you: "你",
     disclaimer: "模拟回答：NEX 尚未连接到你的数据。",
     simulatedReply: "基于示例数据的模拟回答",
+    error: "NEX 无法回复。请检查网络连接后重试。",
     suggestions: "建议",
     quickActions: "快捷操作",
     examples: "示例",

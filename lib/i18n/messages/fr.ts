@@ -203,6 +203,7 @@ export const fr: Messages = {
     you: "Vous",
     disclaimer: "Réponses simulées : NEX n'est pas encore connecté à vos données.",
     simulatedReply: "Réponse simulée avec des données d'exemple",
+    error: "NEX n'a pas pu répondre. Vérifiez votre connexion et réessayez.",
     suggestions: "Suggestions",
     quickActions: "Actions rapides",
     examples: "Exemples",

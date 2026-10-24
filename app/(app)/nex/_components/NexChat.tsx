@@ -16,6 +16,7 @@ export function NexChat() {
   const { conversations, active, activeId, setActiveId, appendMessage, remove, newId } = useConversations();
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const messages = active?.messages ?? [];
@@ -24,7 +25,8 @@ export function NexChat() {
     // The empty state must stay scrolled to the top so its title is visible.
     if (messages.length === 0 && !busy) return;
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages.length, busy]);
+    // activeId: opening another conversation from the history must also land on its latest message.
+  }, [activeId, messages.length, busy]);
 
   async function send(prompt: string) {
     const trimmed = prompt.trim();
@@ -34,14 +36,23 @@ export function NexChat() {
     setActiveId(conversationId);
     appendMessage(conversationId, userMessage, trimmed.slice(0, 48));
     setText("");
+    setFailed(false);
     setBusy(true);
-    const reply = await askNex([...messages, userMessage], m.nex);
-    appendMessage(conversationId, { role: "nex", text: reply }, trimmed.slice(0, 48));
-    setBusy(false);
+    try {
+      const reply = await askNex([...messages, userMessage], m.nex);
+      appendMessage(conversationId, { role: "nex", text: reply }, trimmed.slice(0, 48));
+    } catch {
+      // No invented answer: show an error and give the prompt back so the user can retry.
+      setFailed(true);
+      setText(trimmed);
+    } finally {
+      setBusy(false);
+    }
   }
 
   function startNew() {
     setActiveId(null);
+    setFailed(false);
     setShowHistory(false);
   }
 
@@ -70,6 +81,7 @@ export function NexChat() {
                 type="button"
                 onClick={() => {
                   setActiveId(conversation.id);
+                  setFailed(false);
                   setShowHistory(false);
                 }}
                 className={clsx(
@@ -195,6 +207,11 @@ export function NexChat() {
                   </motion.div>
                 )}
               </AnimatePresence>
+              {failed && (
+                <p role="alert" className="max-w-[85%] rounded-2xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger-soft">
+                  {m.nex.error}
+                </p>
+              )}
             </div>
           )}
           <div ref={endRef} />

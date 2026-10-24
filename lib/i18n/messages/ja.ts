@@ -203,6 +203,7 @@ export const ja: Messages = {
     you: "あなた",
     disclaimer: "シミュレーション回答：NEX はまだあなたのデータに接続されていません。",
     simulatedReply: "サンプルデータによるシミュレーション回答",
+    error: "NEX が応答できませんでした。接続を確認して、もう一度お試しください。",
     suggestions: "おすすめ",
     quickActions: "クイックアクション",
     examples: "例",

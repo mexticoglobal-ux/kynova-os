@@ -253,6 +253,7 @@ export const es = {
     you: "Tú",
     disclaimer: "Respuestas simuladas: NEX todavía no está conectado a tus datos.",
     simulatedReply: "Respuesta simulada con datos de ejemplo",
+    error: "NEX no pudo responder. Revisa tu conexión e inténtalo de nuevo.",
     suggestions: "Sugerencias",
     quickActions: "Acciones rápidas",
     examples: "Ejemplos",
