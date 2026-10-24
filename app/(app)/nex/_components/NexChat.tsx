@@ -21,6 +21,8 @@ export function NexChat() {
   const messages = active?.messages ?? [];
 
   useEffect(() => {
+    // The empty state must stay scrolled to the top so its title is visible.
+    if (messages.length === 0 && !busy) return;
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages.length, busy]);
 
@@ -171,6 +173,13 @@ export function NexChat() {
                   )}
                 >
                   <span className="sr-only">{message.role === "user" ? m.nex.you : m.nav.nex}: </span>
+                  {message.role === "nex" && (
+                    <span data-simulated-notice className="mb-2 flex w-fit items-center gap-2 rounded-full bg-white/5 px-3 py-1 text-xs text-zinc-400">
+                      <Sparkles aria-hidden className="h-3.5 w-3.5 text-primary" />
+                      {m.nex.simulatedReply}
+                      <span className="sr-only">. </span>
+                    </span>
+                  )}
                   {message.text}
                 </motion.div>
               ))}

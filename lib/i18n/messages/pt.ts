@@ -202,6 +202,7 @@ export const pt: Messages = {
     deleteChat: "Excluir conversa",
     you: "Você",
     disclaimer: "Respostas simuladas: o NEX ainda não está conectado aos seus dados.",
+    simulatedReply: "Resposta simulada com dados de exemplo",
     suggestions: "Sugestões",
     quickActions: "Ações rápidas",
     examples: "Exemplos",

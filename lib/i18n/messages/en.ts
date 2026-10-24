@@ -202,6 +202,7 @@ export const en: Messages = {
     deleteChat: "Delete conversation",
     you: "You",
     disclaimer: "Simulated answers: NEX is not connected to your data yet.",
+    simulatedReply: "Simulated answer with sample data",
     suggestions: "Suggestions",
     quickActions: "Quick actions",
     examples: "Examples",

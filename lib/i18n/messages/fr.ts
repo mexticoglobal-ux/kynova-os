@@ -202,6 +202,7 @@ export const fr: Messages = {
     deleteChat: "Supprimer la conversation",
     you: "Vous",
     disclaimer: "Réponses simulées : NEX n'est pas encore connecté à vos données.",
+    simulatedReply: "Réponse simulée avec des données d'exemple",
     suggestions: "Suggestions",
     quickActions: "Actions rapides",
     examples: "Exemples",

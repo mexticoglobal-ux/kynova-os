@@ -11,6 +11,9 @@ import { useI18n } from "@/components/i18n/I18nProvider";
 import { KpiCard } from "@/components/ui/KpiCard";
 import { AreaChart } from "@/components/charts/AreaChart";
 import { BarList } from "@/components/charts/BarList";
+import { NAV_ICONS } from "@/components/shell/nav-icons";
+
+const DashboardIcon = NAV_ICONS.dashboard;
 
 const stagger = (index: number) => ({ animationDelay: `${index * 60}ms` });
 
@@ -49,7 +52,11 @@ export function DashboardView() {
   return (
     <div className="space-y-6">
       <header className="animate-fade-up">
-        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+        <span className="inline-flex items-center gap-2 rounded-full bg-white/5 px-3 py-1 text-xs text-zinc-400">
+          <DashboardIcon aria-hidden className="h-3.5 w-3.5 text-primary" />
+          {m.common.demoData}
+        </span>
+        <h1 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
           {m.dashboard.greeting}, {data.userName}.
         </h1>
         <p className="mt-2 text-zinc-400">{m.dashboard.subtitle}</p>
@@ -63,7 +70,7 @@ export function DashboardView() {
         ))}
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-3">
+      <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="animate-fade-up glass p-5 sm:p-6 lg:col-span-2" style={stagger(5)}>
           <h2 className="font-medium">{m.dashboard.revenueTrend}</h2>
           <div className="mt-4">

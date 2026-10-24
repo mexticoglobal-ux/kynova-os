@@ -202,6 +202,7 @@ export const ja: Messages = {
     deleteChat: "会話を削除",
     you: "あなた",
     disclaimer: "シミュレーション回答：NEX はまだあなたのデータに接続されていません。",
+    simulatedReply: "サンプルデータによるシミュレーション回答",
     suggestions: "おすすめ",
     quickActions: "クイックアクション",
     examples: "例",
