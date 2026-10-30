@@ -1,0 +1,194 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "model": "opusplan",
+  "permissions": {
+    "defaultMode": "default",
+    "disableBypassPermissionsMode": "disable",
+    "allow": [
+      "Bash(npm run dev)",
+      "Bash(npm run build)",
+      "Bash(npm run lint:*)",
+      "Bash(npm run test:*)",
+      "Bash(npm test:*)",
+      "Bash(npx tsc --noEmit:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git branch:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh pr diff:*)",
+      "Bash(gh pr checks:*)",
+      "Bash(gh issue view:*)",
+      "Bash(gh issue list:*)",
+      "Bash(gh run list:*)",
+      "Bash(gh run view:*)",
+      "Bash(npx wrangler whoami)",
+      "Bash(npx wrangler types:*)",
+      "Bash(npx opennextjs-cloudflare build:*)",
+      "Bash(npx supabase status:*)",
+      "Bash(npx supabase migration list:*)",
+      "Bash(npx supabase gen types:*)",
+      "WebFetch(domain:nextjs.org)",
+      "WebFetch(domain:react.dev)",
+      "WebFetch(domain:tailwindcss.com)",
+      "WebFetch(domain:developers.cloudflare.com)",
+      "WebFetch(domain:supabase.com)",
+      "WebFetch(domain:docs.github.com)",
+      "WebFetch(domain:docs.anthropic.com)",
+      "mcp__github__get_issue",
+      "mcp__github__list_issues",
+      "mcp__github__get_pull_request",
+      "mcp__github__list_pull_requests",
+      "mcp__github__get_file_contents",
+      "mcp__github__search_code",
+      "mcp__supabase__list_tables",
+      "mcp__supabase__list_migrations",
+      "mcp__supabase__list_extensions",
+      "mcp__supabase__generate_typescript_types",
+      "mcp__supabase__search_docs"
+    ],
+    "ask": [
+      "Bash(npm install:*)",
+      "Bash(npm i:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(npx:*)",
+      "Bash(git push:*)",
+      "Bash(git reset:*)",
+      "Bash(git rebase:*)",
+      "Bash(git checkout:*)",
+      "Bash(git switch:*)",
+      "Bash(git merge:*)",
+      "Bash(git tag:*)",
+      "Bash(gh pr create:*)",
+      "Bash(gh pr merge:*)",
+      "Bash(gh pr comment:*)",
+      "Bash(gh release:*)",
+      "Bash(gh api:*)",
+      "Bash(curl:*)",
+      "Bash(npx wrangler deploy:*)",
+      "Bash(npx wrangler secret:*)",
+      "Bash(npx wrangler kv:*)",
+      "Bash(npx wrangler r2:*)",
+      "Bash(npx opennextjs-cloudflare deploy:*)",
+      "Bash(npx opennextjs-cloudflare preview:*)",
+      "Bash(npx supabase migration new:*)",
+      "Bash(npx supabase db push:*)",
+      "Bash(npx supabase db reset:*)",
+      "Bash(npx supabase link:*)",
+      "mcp__supabase__execute_sql",
+      "mcp__supabase__apply_migration",
+      "Edit(./supabase/migrations/**)",
+      "Edit(./wrangler.jsonc)",
+      "Edit(./.mcp.json)",
+      "Edit(./.github/workflows/**)",
+      "Edit(./.claude/settings.json)",
+      "Edit(./AGENTS.md)",
+      "Edit(./CLAUDE.md)",
+      "Edit(./package.json)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./**/.env)",
+      "Read(./**/.env.*)",
+      "Read(./.dev.vars)",
+      "Read(./**/.dev.vars)",
+      "Read(./**/*.pem)",
+      "Read(./**/*.key)",
+      "Read(./secrets/**)",
+      "Read(./supabase/.temp/**)",
+      "Read(./node_modules/**)",
+      "Read(./.next/**)",
+      "Read(./.open-next/**)",
+      "Read(./.wrangler/**)",
+      "Read(./.vercel/**)",
+      "Read(./coverage/**)",
+      "Read(./**/*.zip)",
+      "Read(./package-lock.json)",
+      "Edit(./.env)",
+      "Edit(./.env.*)",
+      "Edit(./.dev.vars)",
+      "Edit(./**/*.pem)",
+      "Edit(./**/*.key)",
+      "Bash(cat .env:*)",
+      "Bash(cat ./.env:*)",
+      "Bash(cat .dev.vars:*)",
+      "Bash(printenv:*)",
+      "Bash(env)",
+      "Bash(rm -rf:*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git push origin --force:*)",
+      "Bash(git clean:*)",
+      "Bash(npm publish:*)",
+      "Bash(npx wrangler delete:*)",
+      "Bash(npx supabase db reset --linked:*)",
+      "Bash(npx supabase projects delete:*)",
+      "mcp__supabase__delete_branch",
+      "mcp__supabase__pause_project"
+    ]
+  },
+  "env": {
+    "MAX_MCP_OUTPUT_TOKENS": "15000",
+    "BASH_MAX_OUTPUT_LENGTH": "20000"
+  },
+  "enableAllProjectMcpServers": false,
+  "enabledMcpjsonServers": [
+    "github",
+    "cloudflare",
+    "supabase"
+  ],
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-context.mjs\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-architecture.mjs\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/verify.mjs\"",
+            "timeout": 120
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/memory-reminder.mjs\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

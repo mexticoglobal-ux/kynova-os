@@ -1,0 +1,51 @@
+name: Worker build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: worker-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks-and-build:
+    name: Checks and Cloudflare Worker build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # These are disposable CI values; no account credentials are used during a build.
+      SUPABASE_URL: https://kynova-test.supabase.co
+      SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_only
+      SPIKE_SECRET_CANARY: kynova-ci-canary-not-a-secret
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Build Cloudflare Preview Worker
+        run: npm run build:worker
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run tests
+        run: npm run test
+
+      - name: Check browser assets for the CI canary
+        run: npm run spike:check-canary
