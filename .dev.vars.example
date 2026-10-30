@@ -1,3 +1,8 @@
 # Copy to .dev.vars for local development with the Workers runtime. Never commit .dev.vars.
 # Selects which Next.js .env files are loaded locally (OpenNext). Defaults to "production" when unset.
 NEXTJS_ENV=development
+
+# Supabase spike only. Add real disposable project values to .dev.vars (never commit that file).
+# SUPABASE_URL=https://your-test-project.supabase.co
+# SUPABASE_PUBLISHABLE_KEY=sb_publishable_replace_me
+# SPIKE_SECRET_CANARY=replace_with_a_random_test_string

@@ -3,10 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import clsx from "clsx";
 import { AnimatePresence, m as motion } from "framer-motion";
-import { Bot, Building2, History, Lightbulb, Mail, Megaphone, MessageSquarePlus, Receipt, SendHorizontal, Sparkles, Trash2 } from "lucide-react";
+import { Bot, Building2, ClipboardList, History, Lightbulb, Mail, Megaphone, MessageSquarePlus, Receipt, SendHorizontal, Sparkles, Trash2 } from "lucide-react";
 import { askNex } from "@/lib/nex";
 import type { Message } from "@/types";
 import { useI18n } from "@/components/i18n/I18nProvider";
+import { AssessmentFlow } from "./AssessmentFlow";
 import { useConversations } from "./useConversations";
 
 const QUICK_ACTION_ICONS = [Mail, Megaphone, Receipt, Building2];
@@ -17,6 +18,7 @@ export function NexChat() {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [assessing, setAssessing] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const messages = active?.messages ?? [];
@@ -53,6 +55,7 @@ export function NexChat() {
   function startNew() {
     setActiveId(null);
     setFailed(false);
+    setAssessing(false);
     setShowHistory(false);
   }
 
@@ -131,8 +134,10 @@ export function NexChat() {
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto px-4 py-6" aria-live="polite">
-          {messages.length === 0 ? (
+        <div data-nex-scroll className="flex-1 overflow-y-auto px-4 py-6" aria-live="polite">
+          {messages.length === 0 && assessing ? (
+            <AssessmentFlow onExit={() => setAssessing(false)} />
+          ) : messages.length === 0 ? (
             <div className="mx-auto max-w-2xl">
               <h2 className="text-center text-2xl font-semibold sm:text-3xl">{m.nex.title}</h2>
               <h3 className="mt-8 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
@@ -148,6 +153,10 @@ export function NexChat() {
               </div>
               <h3 className="mt-8 text-xs font-medium uppercase tracking-wide text-zinc-400">{m.nex.quickActions}</h3>
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <button type="button" onClick={() => setAssessing(true)} className="flex items-center gap-3 rounded-xl border border-primary/40 bg-primary/10 p-3 text-left text-sm transition hover:bg-primary/15">
+                  <ClipboardList aria-hidden className="h-4 w-4 shrink-0 text-primary" />
+                  {m.nex.assessment.start}
+                </button>
                 {m.nex.quickActionItems.map((item, index) => {
                   const Icon = QUICK_ACTION_ICONS[index] ?? Sparkles;
                   return (

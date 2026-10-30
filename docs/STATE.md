@@ -7,13 +7,13 @@
 
 | Área | Estado |
 |------|--------|
-| Producto | Demo navegable: landing, pricing, dashboard, NEX simulado, 8 módulos con datos de demostración y 4 páginas "Próximamente"; 8 idiomas (ADR-0004) |
-| Framework KAF | v1 cerrado; hooks sin probar en sesión, MCP y CI pendientes |
+| Producto | Demo navegable: landing, pricing, dashboard, NEX simulado, 8 módulos con datos de demostración y 4 páginas "Próximamente"; 8 idiomas (ADR-0004). NEX incluye el Business Assessment v0: autodiagnóstico de 6 preguntas con recomendación de módulos por reglas, solo en memoria y sin guardar nada |
+| Framework KAF | v1 cerrado; hooks sin probar en sesión, MCP pendiente y CI preparado para primera ejecución |
 | Datos | Sin base de datos, autenticación ni tenancy; datos simulados en `lib/modules/` (ADR-0005) |
 | IA | NEX simulado por intención en `lib/nex.ts`; sin proveedor conectado |
 | Plataforma | Worker `kynova-os-preview` en `https://kynova-os-preview.novamarketingstudiocr.workers.dev`, versión activa `fadec4a0` (ADR-0002, fases 0–3); producción sin desplegar |
 | Repositorio | Rama local `sprint-4`: `55b93b4` (KAF v1 + Sprint 4) y `ed96ca0` (código del Preview `fadec4a0`); sin push |
-| Verificación | `typecheck` ✅ · `lint` ✅ (0 avisos) · `test` ✅ (36) · `build` ✅ (23 rutas estáticas) · sin CI |
+| Verificación | `typecheck` ✅ · `lint` ✅ (0 avisos) · `test` ✅ (36) · `build` ✅ (23 rutas estáticas) · workflow de CI configurado localmente; ejecución en GitHub pendiente |
 | Rendimiento | PageSpeed Insights (2026-10-24), Rendimiento móvil/escritorio: `/` 96/100 · `/dashboard` 100/100 · `/nex` 99/100 · `/sales` 100/100 · `/pricing` 100/100; Accesibilidad, Buenas prácticas y SEO 100; sin datos de uso real |
 | Entorno local | Node.js v24.22.1 y npm 11.19.1; Chromium de Playwright instalado; el editor necesita reiniciarse para ver Node en el PATH |
 
@@ -28,7 +28,8 @@
 | `lib/i18n/` (8 diccionarios tipados, carga bajo demanda) | ✅ (ADR-0004) |
 | `lib/contracts/` (módulo, dashboard) · `lib/modules/` (datos simulados y registro) | ✅ (ADR-0005) |
 | SEO: metadatos por ruta, canonical, Open Graph, Twitter, `robots`, `sitemap`, schema.org, favicon, manifest | ✅ |
-| `lib/db/`, `lib/ai/`, `supabase/`, `.mcp.json`, `.github/` | ❌ |
+| `lib/db/`, `lib/ai/`, `supabase/`, `.mcp.json` | ❌ |
+| `.github/workflows/worker-build.yml` | ⚠ CI preparado; pendiente de conectar el checkout con GitHub y ejecutarlo |
 
 ## 3. Rutas
 
@@ -86,7 +87,7 @@ Hallazgos aceptados de `/code-review` (`ed96ca0`), no son deuda:
 1. Confirmar `kynova.ai` (D23), decidir la caché del HTML (D21) y ejecutar la fase 4 de ADR-0002 con aprobación.
 2. Revisar contenido de landing y pricing con negocio y legal (D16, D25).
 3. Escribir tests end-to-end de las rutas y del cambio de idioma (D5); formatear con Prettier (D15).
-4. Crear `.mcp.json` y `.github/` con CI (D20).
-5. Registrar ADR-0006 datos y tenancy (Supabase + RLS) e implementar `lib/db/` y autenticación (D7).
+4. Conectar el repositorio a GitHub y ejecutar el workflow de CI del ADR-0007; el checkout actual tiene un `origin` local y todavía no se ha confirmado una ejecución de GitHub Actions (D20).
+5. Registrar ADR-0006 datos y tenancy (Supabase + RLS) e implementar `lib/db/` y autenticación (D7); requisito también para guardar o reutilizar el Business Assessment y crear un perfil de empresa.
 6. Corregir los seguimientos de NEX (D27, D28) y conectarlo a Workers AI vía `lib/ai/` y AI Gateway, mostrando el aviso solo en respuestas simuladas (D8).
 7. Sustituir los datos simulados de los módulos por datos reales, empezando por Clients y Sales.

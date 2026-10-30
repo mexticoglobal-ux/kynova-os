@@ -129,7 +129,7 @@ bindings de IA, datos y caché se añaden con sus propios ADRs.
 3. Verificación posterior según `framework/workflows/release.md`.
 
 ### Fase 5 — Automatización y limpieza
-1. Despliegue de preview por pull request y de producción tras fusionar en la rama principal (con el ADR de CI).
+1. Validar calidad y build del Worker en CI según ADR-0007. El workflow no despliega; cualquier despliegue de Preview o producción requiere su autorización correspondiente.
 2. Actualizar `README.md` con los comandos de desarrollo, preview y despliegue.
 3. Retirar el proyecto de Pages, si existía, tras un periodo de estabilidad.
 4. Marcar este ADR como Aceptado e implementado en `docs/STATE.md`.

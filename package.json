@@ -25,10 +25,13 @@
     "test:coverage": "vitest run --coverage --passWithNoTests",
     "test:e2e": "playwright test --pass-with-no-tests",
     "test:e2e:install": "playwright install --with-deps chromium",
+    "spike:check-canary": "node scripts/check-spike-canary.mjs",
     "check": "npm run typecheck && npm run lint && npm run format:check && npm run test && npm run build"
   },
   "dependencies": {
     "@opennextjs/cloudflare": "^1.20.13",
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.118.0",
     "clsx": "^2.1.1",
     "framer-motion": "^11.11.0",
     "lucide-react": "^0.453.0",

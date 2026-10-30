@@ -19,6 +19,7 @@ Definición del asistente: `docs/DOMAIN.md` §3.
 | Recibir recomendaciones con su justificación | Núcleo |
 | Ejecutar una acción propuesta tras confirmarla | Ampliación |
 | Retomar conversaciones anteriores | Ampliación |
+| Hacer un autodiagnóstico guiado del negocio (Business Assessment v0) | Ampliación |
 
 ## Fuera de alcance
 - Configuración del comportamiento de NEX: corresponde a AI Studio.
@@ -31,12 +32,14 @@ Definición del asistente: `docs/DOMAIN.md` §3.
 | Mensaje | Pregunta del usuario o respuesta de NEX | Confidencial | Usuario dentro del tenant |
 | Capacidad | Tarea concreta que NEX sabe realizar, con su nivel de autonomía | Interno | Plataforma |
 | Acción propuesta | Acción con efectos que NEX ofrece ejecutar y que requiere confirmación | Confidencial | Tenant |
+| Autodiagnóstico (v0) | Respuestas a 6 preguntas cerradas y su resumen con 2–3 módulos recomendados por reglas | Confidencial | Solo en memoria durante la sesión; no se guarda |
 
 ## Reglas de negocio
 1. Toda respuesta basada en datos indica de qué datos procede.
 2. Si NEX no tiene datos suficientes, lo dice; no inventa.
 3. Una acción propuesta caduca si los datos en que se basa cambian antes de confirmarla.
 4. Las conversaciones solo son visibles para su autor.
+5. El autodiagnóstico v0 recomienda módulos con reglas deterministas basadas solo en las respuestas del usuario, indica las respuestas que realmente justifican cada recomendación (máximo 3 módulos; el tercero solo con evidencia suficiente; el sector Inmobiliario siempre incluye Propiedades; los empates se resuelven de forma determinista sin favorecer el orden del menú), avisa de que los módulos enlazados pueden contener datos de demostración, muestra "Autodiagnóstico orientativo · no se guarda" y no persiste nada. Guardar o reutilizar sus resultados requiere ADR de datos y tenancy.
 
 ## Capacidades de NEX
 | Capacidad | Nivel |
