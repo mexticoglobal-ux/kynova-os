@@ -1,7 +1,7 @@
 # STATE — KYNOVA OS
 
 > Memoria viva del proyecto. Debe caber en una pantalla y reflejar el código real.
-> Última actualización: 2026-10-24 · Framework: KAF v1 · Producto: 0.1.0
+> Última actualización: 2026-10-31 · Framework: KAF v1 · Producto: 0.1.0
 
 ## 1. Estado actual del proyecto
 
@@ -12,8 +12,8 @@
 | Datos | Sin base de datos, autenticación ni tenancy; datos simulados en `lib/modules/` (ADR-0005) |
 | IA | NEX simulado por intención en `lib/nex.ts`; sin proveedor conectado |
 | Plataforma | Worker `kynova-os-preview` en `https://kynova-os-preview.novamarketingstudiocr.workers.dev`, versión activa `fadec4a0` (ADR-0002, fases 0–3); producción sin desplegar |
-| Repositorio | Rama local `sprint-4`: `55b93b4` (KAF v1 + Sprint 4) y `ed96ca0` (código del Preview `fadec4a0`); sin push |
-| Verificación | `typecheck` ✅ · `lint` ✅ (0 avisos) · `test` ✅ (36) · `build` ✅ (23 rutas estáticas) · workflow de CI configurado localmente; ejecución en GitHub pendiente |
+| Repositorio | PR #1 abierto hacia `main`; rama `ci/linux-validation-on-main`, head `d858741`; integración de Cloudflare retirada de este repositorio |
+| Verificación | GitHub Actions ✅ en `d858741` (build de Worker, typecheck, lint, tests y canario); el check antiguo de Cloudflare sigue rojo en ese commit |
 | Rendimiento | PageSpeed Insights (2026-10-24), Rendimiento móvil/escritorio: `/` 96/100 · `/dashboard` 100/100 · `/nex` 99/100 · `/sales` 100/100 · `/pricing` 100/100; Accesibilidad, Buenas prácticas y SEO 100; sin datos de uso real |
 | Entorno local | Node.js v24.22.1 y npm 11.19.1; Chromium de Playwright instalado; el editor necesita reiniciarse para ver Node en el PATH |
 
@@ -66,7 +66,7 @@ Pendientes de producto: datos reales en todos los módulos; AI Studio sin ruta; 
 | D25 | Testimonios ilustrativos y comparativa con competidores en la landing pública | Requiere revisión legal y de marketing antes de producción |
 | D27 | NEX: el scroll automático depende solo de `messages.length` y `busy`; al abrir otra conversación del historial no se desplaza a su último mensaje (preexistente, `/code-review` de `ed96ca0`) | La conversación abierta puede mostrarse a mitad |
 | D28 | NEX: `send()` no envuelve `await askNex` en `try/finally` (preexistente, `/code-review` de `ed96ca0`) | Si `askNex` falla, `busy` queda activo y el chat se bloquea; relevante al conectar un proveedor (D8) |
-| D29 | El check externo "Workers Builds: kynova-os" (app de Cloudflare conectada al repositorio) falla en el PR #1 con "Preview creation failed: This Worker does not exist on your account"; apunta al Worker `kynova-os` en producción, que no figura en la cuenta, y `wrangler.jsonc` usa `kynova-os-local` como nombre raíz (los entornos son `kynova-os-preview` y `kynova-os`). Causa exacta sin confirmar: requiere el panel de Cloudflare | No es un fallo del código: GitHub Actions pasa. Se resuelve solo en la cuenta (desactivar *Enable Preview Builds* en Settings › Build › Branch control, o reconectar el repositorio a un Worker existente). Antes de fusionar a `main` con la integración activa, revisar su comando de deploy (AGENTS.md §7.11) |
+| D29 | El check histórico "Workers Builds: kynova-os" falla en el head `d858741` del PR #1 porque el Worker `kynova-os` no existe; `wrangler.jsonc` conserva `kynova-os-local` como nombre raíz y entornos `kynova-os-preview`/`kynova-os` | Se quitó únicamente `kynova-os` del acceso de la app de Cloudflare Workers and Pages; `casa-glam`, `santa-catalina` y `nova-marketing` siguen conectados. El check rojo ya registrado no cambia, pero la app no debe crear checks ni desplegar este repositorio en commits futuros. GitHub Actions pasa; no se creó Worker ni se desplegó producción |
 
 Resuelto: **D26** (rendimiento) con `LazyMotion` estricto, entradas y partículas en CSS y LCP sin depender de JS; confirmado por PageSpeed Insights el 2026-10-24 (ver §1).
 
@@ -79,16 +79,16 @@ Hallazgos aceptados de `/code-review` (`ed96ca0`), no son deuda:
 
 **ADR-0002 — OpenNext + Cloudflare Workers**
 - **Hecho:** fases 0–3; preview desplegado y verificado; proyecto de Pages `kynova-os` eliminado.
-- **Pendiente:** fase 4 (dominio y producción) y fase 5 (CI, README, limpieza).
-- **Bloqueos:** D23 y D21.
-- **Siguiente paso:** confirmar la titularidad de `kynova.ai`.
+- **Pendiente:** fase 4 (dominio y producción); el dominio aún no se ha comprado y no hace falta para desarrollar ni probar la preview.
+- **Hecho en fase 5:** README de Workers y CI de GitHub Actions; la integración automática de Cloudflare se retiró solo de este repositorio.
+- **Bloqueos para producción:** D21 (caché HTML), D23 (dominio/DNS) y D25 (revisión de marketing y legal).
 
 ## 6. Próximos pasos
 
 1. Confirmar `kynova.ai` (D23), decidir la caché del HTML (D21) y ejecutar la fase 4 de ADR-0002 con aprobación.
 2. Revisar contenido de landing y pricing con negocio y legal (D16, D25).
 3. Escribir tests end-to-end de las rutas y del cambio de idioma (D5); formatear con Prettier (D15).
-4. Conectar el repositorio a GitHub y ejecutar el workflow de CI del ADR-0007; el checkout actual tiene un `origin` local y todavía no se ha confirmado una ejecución de GitHub Actions (D20).
+4. Revisar y fusionar el PR #1 después de la revisión final; Actions está en verde, el fallo de Cloudflare es histórico y no bloquea el código.
 5. Registrar ADR-0006 datos y tenancy (Supabase + RLS) e implementar `lib/db/` y autenticación (D7); requisito también para guardar o reutilizar el Business Assessment y crear un perfil de empresa.
 6. Corregir los seguimientos de NEX (D27, D28) y conectarlo a Workers AI vía `lib/ai/` y AI Gateway, mostrando el aviso solo en respuestas simuladas (D8).
 7. Sustituir los datos simulados de los módulos por datos reales, empezando por Clients y Sales.
