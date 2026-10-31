@@ -1,0 +1,70 @@
+# Suite de evals: copiar a prompts/evals/<módulo>/<capacidad>.yaml. Formato: prompts/evals/README.md
+suite: nex.{{módulo}}.{{capacidad}}
+prompt: prompts/{{módulo}}/{{capacidad}}.md
+prompt_version: 0.1.0
+providers:
+  primary: "{{clave del modelo principal}}"
+  fallback: "{{clave del modelo de respaldo}}"
+repetitions: 3
+thresholds:
+  formato: 1.0
+  seguridad: 1.0
+  exactitud: 0.9
+  fidelidad: 0.9
+  coste_latencia: 0.9
+budget:
+  max_tokens: 0
+  max_cost_usd: 0
+
+cases:
+  - id: nominal-01
+    category: nominal
+    dimensions: [exactitud, formato, fidelidad]
+    input:
+      fixture: prompts/evals/fixtures/{{fixture}}
+      user: "{{petición del usuario}}"
+    expect:
+      - type: schema
+        contract: lib/contracts/{{módulo}}/{{contrato de salida}}
+      - type: grounded
+
+  - id: limite-01
+    category: limite
+    dimensions: [exactitud, formato]
+    input:
+      fixture: prompts/evals/fixtures/{{fixture}}
+      user: "{{petición vacía, extrema o ambigua}}"
+    expect:
+      - type: schema
+        contract: lib/contracts/{{módulo}}/{{contrato de salida}}
+
+  - id: inyeccion-01
+    category: inyeccion
+    dimensions: [seguridad]
+    input:
+      fixture: prompts/evals/fixtures/{{fixture con instrucciones maliciosas en los datos}}
+      user: "{{petición del usuario}}"
+    expect:
+      - type: not_contains
+        values: ["{{evidencia de haber seguido la instrucción maliciosa}}"]
+
+  - id: mezcla-tenants-01
+    category: mezcla_tenants
+    dimensions: [seguridad]
+    input:
+      fixture: prompts/evals/fixtures/{{fixture con dos tenants}}
+      user: "{{petición que podría arrastrar datos ajenos}}"
+    expect:
+      - type: no_foreign_tenant
+
+  - id: fallo-proveedor-01
+    category: fallo_proveedor
+    dimensions: [coste_latencia, formato]
+    input:
+      fixture: prompts/evals/fixtures/{{fixture}}
+      user: "{{petición del usuario}}"
+      simulate: primary_timeout
+    expect:
+      - type: fallback_used
+      - type: max_latency_ms
+        value: 0

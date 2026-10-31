@@ -1,0 +1,61 @@
+name: RLS isolation
+
+# Applies the tenancy migration to an ephemeral Postgres and runs the tenant-isolation and
+# minimum-privilege tests (ADR-0006). The Postgres service is created and destroyed per run:
+# no Supabase project, no Cloudflare account and no real credentials are involved.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rls-isolation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rls-isolation:
+    name: Tenant isolation (ephemeral Postgres)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          # Throwaway value for a container that only lives for this job; it is not a secret.
+          POSTGRES_PASSWORD: ci-only-throwaway
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: ci-only-throwaway
+      PGDATABASE: postgres
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Ensure the PostgreSQL client is available
+        run: command -v psql || (sudo apt-get update && sudo apt-get install -y --no-install-recommends postgresql-client)
+
+      - name: Create Supabase stand-ins (CI only)
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/00_bootstrap.sql
+
+      - name: Apply migrations in order
+        run: |
+          for file in $(ls supabase/migrations/*.sql | sort); do
+            echo "Applying $file"
+            psql -v ON_ERROR_STOP=1 -f "$file"
+          done
+
+      - name: Run isolation and privilege tests
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/isolation.sql
