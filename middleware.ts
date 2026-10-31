@@ -37,4 +37,4 @@ export async function middleware(request: NextRequest) {
   return response;
 }
 
-export const config = { matcher: ["/spike/:path*", "/api/spike/:path*"] };
+export const config = { matcher: ["/spike/:path*", "/api/spike/:path*", "/api/profile/:path*"] };

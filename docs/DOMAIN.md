@@ -18,6 +18,7 @@
 | **Business Health Score** | Puntuación de 0 a 100 que resume el estado del negocio del tenant a partir de sus áreas funcionales. |
 | **Acción recomendada** | Sugerencia priorizada que NEX genera a partir de los datos del tenant. Nunca se ejecuta sin confirmación del usuario. |
 | **Business Assessment** | Autodiagnóstico guiado por NEX sobre la situación del negocio. La v0 usa 6 preguntas cerradas, vive solo en memoria durante la sesión y no crea ni actualiza ningún perfil de empresa. |
+| **Perfil de empresa (Business Profile v1)** | Perfil vigente de un tenant: nombre comercial, país, idioma y las seis respuestas cerradas del Business Assessment. Uno por tenant; solo lo escribe un propietario (ADR-0006). Núcleo implementado, pendiente de Go; aún sin pantalla ni guardado desde el Assessment. |
 
 ## 2. KYNOVA
 

@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |-------|-------|
-| **Estado** | Propuesto (borrador revisado) |
+| **Estado** | Aceptado, condicionado al Go del spike (2026-10-31; ver "Adenda") |
 | **Fecha** | 2026-10-28 |
 | **Decisores** | Jeffrey Hernandez |
 | **Etiquetas** | datos · tenancy · seguridad · plataforma |
@@ -159,6 +159,20 @@ Hasta la Fase 2 basta con eliminar los proyectos de desarrollo y preview: el Ass
 7. **Entorno para datos reales del piloto:** pendiente; Preview solo con datos ficticios.
 8. Alcance del perfil v1 (las seis respuestas más nombre comercial, país e idioma) y guardado opt-in.
 9. Verificar la existencia de una línea de trabajo paralela o del ZIP de la Entrega 15 (no verificado).
+
+## Adenda 2026-10-31: aceptación condicionada y núcleo previo al Go
+
+**Decidido (Jeffrey Hernandez, al aprobar el plan de la Fase 1b):**
+- Se aceptan las decisiones 1 a 4 y 8: Supabase como Opción A, criterios del spike y plan ante un No-Go, acceso por correo sin contraseñas, roles propietario y miembro con un tenant por empresa, y perfil v1 con guardado opt-in.
+- Las decisiones 5 a 7 (región, retención y eliminación, entorno de datos reales) siguen pendientes. **Solo bloquean datos reales**, no el desarrollo ni las pruebas con datos ficticios. La 9 sigue sin verificar.
+- **Estado del código: "Implementado, pendiente de Go".** El núcleo de la Fase 1b se escribe antes de que el spike se valide contra un proyecto Supabase real porque es inerte sin `SUPABASE_URL` y `SUPABASE_PUBLISHABLE_KEY`. No se considera validado, ni se usa con datos reales, ni se despliega a producción hasta cumplir los criterios A y B (incluidos A1 y B4: un JWT vigente puede seguir aceptándose tras revocar la sesión; sin validar). Un No-Go obliga a revisar este ADR.
+
+**Autorizado por esta adenda (`AGENTS.md` §7.7):**
+- Carpeta de primer nivel `supabase/`: migraciones, `seed.sql` ficticio y pruebas SQL en `supabase/tests/`. Las migraciones solo se aplican a proyectos de desarrollo desechables, desde el editor SQL, nunca con `supabase db push` sin aprobación.
+- Un job de GitHub Actions con un Postgres efímero que aplica la migración y ejecuta las pruebas de aislamiento y permisos mínimos. El esquema `auth` simulado de ese job no es el de Supabase: que pase demuestra el SQL, no la integración. La misma batería debe ejecutarse también en el proyecto de desarrollo.
+- Endpoint `/api/profile` (lectura y escritura del perfil de la empresa del usuario), sin pantallas nuevas ni textos en 8 idiomas: la interfaz pertenece a la Fase 2.
+
+**Compromisos que se mantienen:** consultas solo con el JWT del usuario (nunca clave secreta), tipos de base de datos generados y no escritos a mano (`lib/db/database.types.ts` se genera cuando exista el proyecto; entretanto las filas se validan con los contratos), sin DELETE del perfil en v1 y sin datos reales de Nova.
 
 ## Revisión
 Tras el spike, al cerrar el piloto, o antes si se necesita SSO, varias regiones o roles por workspace.

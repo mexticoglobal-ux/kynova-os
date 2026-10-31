@@ -11,6 +11,25 @@ Este código y el esquema `schema.sql` sirven únicamente para probar autenticac
 5. Ejecutar `schema.sql` una vez, en orden. Bloque 0 modifica permisos por defecto del rol `postgres`; su `REVOKE EXECUTE` global afecta a funciones futuras en todos los esquemas. Nunca copiar el Bloque 0 a producción.
 6. Añadir las variables a `.dev.vars` local; no incluir valores reales en Git ni en el chat.
 
+## Flujo real de tenancy (ADR-0006, fase 1b)
+
+La migración `supabase/migrations/20261031000000_tenancy_core.sql` reemplaza a las tablas `tenants` y `memberships` de `schema.sql` (añade el rol y `business_profiles`). **No ejecutes los dos en el mismo proyecto**: ambos crean esas tablas. Orden para un proyecto desechable nuevo, siempre desde el editor SQL y sin `supabase db push`:
+
+1. Bloque 0 de `schema.sql` (líneas de `alter default privileges`): solo para este proyecto desechable.
+2. La migración `20261031000000_tenancy_core.sql`.
+3. `supabase/seed.sql`, sustituyendo los dos correos de los usuarios A y B. Usa los mismos UUID de empresa que el spike.
+4. Pruebas del aislamiento: `supabase/tests/isolation.sql` está pensado para el Postgres efímero de CI (usa un `auth` simulado y crea datos propios); en Supabase usa las verificaciones V2 a V8 de `schema.sql` adaptadas y las pruebas manuales de abajo.
+5. Opcional, para seguir probando `/spike` y `/api/spike/items`: ejecuta solo las sentencias de `spike_items` de `schema.sql` (tabla, índice, permisos, RLS, políticas y filas ficticias). Dependen de `private.is_member`, que ya crea la migración.
+
+Prueba manual del perfil (inicio de sesión por código en `/spike/login`, luego en la misma sesión del navegador):
+
+- `GET /api/profile` con A: devuelve la empresa A, rol `owner` y el perfil. Con B: la empresa B y `profile: null` hasta crearlo. Con C: `404 no_tenant`. Sin sesión: `401`.
+- `PUT /api/profile` con A o B (JSON con `Content-Type: application/json`, campos `tradeName`, `country`, `locale` y las seis respuestas): crea o actualiza **solo el perfil de su propia empresa**. El cuerpo no puede elegir el tenant ni el autor: una clave extra da `400`.
+- Con una membresía `member` (no propietario): `GET` funciona y `PUT` da `403`.
+- Las respuestas llevan `Cache-Control: private, no-store`.
+
+Estado: **implementado, pendiente de Go**. Nada de esto se ha ejecutado contra un proyecto Supabase real; las pruebas automáticas cubren los contratos, la capa de datos y el endpoint con un cliente simulado, y el SQL se prueba en CI sobre un Postgres efímero.
+
 ## Variables locales
 
 ```text

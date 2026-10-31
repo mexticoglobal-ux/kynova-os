@@ -35,6 +35,8 @@ Permitir al tenant administrar su organización, sus usuarios, su plan y sus pre
 | Invitación | Solicitud pendiente para que una persona se una al tenant | Confidencial | Tenant |
 | Suscripción | Plan contratado, periodo y estado de pago del tenant | Restringido | Tenant |
 | Preferencias | Configuración regional y de notificaciones de un usuario o del tenant | Interno | Usuario o tenant |
+| Perfil de empresa | Nombre comercial, país, idioma y seis respuestas cerradas del Business Assessment; uno por tenant (ADR-0006). Lectura para miembros, escritura solo para propietarios, sin borrado en v1. Núcleo y `/api/profile` implementados, pendientes de Go; la pantalla llega en la fase 2 | Confidencial | Tenant |
+| Membresía | Relación usuario ↔ tenant con rol `owner` o `member`; solo lectura desde la API, se gestiona por vías administrativas hasta definir las invitaciones | Restringido | Tenant |
 
 ## Reglas de negocio
 1. Un tenant tiene siempre al menos un administrador activo.
