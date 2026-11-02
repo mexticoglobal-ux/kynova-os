@@ -5,7 +5,8 @@ import { POST as requestOtp } from "./request/route";
 import { POST as signOut } from "./sign-out/route";
 import { POST as verifyOtp } from "./verify/route";
 
-const ORIGIN = "https://kynova.test";
+// An allowed spike origin (lib/db/supabase-spike-config.ts): the request route refuses any other.
+const ORIGIN = "http://localhost:3000";
 
 function post(path: string, init: { contentType?: string; body?: string } = {}) {
   const headers: Record<string, string> = { origin: ORIGIN };

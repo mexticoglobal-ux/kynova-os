@@ -316,7 +316,7 @@ export const ja: Messages = {
     sendCode: "コードを送信",
     code: "6 桁のコード",
     verifyCode: "コードを確認",
-    checkEmail: "アカウントが存在する場合、許可された受信箱でコードを確認してください。",
+    checkEmail: "アカウントが存在する場合、許可された受信箱を確認し、リンクを使うかコードを入力してください。",
     signedOut: "サインアウトしました。",
     authRequired: "続行するにはテストアカウントでサインインしてください。",
     setup: ".dev.vars に必要な変数を追加してテストプロジェクトを設定してください。",

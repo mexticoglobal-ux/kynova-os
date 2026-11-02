@@ -320,7 +320,7 @@ export const de: Messages = {
     sendCode: "Code senden",
     code: "Bestätigungscode (6–10 Ziffern)",
     verifyCode: "Code prüfen",
-    checkEmail: "Falls das Konto existiert, prüfe das autorisierte Postfach auf den Code.",
+    checkEmail: "Falls das Konto existiert, prüfe das autorisierte Postfach. Nutze den Link oder gib den Code ein.",
     signedOut: "Abgemeldet.",
     authRequired: "Melde dich mit einem Testkonto an, um fortzufahren.",
     setup: "Das Testprojekt ist nicht konfiguriert. Ergänze die erforderlichen Variablen in .dev.vars.",

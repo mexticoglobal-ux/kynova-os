@@ -320,7 +320,7 @@ export const pt: Messages = {
     sendCode: "Enviar código",
     code: "Código de verificação (6–10 dígitos)",
     verifyCode: "Verificar código",
-    checkEmail: "Se a conta existir, confira a caixa autorizada para receber o código.",
+    checkEmail: "Se a conta existir, confira a caixa autorizada. Use o link ou digite o código.",
     signedOut: "Sessão encerrada.",
     authRequired: "Entre com uma conta de teste para continuar.",
     setup: "O projeto de teste não está configurado. Adicione as variáveis necessárias em .dev.vars.",

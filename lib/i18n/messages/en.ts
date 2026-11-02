@@ -320,7 +320,7 @@ export const en: Messages = {
     sendCode: "Send code",
     code: "Verification code (6–10 digits)",
     verifyCode: "Verify code",
-    checkEmail: "If the account exists, check its authorized inbox for the code.",
+    checkEmail: "If the account exists, check its authorized inbox. Use the link or enter the code.",
     signedOut: "Signed out.",
     authRequired: "Sign in with a test account to continue.",
     setup: "The test project is not configured. Add the required variables to .dev.vars.",

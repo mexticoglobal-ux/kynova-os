@@ -9,7 +9,7 @@
 |------|--------|
 | Producto | Demo navegable: landing, pricing, dashboard, NEX simulado, 8 módulos con datos de demostración y 4 páginas "Próximamente"; 8 idiomas (ADR-0004). NEX incluye el Business Assessment v0: autodiagnóstico de 6 preguntas con recomendación de módulos por reglas, solo en memoria y sin guardar nada |
 | Framework KAF | v1 cerrado; hooks sin probar en sesión, MCP pendiente y CI preparado para primera ejecución |
-| Datos | Núcleo de tenancy **implementado, pendiente de Go** (ADR-0006, fase 1b): migración con RLS y permisos mínimos, `lib/db/tenancy.ts` y `/api/profile` tras el inicio de sesión por código OTP. Sin proyecto Supabase configurado, no aplicado a ningún entorno y sin datos reales; los módulos siguen con datos simulados en `lib/modules/` (ADR-0005) |
+| Datos | Núcleo de tenancy **implementado, pendiente de Go** (ADR-0006, fase 1b): migración con RLS y permisos mínimos, `lib/db/tenancy.ts` y `/api/profile`. Proyecto Supabase desechable configurado; migración, seed y 13 controles SQL pasan. Nova Marketing Studio está como tenant A de prueba; tipos y validación real de Auth/Workers pendientes |
 | IA | NEX simulado por intención en `lib/nex.ts`; sin proveedor conectado |
 | Plataforma | Worker `kynova-os-preview` en `https://kynova-os-preview.novamarketingstudiocr.workers.dev`, versión activa `fadec4a0` (ADR-0002, fases 0–3); producción sin desplegar |
 | Repositorio | PR #1 abierto hacia `main`; rama `ci/linux-validation-on-main`; integración de Cloudflare retirada de este repositorio |
@@ -28,7 +28,7 @@
 | `lib/i18n/` (8 diccionarios tipados, carga bajo demanda) | ✅ (ADR-0004) |
 | `lib/contracts/` (módulo, dashboard) · `lib/modules/` (datos simulados y registro) | ✅ (ADR-0005) |
 | SEO: metadatos por ruta, canonical, Open Graph, Twitter, `robots`, `sitemap`, schema.org, favicon, manifest | ✅ |
-| `lib/db/` (cliente de usuario, spike y `tenancy.ts`) · `lib/contracts/tenancy.ts` · `middleware.ts` · `supabase/` (migración, seed ficticio, pruebas SQL) | ⚠ Implementado, pendiente de Go (ADR-0006); sin tipos generados (D31) |
+| `lib/db/` (cliente de usuario, spike y `tenancy.ts`) · `lib/contracts/tenancy.ts` · `middleware.ts` · `supabase/` (migración, seed ficticio, pruebas SQL) | ⚠ Implementado, pendiente de Go (ADR-0006); proyecto desechable y controles SQL reales listos; sin tipos generados (D31) |
 | `lib/ai/`, `.mcp.json` | ❌ |
 | `.github/workflows/worker-build.yml` · `.github/workflows/rls-isolation.yml` | ✅ Ejecutándose en GitHub Actions |
 
@@ -53,7 +53,7 @@ Pendientes de producto: datos reales en todos los módulos; AI Studio sin ruta; 
 | D4 | Scripts de `.claude/hooks/` sin probar en una sesión con Node en el PATH | Guardas automáticas no verificadas |
 | D5 | Sin tests end-to-end escritos (Playwright instalado) | Regresiones de UI sin red de seguridad automatizada |
 | D6 | Producción sin desplegar | ADR-0002, fases 4–5 |
-| D7 | Autenticación OTP y núcleo de tenancy implementados pero **sin validar**: no hay proyecto Supabase, A1/B4 (JWT vigente tras revocar la sesión) y los criterios A/B del ADR-0006 siguen pendientes; los módulos no leen datos reales | Bloquea datos reales; ningún Go declarado |
+| D7 | Núcleo de tenancy y callback PKCE para enlace mágico implementados; el formulario conserva OTP. Proyecto desechable y controles SQL reales (13/13) listos; Nova está como tenant A con datos de evaluación de muestra. Falta SMTP propio para enviar a cuentas externas al equipo de Supabase y completar Auth real A/B/C; A1/B4 y Workers/Preview siguen pendientes | Bloquea pruebas Auth externas y Go completo |
 | D8 | NEX simulado en cliente; el aviso "Respuesta simulada" se muestra en toda respuesta de NEX (`role === "nex"`), también en conversaciones guardadas | Al conectar un proveedor vía `lib/ai/` y API, marcar cada mensaje como simulado o real y mostrar el aviso solo en los simulados |
 | D14 | Tabla de RULES en `CLAUDE.md` §5 no lista `security.md` ni `architecture.md` | Documentación incompleta; la carga por ruta funciona |
 | D15 | Código sin formato Prettier | `npm run format:check` y `npm run check` fallan hasta formatear |
@@ -70,7 +70,7 @@ Pendientes de producto: datos reales en todos los módulos; AI Studio sin ruta; 
 | D28 | NEX: `send()` no envuelve `await askNex` en `try/finally` (preexistente, `/code-review` de `ed96ca0`) | Si `askNex` falla, `busy` queda activo y el chat se bloquea; relevante al conectar un proveedor (D8) |
 | D29 | El check histórico "Workers Builds: kynova-os" falla en el head `d858741` del PR #1 porque el Worker `kynova-os` no existe; `wrangler.jsonc` conserva `kynova-os-local` como nombre raíz y entornos `kynova-os-preview`/`kynova-os` | Se quitó únicamente `kynova-os` del acceso de la app de Cloudflare Workers and Pages; `casa-glam`, `santa-catalina` y `nova-marketing` siguen conectados. El check rojo ya registrado no cambia, pero la app no debe crear checks ni desplegar este repositorio en commits futuros. GitHub Actions pasa; no se creó Worker ni se desplegó producción |
 | D30 | Los módulos del spike conservan su nombre (`lib/db/supabase-spike*.ts`, `lib/contracts/supabase-spike.ts`, rutas `/api/spike/auth/*`) y el nuevo `/api/profile` los reutiliza | Renombrar a nombres de producto cuando haya Go; mientras tanto el código de producto depende de módulos "spike" |
-| D31 | `lib/db/database.types.ts` no existe: no hay proyecto Supabase ni CLI/Docker local (D19) para generarlo (`AGENTS.md` §7.3); las filas se validan con parsers de `lib/contracts/tenancy.ts` | Generar los tipos y tiparlos en `lib/db/tenancy.ts` en cuanto exista el proyecto desechable |
+| D31 | `lib/db/database.types.ts` no existe. La CLI 2.122.0 falló al pedir tipos con `GenTypesNetworkError: TransportError`; el botón oficial del dashboard se activó, pero no se pudo confirmar la descarga. El token personal temporal, limitado a lectura de DB en este proyecto, quedó sin uso y fue eliminado | Recuperar el archivo desde el generador del dashboard o resolver la conexión CLI; después tipar `lib/db/tenancy.ts` |
 | D32 | Hallazgos de `/code-review` aceptados por alcance. **Tenancy:** no hay alta de empresas ni membresías (`authenticated` solo lee y `service_role` no tiene privilegios): hoy es manual desde el editor SQL; país e idioma se validan por forma, no con listas cerradas; el límite de cuerpo se basa solo en `Content-Length`; los workflows corren dos veces por commit (`push` y `pull_request`). **Assessment v0 / NEX:** el foco de teclado se pierde tras responder, la barra de progreso usa estilo inline y no marca el paso actual, `aria-live` anidado y doble clic que puede contestar dos preguntas | Onboarding e invitaciones son parte de la fase 2; los de NEX/Assessment, mejoras de accesibilidad y robustez a abordar con su propia tarea |
 
 Resuelto: **D26** (rendimiento) con `LazyMotion` estricto, entradas y partículas en CSS y LCP sin depender de JS; confirmado por PageSpeed Insights el 2026-10-24 (ver §1).
@@ -90,7 +90,9 @@ Hallazgos aceptados de `/code-review` (`ed96ca0`), no son deuda:
 
 **ADR-0006 — Datos y tenancy (Supabase + RLS + Auth)** — aceptado, condicionado al Go del spike
 - **Hecho:** fase 1b escrita y probada sin credenciales: migración `supabase/migrations/20261031000000_tenancy_core.sql`, pruebas SQL de aislamiento en CI, contratos, `lib/db/tenancy.ts` y `/api/profile` (pruebas unitarias).
-- **Pendiente (único paso externo):** aprovisionar el proyecto Supabase desechable (usuarios A/B/C, plantilla OTP, Bloque 0, migración y seed) y poner `SUPABASE_URL` y `SUPABASE_PUBLISHABLE_KEY` en `.dev.vars`; después generar los tipos (D31) y ejecutar las pruebas manuales del spike, incluidas A1/B4.
+- **Hecho:** proyecto Supabase desechable, usuarios A/B/C, Bloque 0, migración, seed ficticio y 13 controles SQL reales (todos PASS). La URL y clave publicable se usaron solo en el entorno local temporal, sin leer ni modificar `.dev.vars`.
+- **Hecho:** callback PKCE agregado para enlaces mágicos y URLs permitidas para localhost, Preview local y el Worker de Preview; el código OTP se mantiene.
+- **Pendiente:** configurar SMTP propio para que Supabase envíe a las cuentas A/B/C fuera del equipo, recuperar los tipos remotos (D31) y hacer pruebas manuales A/B/C y A1/B4; después probar Preview/Workers.
 - **Siguiente:** Go o No-Go con evidencia (`docs/supabase-spike/RESULTADO.md`); con Go, fase 2 (pantalla de perfil, guardar el Assessment, exportación y borrado).
 
 ## 6. Próximos pasos

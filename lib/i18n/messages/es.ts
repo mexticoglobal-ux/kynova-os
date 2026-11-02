@@ -379,7 +379,7 @@ export const es = {
     sendCode: "Enviar código",
     code: "Código de verificación (6–10 dígitos)",
     verifyCode: "Verificar código",
-    checkEmail: "Si la cuenta existe, revisa el buzón autorizado para el código.",
+    checkEmail: "Si la cuenta existe, revisa el buzón autorizado: puedes usar el enlace o ingresar el código.",
     signedOut: "Sesión cerrada.",
     authRequired: "Inicia sesión con una cuenta de prueba para continuar.",
     setup: "Falta configurar el proyecto de prueba. Añade las variables indicadas en .dev.vars.",

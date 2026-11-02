@@ -299,7 +299,7 @@ export const zh: Messages = {
     sendCode: "发送验证码",
     code: "验证码（6–10 位）",
     verifyCode: "验证代码",
-    checkEmail: "如果账户存在，请在获准的邮箱中查收验证码。",
+    checkEmail: "如果账户存在，请检查获准的邮箱，并使用登录链接或输入验证码。",
     signedOut: "已退出登录。",
     authRequired: "请使用测试账户登录后继续。",
     setup: "测试项目尚未配置。请在 .dev.vars 中添加所需变量。",

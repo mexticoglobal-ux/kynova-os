@@ -5,10 +5,10 @@ Este código y el esquema `schema.sql` sirven únicamente para probar autenticac
 ## Requisitos antes de ejecutar
 
 1. Crear un proyecto Supabase exclusivo para la prueba.
-2. Crear tres usuarios confirmados y ficticios: A y B con membresía separada; C sin membresía. No usar datos reales de Nova.
-3. En Auth, configurar la plantilla *Magic Link* para que el correo contenga solo el código `{{ .Token }}`. El spike usa un **código OTP que se escribe en `/spike/login`, no un enlace de acceso**: admite de 6 a 10 dígitos según `OTP length` del proyecto (el valor predeterminado de Supabase es 6). No existe ruta de callback, no se pasa `emailRedirectTo` y las URLs de redirección no intervienen. No incluyas `{{ .ConfirmationURL }}` en la plantilla; un enlace en el correo no completaría ningún inicio de sesión.
+2. En el proyecto desechable, crear tres usuarios confirmados: A y B con membresías separadas; C sin membresía. Nova está configurada como tenant A solo en este proyecto de prueba; conserva únicamente las respuestas sintéticas del cuestionario.
+3. El spike acepta el código OTP de 6–10 dígitos o el enlace mágico de la plantilla predeterminada. Los enlaces vuelven a `/api/spike/auth/callback` mediante PKCE; añade el callback a Authentication › URL Configuration › Redirect URLs para cada origen de prueba. La aplicación solo envía enlaces para los orígenes de `SPIKE_ALLOWED_ORIGINS` (`localhost:3000`, `localhost:8787` y el Worker de Preview); cualquier otro recibe `403 origin_not_allowed` (ADR-0008). Abre el correo en el mismo navegador donde pediste el enlace.
 4. Configurar la entrega de correo. El SMTP integrado de Supabase solo envía a direcciones autorizadas de la organización; si los buzones de prueba no están autorizados, usar SMTP propio para el proyecto desechable.
-5. Ejecutar `schema.sql` una vez, en orden. Bloque 0 modifica permisos por defecto del rol `postgres`; su `REVOKE EXECUTE` global afecta a funciones futuras en todos los esquemas. Nunca copiar el Bloque 0 a producción.
+5. No ejecutar `schema.sql` completo en el proyecto que ya tiene la migración de tenancy. Para un proyecto desechable nuevo, sigue el orden específico de abajo: el Bloque 0 modifica permisos por defecto del rol `postgres` y su `REVOKE EXECUTE` global afecta a funciones futuras en todos los esquemas; nunca copiarlo a producción.
 6. Añadir las variables a `.dev.vars` local; no incluir valores reales en Git ni en el chat.
 
 ## Flujo real de tenancy (ADR-0006, fase 1b)
@@ -18,7 +18,7 @@ La migración `supabase/migrations/20261031000000_tenancy_core.sql` reemplaza a 
 1. Bloque 0 de `schema.sql` (líneas de `alter default privileges`): solo para este proyecto desechable.
 2. La migración `20261031000000_tenancy_core.sql`.
 3. `supabase/seed.sql`, sustituyendo los dos correos de los usuarios A y B. Usa los mismos UUID de empresa que el spike.
-4. Pruebas del aislamiento: `supabase/tests/isolation.sql` está pensado para el Postgres efímero de CI (usa un `auth` simulado y crea datos propios); en Supabase usa las verificaciones V2 a V8 de `schema.sql` adaptadas y las pruebas manuales de abajo.
+4. Verificación del proyecto: ejecuta `supabase/tests/verify_project.sql` (solo lectura, no necesita correos). Debe devolver todas las filas en `PASS`. **No ejecutes `supabase/tests/isolation.sql` en Supabase:** está pensado para el Postgres efímero de CI (inserta usuarios en un `auth` simulado y crea sus propios datos); en Supabase el aislamiento se prueba con la API (abajo).
 5. Opcional, para seguir probando `/spike` y `/api/spike/items`: ejecuta solo las sentencias de `spike_items` de `schema.sql` (tabla, índice, permisos, RLS, políticas y filas ficticias). Dependen de `private.is_member`, que ya crea la migración.
 
 Prueba manual del perfil (inicio de sesión por código en `/spike/login`, luego en la misma sesión del navegador):
@@ -28,7 +28,7 @@ Prueba manual del perfil (inicio de sesión por código en `/spike/login`, luego
 - Con una membresía `member` (no propietario): `GET` funciona y `PUT` da `403`.
 - Las respuestas llevan `Cache-Control: private, no-store`.
 
-Estado: **implementado, pendiente de Go**. Nada de esto se ha ejecutado contra un proyecto Supabase real; las pruebas automáticas cubren los contratos, la capa de datos y el endpoint con un cliente simulado, y el SQL se prueba en CI sobre un Postgres efímero.
+Estado: **Go parcial, pendiente de completar pruebas en Workers/Preview**. En el proyecto Supabase desechable la migración, seed y 13 controles de estructura, permisos y RLS pasaron. En desarrollo local se verificó OTP y aislamiento A/B/C. Aún falta repetir Auth, cookies, renovación de sesión y las comprobaciones de endpoints en `npm run preview` y en el Worker de Preview; esto no autoriza producción.
 
 ## Variables locales
 
@@ -42,10 +42,10 @@ La clave publicable sí puede usarse desde el servidor del spike. No se configur
 
 ## Flujo de prueba
 
-- `http://localhost:3000/spike/login` (desarrollo) o `http://127.0.0.1:8787/spike/login` (`npm run preview`): solicita un OTP por correo y verifica el código recibido (de 6 a 10 dígitos; sin enlace de acceso). Una persona ya autenticada que abre esta ruta es redirigida a `/spike`.
+- `http://localhost:3000/spike/login` (desarrollo) o `http://localhost:8787/spike/login` (`npm run preview`): **usa `localhost`, no `127.0.0.1`** (ADR-0008: Next resuelve la URL a `localhost` y la solicitud se rechazaría con 403). Solicita código OTP o enlace mágico para una cuenta existente. Una persona ya autenticada que abre esta ruta es redirigida a `/spike`.
 - Un cuerpo de formulario ilegible en las rutas de solicitud y verificación recibe `400 {"error":"invalid_request"}`.
-- `http://127.0.0.1:8787/spike`: muestra las filas que RLS deja ver a la sesión autenticada.
-- `http://127.0.0.1:8787/api/spike/items`: responde 401 sin sesión; con A/B devuelve solo sus filas; con C devuelve una lista vacía.
+- `http://localhost:8787/spike`: muestra las filas que RLS deja ver a la sesión autenticada.
+- `http://localhost:8787/api/spike/items`: responde 401 sin sesión; con A/B devuelve solo sus filas; con C devuelve una lista vacía.
 - La consulta del endpoint no filtra por `tenant_id`: el aislamiento debe provenir de RLS.
 - Las páginas y respuestas del spike tienen `Cache-Control: private, no-store`.
 - `npm run spike:check-canary` escanea los assets del navegador y no muestra el valor de la canaria.

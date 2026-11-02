@@ -1,19 +1,36 @@
 # Resultado del spike de Supabase
 
 **Estado:** Go parcial local — OTP y aislamiento RLS comprobados; Worker/Preview pendiente  
-**Última revisión:** 2026-10-29  
+**Última revisión:** 2026-10-31
 **Rama:** `spike-supabase`
 
 Este informe distingue las comprobaciones locales de las pruebas de integración. Los resultados locales no demuestran compatibilidad con Workers, entrega de correo ni aislamiento real por RLS.
+
+## Evidencia del proyecto Supabase desechable · 2026-10-31
+
+| Comprobación | Resultado | Alcance |
+|---|---|---|
+| Proyecto desechable, usuarios A/B/C, Bloque 0, migración y seed ficticio | Configurados | El seed deja A y B como dueños de sus empresas de prueba y C sin membresía |
+| `supabase/tests/verify_project.sql` | **13/13 PASS** | Verificación SQL de estructura, grants, RLS y datos esperados en el proyecto real |
+| Nova Marketing Studio como tenant A de prueba | Configurada | Actualizado en el proyecto desechable y confirmado por SQL; se conservaron las respuestas sintéticas del cuestionario |
+| Callback de enlace mágico PKCE | Implementado | `/api/spike/auth/callback` intercambia `code` en el servidor; OTP numérico sigue disponible. URLs de retorno de localhost, Preview local y Worker permitidas en Supabase |
+| Envío de correo Auth a cuentas externas | **Bloqueado por SMTP** | El proveedor integrado de Supabase solo envía a miembros del equipo (2 correos/hora). SMTP propio es necesario para probar A/B/C |
+| Plantilla de correo OTP | Opcional | Ya no hace falta modificarla para probar enlaces mágicos; editarla y recibir códigos sigue requiriendo SMTP propio |
+| Registros de Auth en el dashboard | Sin datos disponibles | No fue posible obtener de Logs el detalle del error del envío |
+| Tipos remotos | **Pendiente** | CLI oficial 2.122.0 respondió `GenTypesNetworkError: TransportError`. Se activó el botón oficial de generación del dashboard, pero no se pudo confirmar ni localizar el archivo descargado. El token de lectura, limitado a este proyecto y 24 horas, nunca se usó y fue eliminado |
+
+La configuración local de URL y clave publicable se usó como variable temporal de proceso; `.dev.vars` no se leyó ni se modificó. El correo se revisó únicamente para buscar el mensaje de Supabase de esta prueba. No se exponen aquí códigos de acceso ni secretos.
 
 ## Evidencia local
 
 | Comprobación | Resultado | Alcance |
 |---|---|---|
 | ESLint | Pasa sin avisos | Código de la rama aislada |
-| TypeScript | Pasa | Código de la rama aislada |
-| Vitest | 68/68 antes de las correcciones A4/A5/A6; subconjunto del spike 19/19 antes de los cambios recientes de OTP/cookie. El intento actual no pudo cargar la configuración por el bloqueo de esbuild en Windows | Suite actual pendiente; el fallo ocurrió antes de iniciar pruebas |
-| `next build` | Pasa | Build estándar de Next.js; no es el bundle de Workers |
+| TypeScript | Pasa tras callback PKCE | `npm run typecheck` |
+| Vitest | Pasa (2026-11-02): 16 archivos, 142 tests | `npm run test` completo en local. Incluye el callback PKCE (cookies de sesión `HttpOnly`/`SameSite=Lax`/`Path=/`, cookie temporal del correo limpiada con su misma ruta, intercambio fallido sin cookies) y el origen de `emailRedirectTo`: origen no permitido → `403 origin_not_allowed` sin enviar correo (ADR-0008). Cliente de Supabase simulado: no prueba Auth real |
+| `typecheck` y `lint` completos | Pasan (2026-11-02) | `npm run typecheck`, `npm run lint` |
+| ESLint del cambio | Pasa | Rutas de Auth, test nuevo y diccionarios; la compilación global no terminó |
+| `next build` | Pendiente | Wrangler no pudo escribir su registro/configuración en AppData por permisos del entorno |
 | Canario señuelo | Pasa: 66 assets de navegador, sin coincidencias | Assets estáticos de `.next`; no incluye el Worker de OpenNext |
 | Build de OpenNext para Cloudflare | Pendiente de ejecutar en Linux CI | El build local choca con el acceso del sandbox de Windows a un directorio padre; ADR-0007 y workflow configurados, aún no conectados a GitHub |
 | OTP por correo en `localhost:3000` | Pasa | Código de ocho dígitos recibido y verificado; sesión abierta con una cuenta ficticia |
@@ -34,7 +51,7 @@ Este informe distingue las comprobaciones locales de las pruebas de integración
 | B4. Sesión inválida/cerrada | Parcial — sin resolver | Cierre local redirige a `signed_out`; falta probar API sin sesión, cookie manipulada y reutilizar un JWT anterior al cierre. Un JWT vigente podría aceptarse hasta caducar; no validado |
 | B5. Sin caché compartida | Parcial | Código y build local configuran `private, no-store`; confirmar encabezados en `preview` y Worker |
 | B6. Igualdad local/Preview | Pendiente | Repetir el mismo flujo en `npm run preview` y en el Worker de Preview |
-| RLS y permisos mínimos | Parcial local | El endpoint aisló A/B y devolvió cero filas a C. Falta repetir V1–V8 y permisos mínimos en Workers/Preview |
+| RLS y permisos mínimos | **SQL real: PASS (13/13)**; API: parcial local | `verify_project.sql` pasó en el proyecto desechable. El endpoint local aisló A/B y devolvió cero filas a C. Falta repetir el flujo de Auth y V1–V8 en Workers/Preview |
 
 ## Revisión de seguridad del código
 
@@ -45,7 +62,9 @@ Este informe distingue las comprobaciones locales de las pruebas de integración
 | A5. `request.formData()` sin manejo de errores en solicitud y verificación OTP | Corregido en código (400 uniforme); cubierto por prueba local |
 | A6. La cookie del correo se borraba con otra ruta | Corregido en código (opciones compartidas) y prueba local |
 
-Las correcciones no sustituyen las pruebas con Supabase y Workers de la tabla anterior. Siguen fuera de alcance de esta revisión: límites de intentos (rate limiting), cabeceras de seguridad y la ubicación de las consultas.
+**Configuración de Auth observada en el dashboard, 2026-11-02 (solo lectura):** límites de Supabase Auth en 30 solicitudes/5 min para inicio de sesión y verificación OTP/enlace, 150 renovaciones/5 min; SMTP personalizado desactivado. CAPTCHA y bloqueo de contraseñas filtradas están desactivados. Estos límites protegen los endpoints de Auth de Supabase; no añaden rate limiting a la aplicación ni sustituyen las cabeceras de seguridad.
+
+Las correcciones no sustituyen las pruebas con Supabase y Workers de la tabla anterior. Siguen pendientes rate limiting a nivel de aplicación, cabeceras de seguridad, confirmar la protección CSRF en Workers y revisar la ubicación de las consultas.
 
 ## Decisión provisional
 
@@ -53,10 +72,8 @@ Las correcciones no sustituyen las pruebas con Supabase y Workers de la tabla an
 
 ## Para cerrar el informe
 
-1. Proyecto desechable, OTP por correo, SQL ficticio y tres cuentas A/B/C ya preparados y probados localmente.
-2. Proyecto y OTP real ya configurados localmente; repetir el flujo con `npm run preview` y confirmar atributos de cookies.
-3. Las cuentas A/B/C y las filas ficticias ya están configuradas; completar V1–V8 de permisos en Preview.
-4. Las variables locales ya están configuradas; no copiar sus valores a Git ni al chat.
-5. Ejecutar el flujo con A, B y C en `npm run preview`; confirmar filas visibles, cookies y encabezados de caché.
-6. Conectar el repositorio con GitHub y ejecutar ADR-0007; después completar el runtime de Cloudflare en Preview. Cualquier despliegue remoto requiere autorización expresa y repetir las mismas pruebas en el Worker de Preview.
-7. Reemplazar este estado parcial por Go, No-Go o Go con alternativa, citando la evidencia y los riesgos abiertos.
+1. Configurar SMTP propio en Authentication › SMTP Settings para que Supabase envíe enlaces a las cuentas A/B/C.
+2. Recuperar desde el generador oficial del dashboard `lib/db/database.types.ts` o resolver el error de transporte de la CLI; tipar después `lib/db/tenancy.ts`.
+3. Completar Auth A/B/C, cookies y B4; después repetir RLS y cabeceras en Preview/Workers.
+4. Mantener `.dev.vars` fuera de Git y del chat; documentar si las variables locales temporales se sustituyen por configuración local persistente.
+5. Reemplazar este estado parcial por Go, No-Go o Go con alternativa, citando la evidencia y los riesgos abiertos.
