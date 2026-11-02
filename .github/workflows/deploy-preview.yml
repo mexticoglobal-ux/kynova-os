@@ -1,6 +1,9 @@
 name: Deploy Preview
 
 on:
+  push:
+    branches:
+      - ci/linux-validation-on-main
   workflow_dispatch:
     inputs:
       confirm_preview:
@@ -17,7 +20,7 @@ concurrency:
 
 jobs:
   deploy:
-    if: ${{ inputs.confirm_preview == 'PREVIEW' }}
+    if: ${{ (github.event_name == 'workflow_dispatch' && inputs.confirm_preview == 'PREVIEW') || (github.event_name == 'push' && github.event.head_commit.message == 'chore: deploy Preview once [deploy-preview]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
