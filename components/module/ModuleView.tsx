@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { AlertTriangle, Plug, ShieldCheck, Sparkles, Star, Target, TrendingUp, Zap, type LucideIcon } from "lucide-react";
 import type { ModuleKey } from "@/config/site";
 import type { InsightIcon } from "@/lib/contracts/module";
@@ -24,7 +24,8 @@ const INSIGHT_ICONS: Record<InsightIcon, LucideIcon> = {
 
 const stagger = (index: number) => ({ animationDelay: `${index * 50}ms` });
 
-export function ModuleView({ moduleKey }: { moduleKey: ModuleKey }) {
+// `children` renders right below the page header, for a module that has real (non-demo) content to show first.
+export function ModuleView({ moduleKey, children }: { moduleKey: ModuleKey; children?: ReactNode }) {
   const { m, tag } = useI18n();
   const [notice, setNotice] = useState<string | null>(null);
   const copy = m.modules[moduleKey];
@@ -65,6 +66,8 @@ export function ModuleView({ moduleKey }: { moduleKey: ModuleKey }) {
           {notice}
         </p>
       </section>
+
+      {children}
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {data.kpis.map((kpi, index) => (

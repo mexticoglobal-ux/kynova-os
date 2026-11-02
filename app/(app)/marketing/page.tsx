@@ -1,6 +1,7 @@
 import { ModuleView } from "@/components/module/ModuleView";
 import { es } from "@/lib/i18n/messages/es";
 import { pageMetadata } from "@/lib/seo/metadata";
+import { CreatorStudio } from "./_components/CreatorStudio";
 
 export const metadata = pageMetadata({
   title: es.modules.marketing.title,
@@ -9,5 +10,9 @@ export const metadata = pageMetadata({
 });
 
 export default function MarketingPage() {
-  return <ModuleView moduleKey="marketing" />;
+  return (
+    <ModuleView moduleKey="marketing">
+      <CreatorStudio />
+    </ModuleView>
+  );
 }

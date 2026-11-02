@@ -28,6 +28,14 @@ Prueba manual del perfil (inicio de sesión por código en `/spike/login`, luego
 - Con una membresía `member` (no propietario): `GET` funciona y `PUT` da `403`.
 - Las respuestas llevan `Cache-Control: private, no-store`.
 
+Prueba manual de la pantalla (`/settings`, bajo la cabecera de Ajustes; inicia sesión antes en `/spike/login` con la cuenta A o B, en el mismo navegador y con `localhost`):
+
+- Con **A**: aparece "Empresa de prueba A", rol Propietario y el formulario con el perfil del seed. Cambia el nombre comercial, guarda y comprueba "Perfil guardado."; recarga y confirma que persiste.
+- Con **B** (sin perfil): el nombre se rellena con el de la empresa y las seis respuestas están por elegir; "Guardar" sin completarlas muestra el aviso sin llamar a la API; completa, guarda y recarga.
+- Con **C** (sin empresa): mensaje "Tu cuenta aún no pertenece a ninguna empresa."; sin sesión: mensaje y enlace "Iniciar sesión".
+- Con una membresía `member`: formulario de solo lectura, sin botón de guardar.
+- Cambia el idioma de la interfaz y comprueba que los textos del perfil se traducen. Usa **solo datos ficticios**.
+
 Estado: **Go parcial, pendiente de completar pruebas en Workers/Preview**. En el proyecto Supabase desechable la migración, seed y 13 controles de estructura, permisos y RLS pasaron. En desarrollo local se verificó OTP y aislamiento A/B/C. Aún falta repetir Auth, cookies, renovación de sesión y las comprobaciones de endpoints en `npm run preview` y en el Worker de Preview; esto no autoriza producción.
 
 ## Variables locales

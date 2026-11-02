@@ -39,8 +39,8 @@
 | Pública | `/`, `/pricing` | Completas |
 | Pública "Próximamente" | `/docs`, `/academy`, `/marketplace`, `/contact` | Placeholder con botón Volver |
 | App | `/dashboard`, `/nex` | Completas con datos simulados |
-| Módulos | `/sales`, `/marketing`, `/clients`, `/properties`, `/automation`, `/finance`, `/analytics`, `/settings` | Vista común con datos simulados |
-| API (requiere sesión) | `GET`/`PUT /api/profile` (empresa y perfil del usuario) · spike: `/spike/login`, `/spike`, `/api/spike/*` | Implementadas, pendientes de Go; sin pantalla de perfil (fase 2) |
+| Módulos | `/sales`, `/marketing`, `/clients`, `/properties`, `/automation`, `/finance`, `/analytics`, `/settings` | Vista común con datos simulados; `/settings` añade el **perfil de empresa real** y `/marketing` el **estudio de creadores** (YouTube sin mostrar la cara, solo local al navegador; ver abajo) |
+| API (requiere sesión) | `GET`/`PUT /api/profile` (empresa y perfil del usuario) · spike: `/spike/login`, `/spike`, `/api/spike/*` | Implementadas, pendientes de Go; `/api/profile` la consume la pantalla de perfil de `/settings` |
 | Sistema | `/robots.txt`, `/sitemap.xml`, `/manifest.webmanifest`, `/icon.svg`, `/apple-icon`, `/opengraph-image` | ✅ |
 
 Pendientes de producto: datos reales en todos los módulos; AI Studio sin ruta; Marketplace, Academy y Docs como placeholders.
@@ -72,6 +72,7 @@ Pendientes de producto: datos reales en todos los módulos; AI Studio sin ruta; 
 | D30 | Los módulos del spike conservan su nombre (`lib/db/supabase-spike*.ts`, `lib/contracts/supabase-spike.ts`, rutas `/api/spike/auth/*`) y el nuevo `/api/profile` los reutiliza | Renombrar a nombres de producto cuando haya Go; mientras tanto el código de producto depende de módulos "spike" |
 | D31 | `lib/db/database.types.ts` no existe. La CLI 2.122.0 falló al pedir tipos con `GenTypesNetworkError: TransportError`; el botón oficial del dashboard se activó, pero no se pudo confirmar la descarga. El token personal temporal, limitado a lectura de DB en este proyecto, quedó sin uso y fue eliminado | Recuperar el archivo desde el generador del dashboard o resolver la conexión CLI; después tipar `lib/db/tenancy.ts` |
 | D32 | Hallazgos de `/code-review` aceptados por alcance. **Tenancy:** no hay alta de empresas ni membresías (`authenticated` solo lee y `service_role` no tiene privilegios): hoy es manual desde el editor SQL; país e idioma se validan por forma, no con listas cerradas; el límite de cuerpo se basa solo en `Content-Length`; los workflows corren dos veces por commit (`push` y `pull_request`). **Assessment v0 / NEX:** el foco de teclado se pierde tras responder, la barra de progreso usa estilo inline y no marca el paso actual, `aria-live` anidado y doble clic que puede contestar dos preguntas | Onboarding e invitaciones son parte de la fase 2; los de NEX/Assessment, mejoras de accesibilidad y robustez a abordar con su propia tarea |
+| D33 | Estudio de creadores (Marketing) v0: se guarda solo en el navegador (sin tenant, sin copia de seguridad, no se comparte entre dispositivos ni personas); el contenido de muestra solo está en español; el recuento de palabras y la duración se calculan por espacios, así que no sirven para guiones en japonés o chino; sin exportación ni ayuda de NEX | Para uso real hay que persistirlo por tenant (ADR-0006, fases 2 y 3) y decidir exportación y NEX; hasta entonces solo contenido ficticio |
 
 Resuelto: **D26** (rendimiento) con `LazyMotion` estricto, entradas y partículas en CSS y LCP sin depender de JS; confirmado por PageSpeed Insights el 2026-10-24 (ver §1).
 
@@ -93,7 +94,14 @@ Hallazgos aceptados de `/code-review` (`ed96ca0`), no son deuda:
 - **Hecho:** proyecto Supabase desechable, usuarios A/B/C, Bloque 0, migración, seed ficticio y 13 controles SQL reales (todos PASS). La URL y clave publicable se usaron solo en el entorno local temporal, sin leer ni modificar `.dev.vars`.
 - **Hecho:** callback PKCE agregado para enlaces mágicos y URLs permitidas para localhost, Preview local y el Worker de Preview; el código OTP se mantiene.
 - **Pendiente:** configurar SMTP propio para que Supabase envíe a las cuentas A/B/C fuera del equipo, recuperar los tipos remotos (D31) y hacer pruebas manuales A/B/C y A1/B4; después probar Preview/Workers.
-- **Siguiente:** Go o No-Go con evidencia (`docs/supabase-spike/RESULTADO.md`); con Go, fase 2 (pantalla de perfil, guardar el Assessment, exportación y borrado).
+- **Hecho:** pantalla mínima de perfil de empresa en Ajustes (`/settings`), conectada a `GET`/`PUT /api/profile`: carga, edición, guardado y mensajes de error y éxito en 8 idiomas; solo para pruebas con datos ficticios (aviso visible en la propia pantalla). Pruebas automáticas con `fetch` simulado; aún sin probar en un navegador real con sesión.
+- **Siguiente:** Go o No-Go con evidencia (`docs/supabase-spike/RESULTADO.md`); con Go, resto de la fase 2 (guardar el Assessment en el perfil, exportación y borrado).
+- **Para que Nova use datos reales** (ADR-0006, todo pendiente): Go del spike; decidir y aprobar el entorno de datos reales (no Preview), la región, la retención y la eliminación; análisis legal aparte; **exportación y borrado del perfil implementados y verificados**; autenticación y aislamiento verificados en ese entorno. Hasta entonces, solo datos ficticios.
+
+**Prueba de Creator Economy con Nova (Marketing)** — v0 local, sin datos reales
+- **Hecho:** estudio de creadores en `/marketing` (bajo la cabecera): tema y audiencia del canal, banco de ideas (prioridad y estado), borradores de guion con recuento de palabras y duración estimada, y calendario y estado de producción (6 etapas). Contenido de muestra ficticio y textos en 8 idiomas. Se guarda solo en el navegador; no usa red, no se conecta a YouTube ni redes y no publica nada. Pruebas automáticas de la lógica y de la interfaz; aún sin probar con Nova en un navegador real.
+- **Sigue siendo demo:** los KPI, las tarjetas y la tabla de campañas de Marketing; el contenido de muestra; los textos de muestra solo están en español.
+- **Siguiente paso:** que Nova pruebe el flujo con contenido ficticio y señale qué falta (campos, etapas, formato de guion); después decidir persistencia por tenant (tras el Go de ADR-0006), ayuda de NEX para ideas y guiones, y exportación de guiones.
 
 ## 6. Próximos pasos
 
@@ -101,6 +109,6 @@ Hallazgos aceptados de `/code-review` (`ed96ca0`), no son deuda:
 2. Revisar contenido de landing y pricing con negocio y legal (D16, D25).
 3. Escribir tests end-to-end de las rutas y del cambio de idioma (D5); formatear con Prettier (D15).
 4. Revisar y fusionar el PR #1 después de la revisión final; Actions está en verde, el fallo de Cloudflare es histórico y no bloquea el código.
-5. Aprovisionar el proyecto Supabase desechable y cerrar el spike con Go o No-Go (ADR-0006, D7, D31); después, fase 2: pantalla de perfil y guardar el Assessment.
+5. Aprovisionar el proyecto Supabase desechable y cerrar el spike con Go o No-Go (ADR-0006, D7, D31); después, el resto de la fase 2: guardar el Assessment en el perfil, exportación y borrado (la pantalla mínima de perfil ya existe).
 6. Corregir los seguimientos de NEX (D27, D28) y conectarlo a Workers AI vía `lib/ai/` y AI Gateway, mostrando el aviso solo en respuestas simuladas (D8).
 7. Sustituir los datos simulados de los módulos por datos reales, empezando por Clients y Sales.
