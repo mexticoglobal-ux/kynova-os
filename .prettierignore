@@ -1,0 +1,11 @@
+.next
+.open-next
+.vercel
+.wrangler
+node_modules
+coverage
+playwright-report
+test-results
+package-lock.json
+next-env.d.ts
+*.zip

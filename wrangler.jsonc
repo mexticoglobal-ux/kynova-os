@@ -1,0 +1,29 @@
+// Cloudflare Workers platform for KYNOVA OS (ADR-0002).
+// Product bindings (AI, KV, R2, Hyperdrive) are added by their own ADRs.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // The root config is local-only: deploying without `--env` must never reach production.
+  "name": "kynova-os-local",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-10-22",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "observability": {
+    "enabled": true
+  },
+  // `services` is not inherited: each environment points the self-reference at its own Worker.
+  "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "kynova-os-local" }],
+  "env": {
+    "preview": {
+      "name": "kynova-os-preview",
+      "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "kynova-os-preview" }]
+    },
+    "production": {
+      "name": "kynova-os",
+      "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "kynova-os" }]
+    }
+  }
+}
