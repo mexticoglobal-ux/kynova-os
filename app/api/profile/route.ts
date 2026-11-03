@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 import { isUuid, parseBusinessProfileInput } from "@/lib/contracts/tenancy";
 import { createSupabaseSpikeServerClient, getSupabaseSpikeConfig } from "@/lib/db/supabase-spike";
+import { getVerifiedSpikeUser } from "@/lib/db/supabase-spike-auth";
 import { hasSameOrigin, isWithinBodyLimit, noStore } from "@/lib/db/supabase-spike-http";
 import { getBusinessProfile, getMyTenant, saveBusinessProfile, type TenancyFailure } from "@/lib/db/tenancy";
 
@@ -28,10 +29,9 @@ async function authenticate(): Promise<Session> {
   if (!getSupabaseSpikeConfig()) return { ok: false, response: fail("not_configured", 503) };
   try {
     const supabase = await createSupabaseSpikeServerClient();
-    const { data, error } = await supabase.auth.getClaims();
-    const userId = data?.claims?.sub;
-    if (error || !isUuid(userId)) return { ok: false, response: fail("unauthorized", 401) };
-    return { ok: true, supabase, userId };
+    const user = await getVerifiedSpikeUser(supabase);
+    if (!user || !isUuid(user.id)) return { ok: false, response: fail("unauthorized", 401) };
+    return { ok: true, supabase, userId: user.id };
   } catch {
     return { ok: false, response: fail("unavailable", 503) };
   }
