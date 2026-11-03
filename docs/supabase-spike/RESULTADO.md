@@ -46,22 +46,27 @@ Worker probado: `kynova-os-preview` en `https://kynova-os-preview.novamarketings
 | Auth OTP en Preview | **Pasa** para las cuentas ficticias A, B y C | Capturas de las sesiones autenticadas; el usuario solicitó y verificó los códigos |
 | Aislamiento A/B | **Pasa** en la interfaz del Worker | A mostró únicamente A-1/A-2 y el tenant A; B mostró únicamente B-1/B-2 y el tenant B |
 | Usuario C sin membresía | **Pasa** en la interfaz del Worker | C inició sesión y la aplicación mostró “Esta cuenta no tiene membresía ni filas visibles” |
-| API para C, sin membresía | **PASS** | `GET /api/spike/items` devolvió `{"items":[]}` y `GET /api/profile` devolvió `404 {"error":"no_tenant"}` |\n| API sin sesión | **PASS, revisión adicional del 2026-11-03** | `GET /api/spike/items` y `GET /api/profile` devolvieron `401 {"error":"unauthorized"}` con `Cache-Control: private, no-store, max-age=0`, `Pragma: no-cache` y `Expires: 0`; se reportó también `PUT` sin sesión y desde otro origen como `403 invalid_origin`. No prueba las respuestas autenticadas con datos |\n| Cookie temporal al cerrar sesión | Parcial | La cookie de limpieza `kynova_spike_email_v2` mostró `Path=/; Max-Age=0; Secure; HttpOnly; SameSite=lax`. No son las cookies de sesión `sb-*`; sus atributos siguen sin observarse |\n| Cookie inválida o manipulada | **401 reportado** | Se indicó `401` y cabeceras `no-store`; no equivale a probar un JWT vigente revocado |
-| Build y despliegue del Worker | **Pasa** en GitHub Actions, head `7da4188681dbe1de39506aeb5a94d77f57dafee9` del PR #1 | El job `deploy` completó correctamente. El workflow está limitado a `kynova-os-preview`; no es un despliegue de producción |
+| API para C, sin membresía | **PASS** | `GET /api/spike/items` devolvió `{"items":[]}` y `GET /api/profile` devolvió `404 {"error":"no_tenant"}` |
+| API sin sesión | **PASS, revisión adicional del 2026-11-03** | `GET /api/spike/items` y `GET /api/profile` devolvieron `401 {"error":"unauthorized"}` con `Cache-Control: private, no-store, max-age=0`, `Pragma: no-cache` y `Expires: 0`; se reportó también `PUT` sin sesión y desde otro origen como `403 invalid_origin`. No prueba las respuestas autenticadas con datos |
+| Cookie temporal al cerrar sesión | Parcial | La cookie de limpieza `kynova_spike_email_v2` mostró `Path=/; Max-Age=0; Secure; HttpOnly; SameSite=lax`. No son las cookies de sesión `sb-*`; sus atributos siguen sin observarse |
+| Cookie inválida o manipulada | **401 reportado** | Se indicó `401` y cabeceras `no-store`; no equivale a probar un JWT vigente revocado |
+| Build del Worker en CI | **Pasa** en Linux, commit `40c32c7` | `npm run build:worker` y `wrangler deploy --dry-run --env preview` completaron; el deploy remoto quedó omitido. Wrangler reportó **7,006.79 KiB total / 1,553.66 KiB gzip**. No se desplegó en este job |
 | Prueba de permisos adversariales por API | **Pendiente** | Las capturas prueban lectura aislada; no prueban aquí intentos directos de escritura entre tenants |
 
 En Preview, C conservó la sesión después de recargar `/spike`. Cloudflare Observability mostró **18 éxitos y 0 errores** durante la última hora revisada (3-nov-2026), con solicitudes a `/spike`, `/api/profile` y `/api/spike/items`. Esto cubre A3 para esa ventana, no constituye garantía de ausencia de errores futuros.
 
-En la revisión adicional del 2026-11-03 se reportó la respuesta 401 sin sesión con `private, no-store`, `Pragma` y `Expires`; las respuestas autenticadas con datos aún no tienen cabeceras verificadas.\n\nLas capturas acreditan el resultado visual de cada cuenta, no la renovación del token ni la conducta de un JWT vigente tras revocar la sesión.
+En la revisión adicional del 2026-11-03 se reportó la respuesta 401 sin sesión con `private, no-store`, `Pragma` y `Expires`; las respuestas autenticadas con datos aún no tienen cabeceras verificadas.
+
+Las capturas acreditan el resultado visual de cada cuenta, no la renovación del token ni la conducta de un JWT vigente tras revocar la sesión.
 
 ## Criterios del ADR-0006: estado externo
 
 | Área del ADR-0006 | Estado | Evidencia requerida |
 |---|---|---|
-| A1. Build y tamaño del Worker | Build **PASS** en Linux CI/Preview; tamaño pendiente | El workflow construye y despliega el Worker; falta registrar tamaño comprimido y contrastarlo con el límite del plan |
+| A1. Build y tamaño del Worker | Build **PASS**; tamaño medido en seco | En Linux CI, Wrangler reportó **7,006.79 KiB total / 1,553.66 KiB gzip** para `preview`. Falta contrastar ese tamaño con el límite vigente del plan |
 | A2. Consulta autenticada en Workers | **PASS en Worker de Preview** | Las sesiones A/B/C mostraron solo sus filas o cero filas para C. `npm run preview` local sigue pendiente para comparar |
 | A3. Runtime sin errores | **PASS en la ventana revisada** | Cloudflare Observability mostró 18 éxitos y 0 errores en la última hora (3-nov-2026); revisar de nuevo durante pruebas futuras |
-| A4. Secreto ausente del bundle | Parcial | El canario no apareció en los assets estáticos de Next; falta repetir el escaneo sobre los assets del Worker |
+| A4. Secreto ausente del bundle | **PASS en los artefactos escaneados por CI** | El escáner no halló el canario en 137 archivos entre assets del navegador y el bundle del Worker; el valor no se imprime |
 | B1. OTP y cookies seguras | OTP en Preview **PASS**, cookies parcial | Solo se observó la cookie temporal de limpieza; falta inspeccionar los atributos reales de las cookies `sb-*` en el Worker |
 | B2. Persistencia de sesión SSR | **PASS para C** | La sesión de C siguió autenticada tras recargar `/spike` en el Worker; no prueba renovación del token (B3) |
 | B3. Renovación de sesión | Pendiente | Renovación observada en el runtime de Workers |
@@ -77,7 +82,8 @@ En la revisión adicional del 2026-11-03 se reportó la respuesta 401 sin sesió
 | A1. `getClaims()` puede aceptar un JWT vigente de una sesión revocada | **Pendiente de validar** (comportamiento sin cambios; ver B4 y el README) |
 | A4. El `catch` de la página de login capturaba `redirect("/spike")` | Corregido en código; cubierto por prueba local |
 | A5. `request.formData()` sin manejo de errores en solicitud y verificación OTP | Corregido en código (400 uniforme); cubierto por prueba local |
-| A6. La cookie del correo se borraba con otra ruta | Corregido en código (opciones compartidas) y prueba local |\n| A8. Cabeceras de seguridad | Pendiente | La revisión del Preview reporta ausentes HSTS, CSP, `X-Content-Type-Options`, `Referrer-Policy` y `X-Frame-Options`; evaluar e implementar como trabajo separado antes de un piloto con datos reales |
+| A6. La cookie del correo se borraba con otra ruta | Corregido en código (opciones compartidas) y prueba local |
+| A8. Cabeceras de seguridad | Pendiente — Preview reportó ausentes HSTS, CSP, `X-Content-Type-Options`, `Referrer-Policy` y `X-Frame-Options`; evaluar e implementar antes de un piloto con datos reales |
 
 **Configuración de Auth observada en el dashboard, 2026-11-02 (solo lectura):** límites de Supabase Auth en 30 solicitudes/5 min para inicio de sesión y verificación OTP/enlace, 150 renovaciones/5 min; SMTP personalizado desactivado. CAPTCHA y bloqueo de contraseñas filtradas están desactivados. Estos límites protegen los endpoints de Auth de Supabase; no añaden rate limiting a la aplicación ni sustituyen las cabeceras de seguridad.
 
@@ -85,12 +91,12 @@ Las correcciones no sustituyen las pruebas con Supabase y Workers de la tabla an
 
 ## Decisión provisional
 
-**Go parcial.** Build y despliegue de Preview, OTP, lectura aislada A/B/C y respuestas 401 sin sesión con cabeceras `no-store` están comprobados. No se declara Go completo: faltan tamaño y escaneo del bundle del Worker, atributos de cookies `sb-*`, renovación y cierre/revocación, cabeceras de caché en respuestas autenticadas, comparación con `npm run preview`, pruebas adversariales de escritura y revisión de seguridad (incluidas cabeceras y controles de abuso).
+**Go parcial.** Build y despliegue de Preview, OTP, lectura aislada A/B/C y respuestas 401 sin sesión con cabeceras `no-store` están comprobados. No se declara Go completo: falta comparar el tamaño medido con el límite del plan y verificar atributos de cookies `sb-*`, renovación y cierre/revocación, cabeceras de caché en respuestas autenticadas, comparación con `npm run preview`, pruebas adversariales de escritura y revisión de seguridad (incluidas cabeceras y controles de abuso).
 
 ## Para cerrar el informe
 
 1. Inspeccionar cookies, recarga/persistencia de sesión, renovación, respuesta sin sesión, cookie manipulada y reutilización del JWT tras cerrar sesión en el Worker de Preview; revisar sus logs.
-2. Confirmar `Cache-Control` en respuestas con datos y escanear el bundle del Worker para comprobar que no contiene el canario; anotar el tamaño comprimido del Worker.
+2. Comparar el tamaño comprimido medido en CI con el límite vigente del plan y confirmar `Cache-Control` en respuestas autenticadas con datos. CI ya escanea los assets del navegador y el bundle del Worker para detectar el canario.
 3. Repetir en `npm run preview` el mismo flujo OTP y A/B/C para cerrar la comparación con el Worker desplegado.
 4. Ejecutar pruebas directas de permisos y aislamiento para las mutaciones de la API; completar la revisión de seguridad, incluida protección CSRF y controles de abuso.
 5. Recuperar los tipos remotos (`lib/db/database.types.ts`, deuda D31) y tipar después `lib/db/tenancy.ts`.
