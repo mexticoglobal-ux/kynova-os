@@ -17,9 +17,9 @@ El spike de Supabase aún debe validar el build y el runtime de Workers. La prue
 
 ## Decisión
 
-Ejecutar en GitHub Actions sobre Ubuntu el typecheck, lint, formato, pruebas existentes, build de OpenNext para el entorno `preview` y escaneo de la canaria de prueba. El flujo se activa en pushes, pull requests y manualmente.
+Ejecutar en GitHub Actions sobre Ubuntu el typecheck, lint, formato, pruebas existentes y build de OpenNext para el entorno `preview`. Después, ejecutar `wrangler deploy --dry-run --outdir .wrangler/spike-worker-dry-run --env preview`: compila el Worker localmente, informa el tamaño de carga y deja el bundle generado para inspeccionarlo, sin desplegarlo. El escaneo de la canaria cubre tanto los assets del navegador como ese bundle. El flujo se activa en pushes, pull requests y manualmente.
 
-El workflow usa solo valores ficticios de CI para compilar y comprobar que la canaria no llega a assets del navegador. No usa credenciales reales de Supabase ni de Cloudflare, no sube artefactos y no despliega Workers. La validación del runtime local con `npm run preview` y cualquier Preview remoto se mantienen como pasos separados.
+El workflow usa solo valores ficticios de CI. El dry run de Wrangler no usa credenciales reales de Supabase ni Cloudflare, no sube artefactos ni despliega Workers; el tamaño se informa en el log de Actions. El escaneo comprueba que la canaria no llega a assets del navegador ni al bundle generado del Worker. La validación del runtime local con `npm run preview` y cualquier Preview remoto se mantienen como pasos separados.
 
 ## Consecuencias
 
@@ -30,4 +30,4 @@ El workflow usa solo valores ficticios de CI para compilar y comprobar que la ca
 
 ## Verificación
 
-El workflow se considera validado cuando GitHub Actions termina en verde con todos los pasos configurados, incluido el build de OpenNext y el escaneo de la canaria. Esto no autoriza ni realiza despliegues.
+El workflow se considera validado cuando GitHub Actions termina en verde con todos los pasos configurados, incluidos el build de OpenNext, la compilación seca de Wrangler para `preview` y el escaneo de la canaria en los assets del navegador y el bundle del Worker. Esto no autoriza ni realiza despliegues.

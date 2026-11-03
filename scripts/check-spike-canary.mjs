@@ -13,7 +13,11 @@ if (!canary) {
   process.exit(2);
 }
 
-const roots = [path.join(root, ".next", "static"), path.join(root, ".open-next", "assets")];
+const roots = [
+  path.join(root, ".next", "static"),
+  path.join(root, ".open-next", "assets"),
+  path.join(root, ".wrangler", "spike-worker-dry-run"),
+];
 let scanned = 0;
 
 async function scan(directory) {
@@ -26,7 +30,7 @@ async function scan(directory) {
       if (content) {
         scanned += 1;
         if (content.includes(Buffer.from(canary))) {
-          process.stderr.write("Canary check failed: the canary appears in a browser asset.\n");
+          process.stderr.write("Canary check failed: the canary appears in a built asset.\n");
           process.exit(1);
         }
       }
@@ -36,8 +40,8 @@ async function scan(directory) {
 
 for (const directory of roots) await scan(directory);
 if (scanned === 0) {
-  process.stderr.write("Canary check could not run: no browser assets were found. Build the app first.\n");
+  process.stderr.write("Canary check could not run: no build assets were found. Build the app first.\n");
   process.exit(2);
 }
 
-process.stdout.write(`Canary check passed: scanned ${scanned} browser assets; no value was printed.\n`);
+process.stdout.write(`Canary check passed: scanned ${scanned} build assets (browser and Worker bundle); no value was printed.\n`);
