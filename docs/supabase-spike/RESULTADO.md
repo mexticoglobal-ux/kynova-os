@@ -2,7 +2,7 @@
 
 **Estado:** Go parcial — OTP y aislamiento A/B/C comprobados en el Worker de Preview; quedan controles de sesión, cookies, caché y revisión de seguridad  
 **Última revisión:** 2026-11-03
-**Rama revisada:** `ci/linux-validation-on-main`
+**Rama revisada:** `main` en `f0d3e7d` (PR #1 fusionado)
 
 Este informe distingue comprobaciones locales, SQL y evidencia manual del Worker de Preview. La prueba A/B/C demuestra el aislamiento observable por la API en Preview, pero no cierra por sí sola los criterios de sesión y seguridad del ADR-0006.
 
@@ -59,11 +59,26 @@ En la revisión adicional del 2026-11-03 se reportó la respuesta 401 sin sesió
 
 Las capturas acreditan el resultado visual de cada cuenta, no la renovación del token ni la conducta de un JWT vigente tras revocar la sesión.
 
+### Versión desplegada en Preview frente a `main` · 2026-11-03
+
+El Preview se desplegó desde `7da4188` (workflow `deploy-preview`, `[deploy-preview]`). Entre `7da4188` y `main` (`f0d3e7d`) el único archivo que no es documentación ni workflow es `scripts/check-spike-canary.mjs`, una herramienta de CI que no forma parte del Worker. **El código de aplicación del Preview coincide con `main`; no hizo falta un nuevo despliegue.** Los commits locales de la pantalla de perfil y el estudio de creadores (`74ed9d5`) no están en `main` y, por tanto, tampoco en el Preview. Limitación: la coincidencia se deduce del historial de git; no se pudo listar versiones del Worker (sin `CLOUDFLARE_API_TOKEN`).
+
+### Comprobaciones con sesión real: pendientes
+
+Requieren iniciar sesión con las cuentas ficticias, y el código OTP llega al correo del usuario, por lo que no se ejecutaron desde esta sesión. Quedan cubiertas por `scripts/spike-session-checks.mjs`, que se ejecuta en la máquina del usuario y no se ha ejecutado contra sesiones reales. Reglas del script (verificadas con `scripts/spike-session-checks.test.ts`, 21 pruebas con un servidor simulado):
+
+- Cookies, tokens y cuerpos de respuesta viven solo en memoria y se enmascaran antes de imprimir; solo se muestran estado HTTP, nombres y atributos de cookies, recuentos, códigos SQLSTATE y PASS / FAIL / NOT RUN. No escribe archivos.
+- La ejecución normal solo envía `GET`. No hay `PATCH`/`POST`/`DELETE` contra perfiles ni membresías de A o B; el script se niega a escribir si el tenant de prueba coincide con A o B.
+- Las escrituras (`--fixtures`) usan un tenant creado exclusivamente para la prueba (perfil que empieza por `FIXTURE`): intentos de `PUT`/`PATCH` sobre su perfil existente, que se restaura y se verifica en `finally`; si no se puede restaurar y verificar, el resultado es **FAIL**. No hay `INSERT` ni `DELETE`: las pruebas de insertar un perfil o autopromover una membresía quedan **NOT RUN** hasta tener una limpieza segura (los usuarios no tienen `DELETE` y no se usan claves de servicio). Un cero de filas afectadas solo cuenta si la fila existe, A no la ve y sigue intacta.
+- Atributos de cookies, renovación (B3) y revocación (B4) son **NOT RUN** si no se observó un `Set-Cookie` `sb-*`, una renovación real o una sesión válida antes de cerrar sesión; un `GET` 200/404 con `no-store` no basta.
+
+Hasta que se ejecute con sesiones reales y se registre el resultado, B1 (cookies), B3, B4, B5 con datos y las pruebas adversariales de escritura siguen abiertas. Nota: `PUT /api/profile` no acepta el tenant en la petición (se deriva de la membresía), así que el cruce entre tenants solo es alcanzable atacando directamente las tablas con el JWT propio.
+
 ## Criterios del ADR-0006: estado externo
 
 | Área del ADR-0006 | Estado | Evidencia requerida |
 |---|---|---|
-| A1. Build y tamaño del Worker | Build **PASS**; tamaño medido en seco | En Linux CI, Wrangler reportó **7,006.79 KiB total / 1,553.66 KiB gzip** para `preview`. Falta contrastar ese tamaño con el límite vigente del plan |
+| A1. Build y tamaño del Worker | **PASS** | En Linux CI, Wrangler reportó **7,006.79 KiB total / 1,553.66 KiB gzip** para `preview`. La documentación de Cloudflare (consultada el 2026-11-03) fija **64 MiB sin comprimir** en los planes Free y Paid y no tiene límite comprimido: 7,006.79 KiB sin comprimir equivalen a ≈**6.84 MiB**, por debajo del límite de 64 MiB (≈10.7 %) |
 | A2. Consulta autenticada en Workers | **PASS en Worker de Preview** | Las sesiones A/B/C mostraron solo sus filas o cero filas para C. `npm run preview` local sigue pendiente para comparar |
 | A3. Runtime sin errores | **PASS en la ventana revisada** | Cloudflare Observability mostró 18 éxitos y 0 errores en la última hora (3-nov-2026); revisar de nuevo durante pruebas futuras |
 | A4. Secreto ausente del bundle | **PASS en los artefactos escaneados por CI** | El escáner no halló el canario en 137 archivos entre assets del navegador y el bundle del Worker; el valor no se imprime |
@@ -91,12 +106,12 @@ Las correcciones no sustituyen las pruebas con Supabase y Workers de la tabla an
 
 ## Decisión provisional
 
-**Go parcial.** Build y despliegue de Preview, OTP, lectura aislada A/B/C y respuestas 401 sin sesión con cabeceras `no-store` están comprobados. No se declara Go completo: falta comparar el tamaño medido con el límite del plan y verificar atributos de cookies `sb-*`, renovación y cierre/revocación, cabeceras de caché en respuestas autenticadas, comparación con `npm run preview`, pruebas adversariales de escritura y revisión de seguridad (incluidas cabeceras y controles de abuso).
+**Go parcial.** Build y despliegue de Preview, OTP, lectura aislada A/B/C y respuestas 401 sin sesión con cabeceras `no-store` están comprobados. El tamaño del Worker pasa (6.84 MiB sin comprimir frente a 64 MiB) y no hay canario en 137 archivos escaneados. No se declara Go completo: falta verificar atributos de cookies `sb-*`, renovación y cierre/revocación, cabeceras de caché en respuestas autenticadas, comparación con `npm run preview`, pruebas adversariales de escritura y revisión de seguridad (incluidas cabeceras y controles de abuso).
 
 ## Para cerrar el informe
 
-1. Inspeccionar cookies, recarga/persistencia de sesión, renovación, respuesta sin sesión, cookie manipulada y reutilización del JWT tras cerrar sesión en el Worker de Preview; revisar sus logs.
-2. Comparar el tamaño comprimido medido en CI con el límite vigente del plan y confirmar `Cache-Control` en respuestas autenticadas con datos. CI ya escanea los assets del navegador y el bundle del Worker para detectar el canario.
+1. Ejecutar `scripts/spike-session-checks.mjs` con las cuentas ficticias (incluido `revoke A` y `--fixtures` con un tenant de prueba dedicado) y registrar sus resultados; inspeccionar cookies, recarga/persistencia de sesión, renovación, respuesta sin sesión, cookie manipulada y reutilización del JWT tras cerrar sesión en el Worker de Preview; revisar sus logs.
+2. Confirmar `Cache-Control` en respuestas autenticadas con datos. El tamaño y el escaneo del canario ya están cerrados (A1, A4).
 3. Repetir en `npm run preview` el mismo flujo OTP y A/B/C para cerrar la comparación con el Worker desplegado.
 4. Ejecutar pruebas directas de permisos y aislamiento para las mutaciones de la API; completar la revisión de seguridad, incluida protección CSRF y controles de abuso.
 5. Recuperar los tipos remotos (`lib/db/database.types.ts`, deuda D31) y tipar después `lib/db/tenancy.ts`.
