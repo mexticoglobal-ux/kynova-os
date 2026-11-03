@@ -30,6 +30,13 @@ describe("GET /api/spike/items", () => {
     expect(await response.json()).toEqual({ items: [{ id: "1", tenant_id: "t", label: "A-1" }] });
   });
 
+  it("answers 503, not 401, and reads nothing when Auth is unavailable", async () => {
+    mocks.getUser.mockResolvedValue({ data: { user: null }, error: Object.assign(new Error("fetch failed"), { name: "AuthRetryableFetchError", status: 0 }) });
+    const response = await GET();
+    expect(response.status).toBe(503);
+    expect(mocks.select).not.toHaveBeenCalled();
+  });
+
   // A1/B4: a signed-out session's JWT still verifies locally; only Auth knows the session is gone.
   it("answers 401 and reads nothing for a revoked session whose JWT still verifies locally", async () => {
     mocks.getClaims.mockResolvedValue({ data: { claims: { sub: "user-a" } }, error: null });

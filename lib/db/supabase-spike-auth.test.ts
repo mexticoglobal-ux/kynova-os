@@ -16,6 +16,16 @@ describe("getVerifiedSpikeUser", () => {
     expect(getClaims).not.toHaveBeenCalled();
   });
 
+  it("throws, instead of reporting a sign-out, when Auth itself is unavailable", async () => {
+    const retryable = Object.assign(new Error("fetch failed"), { name: "AuthRetryableFetchError", status: 0 });
+    const serverError = Object.assign(new Error("boom"), { name: "AuthApiError", status: 502 });
+    for (const error of [retryable, serverError]) {
+      await expect(getVerifiedSpikeUser(clientWith(async () => ({ data: { user: null }, error })))).rejects.toThrow("unavailable");
+    }
+    const revoked = Object.assign(new Error("session_not_found"), { name: "AuthApiError", status: 403 });
+    expect(await getVerifiedSpikeUser(clientWith(async () => ({ data: { user: null }, error: revoked })))).toBeNull();
+  });
+
   it("returns null without a user id and tolerates a missing email", async () => {
     expect(await getVerifiedSpikeUser(clientWith(async () => ({ data: { user: {} }, error: null })))).toBeNull();
     expect(await getVerifiedSpikeUser(clientWith(async () => ({ data: { user: { id: "u2" } }, error: null })))).toEqual({ id: "u2", email: "" });

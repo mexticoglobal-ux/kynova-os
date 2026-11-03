@@ -128,6 +128,12 @@ describe("GET /api/profile", () => {
     expect(mocks.saveBusinessProfile).not.toHaveBeenCalled();
   });
 
+  it("answers 503, not 401, when Auth is unavailable", async () => {
+    mocks.getUser.mockResolvedValue({ data: { user: null }, error: Object.assign(new Error("fetch failed"), { name: "AuthRetryableFetchError", status: 0 }) });
+    expect((await GET()).status).toBe(503);
+    expect(mocks.getMyTenant).not.toHaveBeenCalled();
+  });
+
   it("answers 404 for a signed-in user without a membership", async () => {
     mocks.getMyTenant.mockResolvedValue({ ok: true, data: null });
     const response = await GET();
