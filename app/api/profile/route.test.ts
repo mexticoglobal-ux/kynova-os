@@ -4,12 +4,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   getConfig: vi.fn(),
   getClaims: vi.fn(),
+  getUser: vi.fn(),
   getMyTenant: vi.fn(),
   getBusinessProfile: vi.fn(),
   saveBusinessProfile: vi.fn(),
 }));
 
-const client = { auth: { getClaims: mocks.getClaims } };
+const client = { auth: { getClaims: mocks.getClaims, getUser: mocks.getUser } };
 
 vi.mock("@/lib/db/supabase-spike", () => ({
   getSupabaseSpikeConfig: mocks.getConfig,
@@ -65,7 +66,10 @@ function put(payload: unknown, headers: Record<string, string> = {}) {
   });
 }
 
-const signedIn = () => mocks.getClaims.mockResolvedValue({ data: { claims: { sub: USER_ID } }, error: null });
+const signedIn = () => {
+  mocks.getUser.mockResolvedValue({ data: { user: { id: USER_ID, email: "a@example.test" } }, error: null });
+  mocks.getClaims.mockResolvedValue({ data: { claims: { sub: USER_ID } }, error: null });
+};
 
 beforeEach(() => {
   mocks.getConfig.mockReturnValue({ url: "https://kynova-test.supabase.co", publishableKey: "sb_publishable_test", canaryConfigured: false });
@@ -100,15 +104,28 @@ describe("GET /api/profile", () => {
   it("answers 401 with no session, an auth error or an invalid subject, and reads nothing", async () => {
     for (const result of [
       { data: null, error: new Error("Auth session missing") },
-      { data: { claims: {} }, error: null },
-      { data: { claims: { sub: "not-a-uuid" } }, error: null },
+      { data: { user: {} }, error: null },
+      { data: { user: { id: "not-a-uuid" } }, error: null },
     ]) {
-      mocks.getClaims.mockResolvedValue(result);
+      mocks.getUser.mockResolvedValue(result);
       const response = await GET();
       expect(response.status).toBe(401);
       expect(await response.json()).toEqual({ error: "unauthorized" });
     }
     expect(mocks.getMyTenant).not.toHaveBeenCalled();
+  });
+
+  // A1/B4: the access token of a signed-out session is still a validly signed, unexpired JWT, so getClaims() keeps
+  // accepting it. Authorization has to come from getUser(), which asks Auth whether the session still exists.
+  it("answers 401 for a revoked session even though its JWT still verifies locally", async () => {
+    mocks.getClaims.mockResolvedValue({ data: { claims: { sub: USER_ID, session_id: "revoked" } }, error: null });
+    mocks.getUser.mockResolvedValue({ data: { user: null }, error: new Error("session_not_found") });
+    for (const response of [await GET(), await PUT(put(body))]) {
+      expect(response.status).toBe(401);
+      expect(await response.json()).toEqual({ error: "unauthorized" });
+    }
+    expect(mocks.getMyTenant).not.toHaveBeenCalled();
+    expect(mocks.saveBusinessProfile).not.toHaveBeenCalled();
   });
 
   it("answers 404 for a signed-in user without a membership", async () => {
@@ -127,7 +144,7 @@ describe("GET /api/profile", () => {
   });
 
   it("answers 503 instead of throwing when the auth service fails", async () => {
-    mocks.getClaims.mockRejectedValue(new Error("boom with internal details"));
+    mocks.getUser.mockRejectedValue(new Error("boom with internal details"));
     const response = await GET();
     expect(response.status).toBe(503);
     expect(JSON.stringify(await response.json())).not.toContain("boom");
@@ -149,12 +166,12 @@ describe("PUT /api/profile", () => {
       expect(response.status).toBe(403);
       expect(await response.json()).toEqual({ error: "invalid_origin" });
     }
-    expect(mocks.getClaims).not.toHaveBeenCalled();
+    expect(mocks.getUser).not.toHaveBeenCalled();
     expect(mocks.saveBusinessProfile).not.toHaveBeenCalled();
   });
 
   it("answers 401 without a session before reading or validating the body", async () => {
-    mocks.getClaims.mockResolvedValue({ data: null, error: new Error("Auth session missing") });
+    mocks.getUser.mockResolvedValue({ data: null, error: new Error("Auth session missing") });
     const response = await PUT(put("not json at all"));
     expect(response.status).toBe(401);
     expect(mocks.saveBusinessProfile).not.toHaveBeenCalled();

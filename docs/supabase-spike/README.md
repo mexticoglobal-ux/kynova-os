@@ -58,13 +58,15 @@ La clave publicable sí puede usarse desde el servidor del spike. No se configur
 - Las páginas y respuestas del spike tienen `Cache-Control: private, no-store`.
 - `npm run spike:check-canary` escanea los assets del navegador y no muestra el valor de la canaria.
 
-## Pendiente de validar: sesiones revocadas (A1)
+## Sesiones revocadas (A1): corregido en la aplicación, límite residual
 
-Las páginas y los endpoints protegidos usan `supabase.auth.getClaims()`. Puede aceptar un JWT todavía vigente aunque la sesión se haya cerrado o revocado: con claves de firma asimétricas la validación es local y no consulta si la sesión sigue activa, y PostgREST también acepta ese token hasta que caduque. Este comportamiento **no se ha cambiado ni validado** en este spike. Antes de dar por resuelto B4 hay que probar, con una sesión real:
+`getClaims()` valida en local los JWT de claves asimétricas (firma y `exp`) y no consulta si la sesión sigue activa, así que el token de una sesión cerrada seguía autorizando hasta caducar. Las páginas y los endpoints protegidos autorizan ahora con `getVerifiedSpikeUser()` (`lib/db/supabase-spike-auth.ts`), que usa `supabase.auth.getUser()` y rechaza una sesión revocada con 401 o redirección. El middleware conserva `getClaims()` solo para refrescar cookies. Coste: una consulta a Auth por solicitud protegida.
+
+**Límite residual:** el token copiado sigue siendo un JWT válido para PostgREST. Quien lo tenga puede llamar directamente a la API de Supabase con la clave publicable hasta que caduque, y RLS lo aceptará. La corrección protege las rutas de esta aplicación; para reducir esa ventana habría que acortar la vigencia del JWT en Supabase (ajuste del proyecto, no hecho aquí). Validación pendiente en el Preview tras desplegar:
 
 1. Una cookie editada o inválida: debe dar 401 o redirección.
-2. Un access token copiado antes de cerrar sesión y reutilizado después: anotar si sigue devolviendo datos y hasta cuándo (caducidad del JWT del proyecto).
-3. Decidir con evidencia si basta con esa ventana o si se necesita una comprobación de sesión en servidor para el piloto.
+2. Reutilizar tras cerrar sesión la sesión anterior (`node scripts/spike-session-checks.mjs revoke <cuenta>`): debe dar 401.
+3. Decidir con evidencia si la ventana residual de PostgREST es aceptable para el piloto.
 
 ## Criterios pendientes de validación externa
 

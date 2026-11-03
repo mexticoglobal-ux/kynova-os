@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getSupabaseSpikeConfig, createSupabaseSpikeServerClient } from "@/lib/db/supabase-spike";
+import { getVerifiedSpikeUser } from "@/lib/db/supabase-spike-auth";
 import type { SupabaseSpikeStatus } from "@/lib/contracts/supabase-spike";
 import { SpikeLoginForm } from "./SpikeLoginForm";
 
@@ -18,8 +19,7 @@ export default async function SupabaseSpikeLoginPage({ searchParams }: { searchP
   if (config) {
     try {
       const supabase = await createSupabaseSpikeServerClient();
-      const { data, error } = await supabase.auth.getClaims();
-      authenticated = !error && Boolean(data?.claims?.sub);
+      authenticated = Boolean(await getVerifiedSpikeUser(supabase));
     } catch {
       // Render the login screen; the next request will show a generic error if auth is unavailable.
     }
