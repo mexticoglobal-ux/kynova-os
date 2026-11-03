@@ -46,8 +46,11 @@ Worker probado: `kynova-os-preview` en `https://kynova-os-preview.novamarketings
 | Auth OTP en Preview | **Pasa** para las cuentas ficticias A, B y C | Capturas de las sesiones autenticadas; el usuario solicitó y verificó los códigos |
 | Aislamiento A/B | **Pasa** en la interfaz del Worker | A mostró únicamente A-1/A-2 y el tenant A; B mostró únicamente B-1/B-2 y el tenant B |
 | Usuario C sin membresía | **Pasa** en la interfaz del Worker | C inició sesión y la aplicación mostró “Esta cuenta no tiene membresía ni filas visibles” |
+| API para C, sin membresía | **PASS** | `GET /api/spike/items` devolvió `{"items":[]}` y `GET /api/profile` devolvió `404 {"error":"no_tenant"}` |
 | Build y despliegue del Worker | **Pasa** en GitHub Actions, head `7da4188681dbe1de39506aeb5a94d77f57dafee9` del PR #1 | El job `deploy` completó correctamente. El workflow está limitado a `kynova-os-preview`; no es un despliegue de producción |
 | Prueba de permisos adversariales por API | **Pendiente** | Las capturas prueban lectura aislada; no prueban aquí intentos directos de escritura entre tenants |
+
+En Preview, C conservó la sesión después de recargar `/spike`. Cloudflare Observability mostró **18 éxitos y 0 errores** durante la última hora revisada (3-nov-2026), con solicitudes a `/spike`, `/api/profile` y `/api/spike/items`. Esto cubre A3 para esa ventana, no constituye garantía de ausencia de errores futuros.
 
 Las capturas acreditan el resultado visual de cada cuenta, no la renovación de sesión, atributos de cookies, cabeceras HTTP ni comportamiento tras revocar una sesión.
 
@@ -57,10 +60,10 @@ Las capturas acreditan el resultado visual de cada cuenta, no la renovación de 
 |---|---|---|
 | A1. Build y tamaño del Worker | Build **PASS** en Linux CI/Preview; tamaño pendiente | El workflow construye y despliega el Worker; falta registrar tamaño comprimido y contrastarlo con el límite del plan |
 | A2. Consulta autenticada en Workers | **PASS en Worker de Preview** | Las sesiones A/B/C mostraron solo sus filas o cero filas para C. `npm run preview` local sigue pendiente para comparar |
-| A3. Runtime sin errores | Pendiente | Revisar los logs del Worker durante las sesiones; las capturas no sustituyen la revisión de logs |
+| A3. Runtime sin errores | **PASS en la ventana revisada** | Cloudflare Observability mostró 18 éxitos y 0 errores en la última hora (3-nov-2026); revisar de nuevo durante pruebas futuras |
 | A4. Secreto ausente del bundle | Parcial | El canario no apareció en los assets estáticos de Next; falta repetir el escaneo sobre los assets del Worker |
 | B1. OTP y cookies seguras | OTP en Preview **PASS**, cookies parcial | Falta inspeccionar `HttpOnly`, `Secure` y `SameSite` en el Worker |
-| B2. Persistencia de sesión SSR | Parcial | Se confirmó sesión autenticada en Preview; falta comprobar explícitamente navegación y recarga en el Worker |
+| B2. Persistencia de sesión SSR | **PASS para C** | La sesión de C siguió autenticada tras recargar `/spike` en el Worker; no prueba renovación del token (B3) |
 | B3. Renovación de sesión | Pendiente | Renovación observada en el runtime de Workers |
 | B4. Sesión inválida/cerrada | Pendiente — sin resolver | Falta probar API sin sesión, cookie manipulada y reutilizar un JWT anterior al cierre. Un JWT vigente podría aceptarse hasta caducar; no validado |
 | B5. Sin caché compartida | Parcial | Código configura `private, no-store`; falta inspeccionar las cabeceras de respuestas reales en Preview |
