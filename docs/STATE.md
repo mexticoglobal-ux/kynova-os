@@ -58,7 +58,7 @@ Pendientes de producto: datos reales en todos los módulos; AI Studio sin ruta; 
 | D14 | Tabla de RULES en `CLAUDE.md` §5 no lista `security.md` ni `architecture.md` | Documentación incompleta; la carga por ruta funciona |
 | D15 | Código sin formato Prettier | `npm run format:check` y `npm run check` fallan hasta formatear |
 | D16 | Definiciones de negocio de `docs/modules/`, planes y comparativa sin validar | Riesgo de construir sobre supuestos |
-| D17 | `npm audit`: 19 vulnerabilidades (2 críticas en herramientas de desarrollo); la mayoría exige versión mayor | Riesgo de seguridad |
+| D17 | `npm ci` en GitHub Actions (2026-11-03) reportó 29 vulnerabilidades: 21 moderadas, 6 altas y 2 críticas; falta revisar dependencias afectadas antes de actualizar | Riesgo de seguridad |
 | D18 | Scripts de instalación de `esbuild`, `unrs-resolver` y `workerd` sin aprobar (`allowScripts`) | Sin impacto observado |
 | D19 | OpenNext con compatibilidad parcial en Windows; WSL sin distribución | Builds locales lentos o inestables |
 | D20 | `cloudflare-env.d.ts` importa tipos de `.open-next/worker` | `typecheck` en checkout limpio requiere `build:worker` antes |
