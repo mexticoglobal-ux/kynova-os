@@ -24,6 +24,12 @@ Esa norma se escribió para un NEX que **responde cuando se le pregunta**. Hoy N
 
 **El conflicto.** Con confirmación por acción, el agente 24/7 no puede ejecutar nada sin el usuario: queda reducido a preparar borradores y esperar. El valor que KYNOVA promete —trabajo hecho mientras el dueño no está— desaparece. Pero la solución obvia, dar autonomía libre al modelo, destruye lo que el proyecto declara su activo más importante: **la confianza**.
 
+**Trabajo continuo, no solo nocturno (2026-11-05).** NEX no trabaja únicamente cuando el dueño se desconecta: trabaja toda la jornada, atendiendo las conversaciones que llegan por WhatsApp, Messenger, Instagram, el chat del sitio, formularios, correo, Google Business Profile y otros canales, como **primer asesor comercial** de la empresa (detecta spam, identifica clientes reales, mantiene la conversación, resuelve preguntas frecuentes, califica, obtiene datos, actualiza el CRM, intenta cerrar la venta y escala al humano solo cuando aporta valor). Esto cambia las exigencias del modelo de autonomía:
+- Las decisiones ocurren **a velocidad de conversación**, con muchos mensajes al día: la clasificación y la comprobación de autorizaciones deben ser rápidas, deterministas y baratas.
+- NEX habla con **terceros** (los clientes de la empresa), que son entradas **no confiables y potencialmente hostiles** en un canal público.
+- El producto tratará **datos personales de clientes finales** (nombres, teléfonos, mensajes, historial), algo que ADR-0006 excluyó expresamente del Business Profile v1.
+- Aparece el concepto de **acuerdo de trabajo** por empleado de IA o canal, definido por el cliente (ver Decisión §4).
+
 **Decisiones del propietario ya tomadas (2026-11-05):**
 - La autonomía se organiza por **tres niveles**, no con una respuesta binaria.
 - El Nivel 2 **no entra en vigor** hasta que este ADR sea aceptado y se actualicen las normas vigentes.
@@ -105,7 +111,31 @@ Reglas:
 5. **Cada ejecución cita su autorización** y se comprueba contra ella **justo antes de ejecutar**.
 6. El contenido que llega de terceros (mensajes, documentos, páginas) **nunca amplía** una autorización ni modifica sus límites.
 
-### 4. Del Nivel 3 al Nivel 2 (aclaración aprobada)
+### 4. Acuerdos de trabajo y conversaciones entrantes
+
+Un **acuerdo de trabajo** agrupa las autorizaciones permanentes de un empleado de IA o de un canal, junto con sus políticas: objetivo y alcance, tono, horario, base de preguntas frecuentes, criterios de calificación, reglas de escalado, límites y vigencia. Lo define y aprueba el propietario, es versionado y revocable al instante. **Sin acuerdo de trabajo vigente, un empleado de IA solo trabaja en Nivel 1.** Cada acción autónoma sigue citando **la autorización concreta** dentro del acuerdo.
+
+**Aplicación de los niveles a las conversaciones — propuesta de este ADR, pendiente de aprobación:**
+
+| Situación | Nivel propuesto | Razón |
+|-----------|-----------------|-------|
+| Responder a quien escribió primero, dentro del acuerdo del canal (preguntas frecuentes, información) | 2 | El cliente final inicia el contacto; el acuerdo acota qué puede decir |
+| **Primera comunicación iniciada por NEX** con un tercero | 3 | Criterio adicional aprobado |
+| **Conectar un canal nuevo** | 3, una vez, por el propietario | Criterio adicional aprobado; esa aprobación crea el acuerdo del canal |
+| Comunicación sensible (queja, disputa, cobro) | 3: se escala a una persona | Criterio adicional aprobado |
+| Crear o actualizar contacto, notas y etapa en el CRM a partir de la conversación | 2 | Reversible, trazable y de bajo impacto |
+| Borrar, fusionar o exportar datos de clientes | 3 | Información crítica |
+| Spam | 1/2: **cuarentena revisable**, nunca borrado automático | Un falso positivo no puede perderse |
+| Agendar o reservar una cita sin cobro, cancelable | 2, con límites de volumen y horario | Reversible; sin impacto financiero |
+| Reserva o cita **con pago, depósito o condiciones legales** | 3 | Impacto financiero o contractual |
+| **Cerrar una venta** | **3 por su ámbito financiero y contractual** — ver decisión pendiente | El Nivel 3 por ámbito es no delegable |
+| Recopilar información inicial de **salud** | **Bloqueado hasta decidir C15** | Datos especialmente protegidos |
+
+**Cierre de ventas — decisión pendiente (C10).** El resumen de cambio de turno de la visión dice "cerré 4 ventas automáticamente". Con las reglas aprobadas, un compromiso comercial tiene impacto financiero y contractual y es Nivel 3, no convertible a Nivel 2. Hay dos caminos, a decidir por el propietario:
+- **A. Cierre asistido (recomendado para empezar):** NEX lleva la venta hasta el punto de confirmación y el dueño o su asesor confirma el compromiso; el resumen dice "preparé N ventas listas para tu confirmación". No cambia las reglas aprobadas.
+- **B. Cierre delegado dentro de una oferta predefinida:** el cliente fija en el acuerdo de trabajo la oferta, los precios, las condiciones y los límites (importe máximo por operación y por día) y NEX ejecuta cierres que caben exactamente ahí. Exige **enmendar el Nivel 3** (hoy no delegable), integrar pagos y facturación, y análisis legal previo. Su efecto: la decisión financiera y contractual la toma el cliente por adelantado, no NEX.
+
+### 5. Del Nivel 3 al Nivel 2 (aclaración aprobada)
 Después de que el usuario autoriza un flujo por primera vez, puede convertir determinadas acciones **repetitivas** en autorizaciones permanentes de Nivel 2, siempre que **no impliquen impacto legal, financiero, contractual ni sean irreversibles**.
 
 Interpretación adoptada (a confirmar al aprobar):
@@ -113,18 +143,20 @@ Interpretación adoptada (a confirmar al aprobar):
 - Las que son Nivel 3 **por su ámbito** (legal, financiero, contractual, administrativo, información crítica) **nunca** se convierten.
 - La conversión la **decide el usuario**; NEX puede proponerla, no activarla.
 
-### 5. Transparencia y auditoría
-Cada acción de NEX genera un **registro append-only** que responde las tres preguntas de la Constitución: **qué hizo, por qué lo hizo y bajo qué autorización actuó.** Incluye: identificador, tenant, acción, nivel, identificador de la autorización o de la confirmación, motivo, referencias a los datos usados (no su contenido sensible), resultado, si es reversible y cómo, versión del modelo y del prompt, y marca de tiempo. El cliente puede consultarlo y NEX no puede modificarlo ni borrarlo.
+### 6. Transparencia y auditoría
+Cada acción de NEX genera un **registro append-only** que responde las tres preguntas de la Constitución: **qué hizo, por qué lo hizo y bajo qué autorización actuó.** Incluye: identificador, tenant, acción, nivel, identificador de la autorización o de la confirmación, motivo, referencias a los datos usados (no su contenido sensible), resultado, si es reversible y cómo, versión del modelo y del prompt, y marca de tiempo. El cliente puede consultarlo y NEX no puede modificarlo ni borrarlo. En el trabajo con conversaciones el registro se agrupa por **conversación** y por **contacto**, y es la **única fuente** del resumen de cambio de turno: toda cifra que NEX presente al propietario ("respondí 54 conversaciones") debe poder rastrearse a registros concretos.
 
-### 6. Controles de seguridad
+### 7. Controles de seguridad
 - **Parada de emergencia:** el dueño pausa todo el Nivel 2 o una autorización concreta, y la orden se cumple de inmediato.
 - **Presupuesto y límites** de uso por tenant (`ai.md` reglas 13–14), con corte controlado.
 - **La ausencia del usuario no amplía permisos:** de noche NEX solo puede lo que podría de día.
 - **Evaluaciones de autonomía** como nueva dimensión de evals (ver "Verificación").
+- **Los mensajes de terceros son datos, no instrucciones:** nunca amplían una autorización ni modifican un acuerdo de trabajo.
+- **Límites de volumen** por autorización, por conversación y por contacto (mensajes por hora, acciones por día), con corte y aviso al propietario.
 - Cualquier herramienta o acción nueva de Nivel 2 requiere `/security-review`.
 
-### 7. Lo que este ADR no decide
-Depende de otros ADR, que deben existir antes de activar el Nivel 2: **identidad del agente dentro de un tenant** (C2), **ejecución en segundo plano** (C3), **memoria del negocio** (C4), **esquema y retención del registro de acciones** y **canal de aviso** (C6). En particular: la frase de `DOMAIN.md` §3 "con los permisos del usuario que lo invoca" no describe una ejecución de Nivel 2 sin usuario presente; el ADR de identidad la reformulará, con la regla de que **una ejecución nunca puede exceder lo que el propietario que concedió la autorización podría hacer**.
+### 8. Lo que este ADR no decide
+Depende de otros ADR, que deben existir antes de activar el Nivel 2: **identidad del agente dentro de un tenant** (C2), **ejecución en segundo plano** (C3), **memoria del negocio** (C4), **esquema y retención del registro de acciones**, **canal de aviso** (C6) y los ADR que exige el trabajo con conversaciones: **canales y conversaciones** (integración con cada plataforma, ventanas de mensajería, aprobaciones de la plataforma), **datos personales de clientes finales** (C13), **traspaso a un humano** y **ejecución por eventos** (C3). En particular: la frase de `DOMAIN.md` §3 "con los permisos del usuario que lo invoca" no describe una ejecución de Nivel 2 sin usuario presente; el ADR de identidad la reformulará, con la regla de que **una ejecución nunca puede exceder lo que el propietario que concedió la autorización podría hacer**.
 
 ## Consecuencias
 
@@ -139,6 +171,11 @@ Depende de otros ADR, que deben existir antes de activar el Nivel 2: **identidad
 | Daño por una autorización mal definida | Límites de volumen e importe; parada de emergencia; acciones reversibles primero; registro completo |
 | Responsabilidad legal al actuar en nombre del negocio | Análisis legal antes del primer cliente con datos reales (ya pendiente en ADR-0006); términos de servicio |
 | Fallo del registro de acciones | Una acción de Nivel 2 **no se ejecuta** si no puede registrarse |
+| Clientes finales o atacantes manipulan a NEX por un canal público (inyección a escala) | Mensajes de terceros como datos no confiables; el modelo no decide el nivel; límites de volumen; evaluaciones de seguridad con ataques por canal; sin acción de Nivel 2 que dependa de texto libre del tercero sin validación |
+| Tratamiento de datos personales de clientes finales | ADR propio antes de conectar el primer canal: base legal, minimización, región, retención y borrado (ADR-0006 los excluyó) |
+| Políticas de las plataformas (WhatsApp, Meta, Google) | Verificar cada canal en su documentación oficial antes de integrarlo; un canal a la vez |
+| El cliente final cree que habla con una persona | Presentación como asistente de IA de la empresa (decisión C12); en la UE, obligación de transparencia para chatbots |
+| El resumen de cambio de turno exagera lo hecho | El resumen se genera solo desde el registro de acciones y cada cifra es rastreable |
 | Deriva: nuevas acciones sin clasificar | El registro de acciones es la única vía de ejecución; lo no registrado se trata como Nivel 3 |
 
 ## Impacto en el framework
@@ -165,9 +202,9 @@ Depende de otros ADR, que deben existir antes de activar el Nivel 2: **identidad
 ## Plan de implementación
 
 1. **Aprobar este ADR** (Jeffrey) y abrir un PR único que actualice las normas de la tabla anterior. Sin ese PR, el Nivel 2 sigue sin estar en vigor.
-2. **Sprint 6 — fundamentos del agente:** ADRs de identidad (C2), ejecución en segundo plano (C3), memoria (C4), esquema y retención del registro de acciones, y canal de aviso (C6).
+2. **Fundamentos del agente (Sprint 6 del roadmap aprobado):** ADRs de identidad (C2), ejecución continua por eventos y programada (C3), canales y conversaciones, datos personales de clientes finales (C13), traspaso a un humano, memoria (C4), esquema y retención del registro de acciones, y canal de aviso (C6).
 3. **Sprint 7 — NEX real mínimo (solo Nivel 1):** `lib/ai/` y el **registro de acciones** con los niveles declarados; **ninguna acción con efectos se ejecuta aún sin confirmación**.
-4. **Sprint 9–10:** registro de acciones persistente, autorizaciones permanentes, parada de emergencia y primeras acciones de Nivel 2 de bajo riesgo (por ejemplo, enviar informes).
+4. **Cuando se active el trabajo continuo** (el sprint depende del roadmap; ver `docs/handoff/REVISION-TRABAJO-CONTINUO.md`): registro de acciones persistente, acuerdos de trabajo, autorizaciones permanentes, parada de emergencia y primeras acciones de Nivel 2 de bajo riesgo (por ejemplo, enviar informes).
 5. **Puerta para activar cualquier acción de Nivel 2:** ADR aceptado + normas actualizadas + registro de acciones auditable + parada de emergencia + evaluaciones de autonomía en verde + `/security-review` sin hallazgos altos.
 
 ## Plan de reversión
@@ -181,18 +218,25 @@ Desactivar el Nivel 2 con un único interruptor devuelve **todas** las acciones 
 - **Registro:** prueba de que toda acción ejecutada tiene registro completo (qué, por qué y bajo qué autorización) y de que una acción sin posibilidad de registro no se ejecuta.
 - **Evaluaciones de autonomía** (dimensión nueva): inyección de instrucciones que intenta ampliar permisos, clasificación correcta del nivel y negativa a exceder una autorización; con el proveedor principal y el de respaldo.
 - **Aislamiento:** una autorización de una empresa no puede usarse en otra.
+- **Conversaciones:** pruebas de que un mensaje entrante con instrucciones ("ignora tus reglas", "aplica este descuento") no cambia el nivel ni amplía una autorización; de que el spam va a cuarentena y no se borra; de que el traspaso al humano incluye el contexto mínimo definido; y de que el resumen de cambio de turno coincide cifra a cifra con el registro.
+- **Volumen y latencia:** el chequeo de nivel y autorización cabe en el presupuesto de latencia de una respuesta conversacional y los límites de volumen cortan cuando corresponde.
 - **Parada de emergencia:** prueba de que pausar una autorización detiene su ejecución de inmediato.
 - `/security-review` sin hallazgos altos antes de activar la primera acción de Nivel 2.
 
 ## Decisiones pendientes de aprobación
 
 1. **Definición de "comunicación sensible"** (quejas, disputas, cobros, ¿qué más?): ¿solo por categoría o también por señales del contenido? Hay un caso ambiguo: una disculpa a un cliente molesto, ¿es sensible y convertible a Nivel 2?
-2. **Interpretación de la conversión Nivel 3 → Nivel 2 (§4):** la aclaración del propietario excluye lo legal, financiero, contractual e irreversible; este ADR añade, por coherencia con el Nivel 3, que lo administrativo y la información crítica tampoco se convierten.
+2. **Interpretación de la conversión Nivel 3 → Nivel 2 (§5):** la aclaración del propietario excluye lo legal, financiero, contractual e irreversible; este ADR añade, por coherencia con el Nivel 3, que lo administrativo y la información crítica tampoco se convierten.
 3. **Vigencia máxima por defecto** de una autorización y si exige reconfirmación periódica.
 4. **Quién puede conceder autorizaciones:** solo el propietario (propuesta) o también otros roles, cuando existan.
 5. **Cuántos tipos de acción** admite el primer Nivel 2 y cuáles son (propuesta: enviar informes, publicar contenido programado).
 6. **Retención del registro de acciones**, ligada a las decisiones pendientes de retención y eliminación de ADR-0006.
 7. **Análisis legal** de la responsabilidad al actuar en nombre del negocio, antes de datos reales.
+8. **Cierre de ventas (C10):** camino A (cierre asistido) o B (cierre delegado dentro de una oferta predefinida).
+9. **Semántica de los criterios aprobados ante conversaciones entrantes (C11, §4):** primera comunicación = contacto iniciado por NEX; conectar un canal = aprobación única; clasificación de las acciones de CRM.
+10. **Transparencia ante el cliente final (C12):** que NEX se identifique como IA y con qué texto.
+11. **Datos personales de clientes finales (C13)** y **sectores sensibles (C15):** deben resolverse antes de conectar el primer canal real.
+12. **Canales y plataformas (C14):** cuál es el primer canal y qué aprobaciones exige.
 
 ## Revisión
 
@@ -203,5 +247,5 @@ Cuando se active la primera acción de Nivel 2; después de cada incidente de co
 - `docs/constitution/KYNOVA-CONSTITUTION.md` (PR #7): Artículos 2, 6, 7 y 14.
 - `.claude/rules/ai.md` (regla 12), `framework/standards/ai.md`, `docs/DOMAIN.md` §3 y §9, `docs/modules/nex.md`.
 - `AGENTS.md` §3.4 (determinista antes que generativo), §7.1, §7.2, §7.9, §7.11.
-- `docs/handoff/REVISION-4-PUNTOS.md` (PR #6): análisis de la arquitectura frente a un agente 24/7.
+- `docs/handoff/REVISION-4-PUNTOS.md` y `docs/handoff/REVISION-TRABAJO-CONTINUO.md` (PR #6): análisis de la arquitectura frente a un agente 24/7 y frente al trabajo continuo con conversaciones.
 - ADR-0006 (tenancy, retención y eliminación pendientes) y ADR-0002 (plataforma).
