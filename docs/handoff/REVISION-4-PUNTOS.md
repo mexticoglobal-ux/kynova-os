@@ -43,7 +43,7 @@
 
 **El desajuste:** el roadmap trata a NEX como un sprint intermedio y a los módulos como el producto. Con la visión actual, ese orden entrega al piloto de Nova un conjunto de herramientas sin el agente que debería usarlas. Viene de `STATE.md` §6, escrito antes de esta visión.
 
-**Propuesta de resecuenciación (para decidir, no aplicada):**
+**Resecuenciación aprobada por Jeffrey Hernandez (2026-11-05) y aplicada en `KYNOVA-HANDOFF.md` §24 y `KYNOVA-MASTER-STATUS.md` §9.** La tabla siguiente es la propuesta original; el detalle final está en esos documentos (el endurecimiento y el turno de noche quedaron en sprints propios):
 
 | Orden | Cambio | Razón |
 |-------|--------|-------|
@@ -92,7 +92,7 @@ Revisé cada afirmación de "terminado" y "funciona" de los dos documentos contr
 
 ## Decisiones que esta revisión deja abiertas
 
-1. Aprobar o ajustar la resecuenciación del roadmap (§2).
-2. Elegir entre confirmación por acción y autorización permanente acotada (§3), con su ADR.
+1. ~~Aprobar o ajustar la resecuenciación del roadmap (§2).~~ **Aprobada (2026-11-05).**
+2. ~~Elegir entre confirmación por acción y autorización permanente acotada (§3).~~ **Decidido: autonomía por niveles** (Constitución, Artículo 7). Falta el ADR que modifica la regla 12 de `.claude/rules/ai.md`, `framework/standards/ai.md` y `DOMAIN.md` §3; hasta entonces sigue vigente la confirmación por acción.
 3. Decidir el diseño de la identidad del agente dentro de un tenant (§3), con su ADR.
 4. Decidir dónde vive `docs/blueprints/` (hoy solo en la copia del escritorio).

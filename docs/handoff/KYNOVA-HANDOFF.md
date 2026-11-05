@@ -340,20 +340,22 @@ Solo las ya registradas en los documentos del proyecto; ninguna es una idea nuev
 - Cabeceras de seguridad y límite de tasa propios (A8).
 - Actualizar la tabla de reglas de `CLAUDE.md` §5 (D14).
 
-## 24. Próximos sprints recomendados
+## 24. Próximos sprints
 
-> Recomendación derivada de `STATE.md` §6 y ADR-0006; el orden y los nombres son propuestos, no decididos. Sprint 4 (Preview, i18n, Dashboard, NEX) ya está cerrado.
+> **Orden aprobado por Jeffrey Hernandez (2026-11-05):** primero el núcleo de NEX, después las herramientas que utilizará. Sustituye al orden anterior, que seguía `STATE.md` (orientado a módulos). Los nombres de sprint y su contenido siguen siendo una propuesta de planificación. Sprint 4 (Preview, i18n, Dashboard, NEX simulado) está cerrado.
+> Modelo de autonomía: tres niveles (Constitución, Artículo 7). El Nivel 2 requiere su ADR antes de construirse.
 
 | Sprint | Objetivo | Contenido | Puerta de salida |
 |--------|----------|-----------|------------------|
 | 5 — Cerrar el spike | Go o No-Go con evidencia | Fusionar el fix A1/B4; relanzar el Preview; `revoke` y renovación (B3); SMTP; tipos (D31); B6; pruebas de escritura con tenant dedicado | `RESULTADO.md` con Go/No-Go y `/security-review` sin hallazgos altos |
-| 6 — Decisiones y endurecimiento | Desbloquear datos reales | Región, retención, eliminación, entorno y análisis legal; cabeceras (A8); límite de tasa; D27/D28 | Decisiones aprobadas en un ADR; hallazgos de seguridad cerrados |
-| 7 — Perfil completo | ADR-0006 fase 2 | Guardar el Assessment en el perfil; exportación y borrado verificados; alta de empresas y membresías | Flujo probado en escritorio y móvil |
-| 8 — Piloto Creator | Caso de uso de Nova | Persistir por tenant el estudio de creadores; ajustes según la prueba con Nova | Nova valida el flujo con contenido ficticio |
-| 9 — NEX real | Reemplazar la simulación | `lib/ai/`, Workers AI, AI Gateway, evals en `prompts/`; D8 | Evals en verde; aviso solo en respuestas simuladas |
-| 10 — Datos reales de CRM | Primer valor de negocio | Clients y Sales con persistencia por tenant | Pruebas de aislamiento por tabla |
-| 11 — Piloto con Nova | ADR-0006 fase 3 | Alta de Nova por invitación, 1–3 usuarios, datos reales solo si se cumplen las cuatro condiciones | Opinión de usuarios; sin hallazgos de seguridad abiertos |
-| 12 — Producción | ADR-0002 fase 4 | Dominio (D23), caché (D21), revisión legal (D25), despliegue con aprobación explícita | Aprobación explícita (`AGENTS.md` §7.11) |
+| 6 — Fundamentos del agente | Decidir lo que NEX necesita para existir | ADRs: autonomía por niveles y autorización permanente (C1, modifica la regla 12 de `.claude/rules/ai.md`, `framework/standards/ai.md` y `DOMAIN.md` §3); identidad del agente dentro de una empresa (C2); ejecución en segundo plano (C3); memoria del negocio (C4); registro de acciones y autorizaciones; canal de aviso (C6). Más las decisiones de datos reales de ADR-0006: región, retención, eliminación, entorno y análisis legal | ADRs aprobados; Constitución aprobada |
+| 7 — NEX real mínimo (Nivel 1) | Sustituir la simulación | `lib/ai/`, AI Gateway, registro de modelos, prompts y evals en `prompts/`; lectura del perfil y del Assessment; resumen bajo demanda; aviso solo en respuestas simuladas (D8); corregir D27 y D28 | Evals en verde; solo lectura; sin acciones con efectos |
+| 8 — Perfil completo y endurecimiento | Condiciones para datos reales | Guardar el Assessment en el perfil; exportación y borrado verificados; alta de empresas y membresías; cabeceras de seguridad (A8); límite de tasa; tests E2E (D5); dependencias (D17) | Flujo probado en escritorio y móvil; `/security-review` sin hallazgos altos |
+| 9 — Turno de noche | NEX trabaja sin el usuario | Ejecución programada (C3), bandeja de decisiones, informe de la mañana, registro de actividad (qué, por qué, bajo qué autorización) | Una empresa de prueba recibe su informe sin intervención; todo queda en el registro |
+| 10 — Primeras herramientas | NEX usa herramientas, con autorización | Estudio de creadores persistido por tenant y expuesto a NEX por contrato; primeras autorizaciones permanentes (Nivel 2) de bajo riesgo, por ejemplo enviar informes | Pruebas de aislamiento; cada acción cita su autorización |
+| 11 — CRM como herramienta | Datos reales de negocio | Clients y Sales con persistencia por tenant, usados por NEX | Pruebas de aislamiento por tabla |
+| 12 — Piloto con Nova | ADR-0006 fase 3 | Alta de Nova por invitación (1–3 usuarios); datos reales solo si se cumplen las cuatro condiciones de `KYNOVA-MASTER-STATUS.md` §6 | Opinión de usuarios; sin hallazgos de seguridad abiertos |
+| 13 — Producción | ADR-0002 fase 4 | Dominio (D23), caché (D21), revisión legal (D25), despliegue con aprobación explícita | Aprobación explícita (`AGENTS.md` §7.11) |
 
 Marketplace, Academy, AI Studio y verticales quedan fuera hasta la 1.0, según los documentos actuales.
 

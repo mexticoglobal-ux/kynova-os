@@ -151,19 +151,19 @@ Es una estimación mía con una rúbrica abierta: cada fila se puede discutir. M
 
 ## 9. Qué priorizar para lanzar la versión 1.0 (MVP con Nova)
 
-Tomado de `STATE.md` §6 y de la ruta gradual de ADR-0006; el orden es una recomendación, no una decisión tomada.
+**Orden aprobado por Jeffrey (2026-11-05): primero el núcleo de NEX, después las herramientas que utilizará.** Detalle por sprint en `KYNOVA-HANDOFF.md` §24; los nombres y el contenido son planificación, el orden está aprobado.
 
-1. **Cerrar el spike con Go o No-Go con evidencia** (`RESULTADO.md`): fusionar la corrección A1/B4, desplegar al Preview, probar `revoke` y renovación (B3), configurar SMTP, recuperar los tipos (D31). Nada de lo siguiente es fiable sin esto.
-2. **Decisiones bloqueantes de datos reales:** región, retención, eliminación y entorno (ADR-0006) más el análisis legal. Son de negocio, no de código, y gobiernan el calendario.
-3. **Fase 2 de ADR-0006:** guardar el Assessment en el perfil (opt-in), **exportación y borrado del perfil**, alta de empresas y membresías sin SQL manual.
-4. **Persistir por tenant el estudio de creadores** y decidir con Nova qué falta (campos, etapas, formato de guion) — es el caso de uso del piloto.
-5. **Conectar NEX de verdad** (`lib/ai/`, Workers AI, AI Gateway), mostrando el aviso solo en respuestas simuladas (D8) y corrigiendo D27 y D28 antes.
-6. **Datos reales en Clients y Sales** (empezando por ellos, según `STATE.md`).
-7. **Endurecimiento previo al piloto:** cabeceras de seguridad (A8), límite de tasa, tests E2E (D5), dependencias (D17), formato (D15).
-8. **Fase 3: piloto con Nova** como empresa normal, por invitación (1–3 usuarios), cuando se cumplan las cuatro condiciones de §6.
+1. **Cerrar el spike con Go o No-Go con evidencia** (`RESULTADO.md`): fusionar la corrección A1/B4, desplegar al Preview, probar `revoke` y renovación (B3), configurar SMTP, recuperar los tipos (D31). Identidad, sesión y aislamiento son la base de cualquier agente.
+2. **Fundamentos del agente (ADRs):** autonomía por niveles (la dirección está decidida; falta el ADR que modifica la regla 12 y los estándares), identidad del agente dentro de una empresa, ejecución en segundo plano, memoria y registro de acciones. En el mismo sprint, las decisiones de datos reales de ADR-0006: región, retención, eliminación, entorno y análisis legal.
+3. **NEX real mínimo, solo lectura (Nivel 1):** `lib/ai/`, AI Gateway, evals; D8, D27 y D28.
+4. **Perfil completo y endurecimiento:** guardar el Assessment, exportación y borrado, alta de empresas; cabeceras de seguridad (A8), límite de tasa, tests E2E y dependencias.
+5. **Turno de noche:** ejecución programada, bandeja de decisiones e informe de la mañana, con registro de qué hizo, por qué y bajo qué autorización.
+6. **Primeras herramientas de NEX:** estudio de creadores persistido y expuesto por contrato; primeras autorizaciones permanentes (Nivel 2).
+7. **CRM como herramienta:** datos reales en Clients y Sales.
+8. **Piloto con Nova** como empresa normal, por invitación (1–3 usuarios), cuando se cumplan las cuatro condiciones de §6.
 9. **Producción** (D21, D23, D25) solo después, con aprobación explícita (`AGENTS.md` §7.11).
 
-**Fuera del camino a la 1.0 según los documentos actuales:** Marketplace, Academy, AI Studio, verticales y agentes IA (Blueprints, Fases 4–6). Siguen diseñados, sin fecha.
+**Fuera del camino a la 1.0 según los documentos actuales:** Marketplace, Academy, AI Studio, verticales y agentes IA (Blueprints, fases 4–6).
 
 ## 10. Cosas que no sé
 
