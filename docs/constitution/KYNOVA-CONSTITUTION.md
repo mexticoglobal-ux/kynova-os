@@ -1,7 +1,7 @@
 # KYNOVA Constitution
 
 > **Estado: propuesta, pendiente de aprobación final de Jeffrey Hernandez.** Hasta entonces no sustituye ninguna regla vigente.
-> Decisiones ya tomadas por Jeffrey (2026-11-05): autonomía por niveles (Artículo 7) y el principio de confianza (Artículo 2).
+> Decisiones ya tomadas por Jeffrey (2026-11-05): autonomía por niveles y sus criterios adicionales (Artículo 7) y el principio de confianza (Artículo 2).
 > Describe qué es KYNOVA, cómo piensa y cómo actúa NEX, y cómo debe sentirse. Es la base para producto, diseño e ingeniería.
 > No describe el estado del código: para eso, `docs/handoff/KYNOVA-MASTER-STATUS.md`.
 
@@ -106,7 +106,7 @@ Ausencia del dueño no significa pausa: NEX trabaja en un **turno de noche**.
 ## Artículo 7 — Niveles de autonomía
 
 > **Decisión de Jeffrey Hernandez (2026-11-05): la autonomía de NEX se organiza por niveles, no con una respuesta binaria.**
-> **Estado en vigor:** hoy el único mecanismo vigente sigue siendo la confirmación explícita por acción (`.claude/rules/ai.md`, regla 12; `framework/standards/ai.md`; `docs/DOMAIN.md` §3). El Nivel 2 entra en vigor cuando se apruebe el ADR que modifica esas tres fuentes (decisión C1 del Artículo 14).
+> **Estado en vigor:** hoy el único mecanismo vigente sigue siendo la confirmación explícita por acción (`.claude/rules/ai.md`, regla 12; `framework/standards/ai.md`; `docs/DOMAIN.md` §3). El Nivel 2 **no entra en vigor** hasta que el ADR-0009 (autonomía gobernada por niveles) sea aceptado y se actualicen las normas vigentes. Hasta entonces, el comportamiento vigente es el actual.
 
 | Nivel | Qué puede hacer NEX | Qué necesita |
 |-------|---------------------|--------------|
@@ -142,7 +142,23 @@ Reglas:
 | Administrativo | Usuarios, permisos, plan, configuración de la cuenta |
 | Información crítica | Borrar, exportar o compartir datos fuera de la empresa; modificar datos maestros del negocio |
 
-**Criterios adicionales propuestos, pendientes de confirmar por Jeffrey:** también se consulta cuando la acción es la **primera** comunicación de NEX con un tercero, una comunicación sensible (quejas, disputas, cobros), una publicación en un canal o formato nuevo, algo irreversible o de coste no acotado, o cuando el dueño lo marca como "pregúntame".
+**Criterios adicionales (aprobados por Jeffrey Hernandez, 2026-11-05).** También requieren confirmación explícita:
+- la **primera comunicación** de NEX con un tercero;
+- **cualquier comunicación sensible** (quejas, disputas, cobros);
+- el uso de un **canal nuevo**;
+- **cualquier acción irreversible**.
+
+Además, el dueño puede marcar cualquier acción como "pregúntame": es un control suyo, no un criterio del sistema.
+
+### Del Nivel 3 al Nivel 2: convertir un flujo en autorización permanente
+
+Cuando el usuario autoriza un flujo por primera vez, puede convertir determinadas acciones **repetitivas** de ese flujo en autorizaciones permanentes de Nivel 2, siempre que **no impliquen impacto legal, financiero, contractual ni sean irreversibles**.
+
+Cómo se entiende (interpretación a confirmar en el ADR-0009):
+1. **Solo pasan a Nivel 2 las acciones que eran Nivel 3 por los criterios adicionales** (primera comunicación, comunicación sensible, canal nuevo) y que además no son irreversibles ni tienen impacto legal, financiero ni contractual.
+2. **Las acciones que son Nivel 3 por su ámbito** (legal, financiero, contractual, administrativo, información crítica) **no se convierten nunca**.
+3. **La conversión la decide el usuario.** NEX puede proponerla; nunca la activa por sí misma.
+4. La autorización resultante cumple todo lo exigido a una autorización permanente (límites, horario, vigencia, revocación, registro).
 
 La autonomía crece por tipo de acción y nunca de golpe. Cada acción declara su nivel y su evidencia de acierto.
 
@@ -258,7 +274,7 @@ Esta Constitución depende de decisiones que **no están tomadas**. Cada una req
 
 | # | Decisión | Afecta a |
 |---|----------|----------|
-| C1 | **Decidido el modelo:** autonomía por niveles (Artículo 7). **Falta el ADR** que modifique la regla 12 de `.claude/rules/ai.md`, `framework/standards/ai.md` y `docs/DOMAIN.md` §3, y que defina el formato de la autorización permanente y su registro | `.claude/rules/ai.md`, `framework/standards/ai.md`, `docs/DOMAIN.md` §3 |
+| C1 | **Modelo y criterios decididos** (Artículo 7). **ADR-0009 en redacción:** es la fuente oficial del cambio de "confirmación por acción" a "autonomía gobernada por niveles" y enumera las normas a actualizar al aprobarse | `.claude/rules/ai.md`, `framework/standards/ai.md`, `docs/DOMAIN.md`, `docs/modules/nex.md` |
 | C2 | **Identidad del agente** dentro de una empresa cuando no hay usuario conectado (hoy todo acceso usa el JWT de un usuario y `service_role` no tiene privilegios) | ADR-0006, `lib/db/` |
 | C3 | Ejecución en segundo plano del turno de noche (programación, colas, reintentos) | ADR-0002, `wrangler.jsonc`, punto de entrada de OpenNext |
 | C4 | Memoria del negocio: qué se guarda, dónde, por cuánto tiempo y cómo se olvida | ADR-0006 (retención y eliminación pendientes) |
