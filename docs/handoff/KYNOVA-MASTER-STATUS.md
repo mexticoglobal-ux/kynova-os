@@ -3,7 +3,7 @@
 > Estado real de KYNOVA OS al **2026-11-05**, para continuar sin perder nada entre Jeffrey, Claude y ChatGPT.
 > Consolida `docs/STATE.md`, los ADR 0001–0008, `docs/DOMAIN.md`, `docs/modules/`, `docs/supabase-spike/RESULTADO.md` y los dos Blueprints (`.docx`).
 > No propone ideas nuevas ni cambia la arquitectura: separa lo que existe de lo que solo está escrito.
-> Complemento: `KYNOVA-HANDOFF.md` (las 24 secciones técnicas).
+> Complemento: `KYNOVA-HANDOFF.md` (las 24 secciones técnicas) y `REVISION-4-PUNTOS.md` (validación del handoff frente al código y a la visión del agente 24/7).
 
 **Regla de lectura.** Precedencia ante conflicto: código > ADR vigente > `STATE.md` > memoria personal (`AGENTS.md` §3). Los Blueprints son visión objetivo, **no** estado.
 
@@ -27,7 +27,7 @@
 | Producto visible | Demo navegable en 8 idiomas | Preview `kynova-os-preview` |
 | Plataforma | Preview desplegado en Cloudflare Workers; **producción sin desplegar** | ADR-0002 fases 0–3 hechas; 4–5 pendientes |
 | Datos y tenancy | Implementado, **pendiente de Go** | 13/13 controles SQL en el proyecto desechable; aislamiento A/B/C verificado en el Preview |
-| Auth | Funciona con código OTP y enlace mágico en el Preview; **SMTP propio pendiente** | `docs/supabase-spike/RESULTADO.md` |
+| Auth | El código OTP funciona en el Preview; el enlace mágico está implementado, pero solo probado con un cliente simulado; **SMTP propio pendiente** | `docs/supabase-spike/RESULTADO.md` |
 | IA | Simulada | `lib/nex.ts` |
 | Calidad | Typecheck, lint, 234 tests (22 archivos) y build en verde en `main`; sin tests E2E | CI de GitHub Actions |
 | Seguridad | Un hallazgo abierto de sesión (A1/B4) con corrección en una rama sin fusionar; cabeceras de seguridad ausentes | §4 |
@@ -42,15 +42,14 @@
 
 | # | Pieza | Detalle |
 |---|-------|---------|
-| 1 | Marco de ingeniería KAF v1 | `AGENTS.md`, `CLAUDE.md`, `.claude/` (reglas, skills, comandos, hooks), `framework/`; ver deuda D4 (hooks sin verificar) |
-| 2 | Interfaz base | Shell de la app, navegación única (`config/site.ts`), tema oscuro, componentes comunes |
-| 3 | Internacionalización | 8 idiomas con diccionarios tipados y carga bajo demanda (ADR-0004); español por defecto |
-| 4 | SEO y rendimiento | Metadatos por ruta, sitemap, robots, schema.org, manifest; PageSpeed (2026-10-24): `/` 96, resto 99–100 |
-| 5 | Plataforma Cloudflare | OpenNext + Workers, Preview desplegable por GitHub Actions (ADR-0002, 0007) |
-| 6 | CI | Build del Worker (con dry-run, tamaño y escaneo de canario), tests, lint y aislamiento RLS en Postgres efímero |
-| 7 | Tamaño del Worker | 7,006.79 KiB sin comprimir (≈ 6.84 MiB) frente al límite de 64 MiB de Cloudflare |
-| 8 | Esquema de tenancy | `tenants`, `memberships`, `business_profiles` con RLS y permisos mínimos; 13/13 controles SQL reales |
-| 9 | Lectura aislada por empresa en el Preview | A solo ve lo de A, B lo de B, C (sin membresía) no ve nada |
+| 1 | Interfaz base | Shell de la app, navegación única (`config/site.ts`), tema oscuro, componentes comunes |
+| 2 | Internacionalización | 8 idiomas con diccionarios tipados y carga bajo demanda (ADR-0004); español por defecto |
+| 3 | SEO y rendimiento | Metadatos por ruta, sitemap, robots, schema.org, manifest; PageSpeed (2026-10-24): `/` 96, resto 99–100 |
+| 4 | Plataforma Cloudflare | OpenNext + Workers, Preview desplegable por GitHub Actions (ADR-0002, 0007) |
+| 5 | CI | Build del Worker (con dry-run, tamaño y escaneo de canario), tests, lint y aislamiento RLS en Postgres efímero |
+| 6 | Tamaño del Worker | 7,006.79 KiB sin comprimir (≈ 6.84 MiB) frente al límite de 64 MiB de Cloudflare |
+| 7 | Esquema de tenancy | `tenants`, `memberships`, `business_profiles` con RLS y permisos mínimos; 13/13 controles SQL reales |
+| 8 | Lectura aislada por empresa en el Preview | A solo ve lo de A, B lo de B, C (sin membresía) no ve nada |
 
 ## 3. Qué funciona actualmente (con matices)
 
@@ -61,7 +60,7 @@
 | 8 módulos de negocio | Vista común (`ModuleView`) con KPIs, tarjetas y tabla por módulo | **Datos simulados**; sin persistencia |
 | NEX chat | Conversación, historial en el navegador, 8 idiomas | **Respuestas simuladas** por intención; historial solo en `localStorage` |
 | Business Assessment v0 | 6 preguntas cerradas y 2–3 módulos recomendados por reglas | Solo en memoria; **no guarda nada** |
-| Inicio de sesión | OTP numérico y enlace mágico PKCE en `/spike/login` | Cuentas de prueba (alta desactivada); correo a cuentas externas bloqueado por SMTP |
+| Inicio de sesión | OTP numérico (verificado en el Preview) y enlace mágico PKCE (sin verificar con un enlace real) en `/spike/login` | Cuentas de prueba (alta desactivada); correo a cuentas externas bloqueado por SMTP |
 | Perfil de empresa (`/settings`) | Carga, edición y guardado del perfil vía `/api/profile` | Solo datos ficticios; sin probar con la sesión real de un usuario de Nova |
 | Estudio de creadores (`/marketing`) | Canal de YouTube sin mostrar la cara: brief, ideas, guiones, producción | **Solo en el navegador**: sin tenant, sin copia, sin NEX, sin exportar, sin YouTube |
 
@@ -74,6 +73,7 @@
 | Despliegue del Preview | Subida de Wrangler a 4.157.0 (#4) y `keep_vars: true` (`6aaaeff`) en `main` | Volver a lanzar "Deploy Preview" y confirmar que ya no falla con "Unable to fetch bindings, routes, or services metadata" |
 | Perfil de empresa | API y pantalla mínima | Guardar el Assessment en el perfil; exportar y borrar; alta de empresas y membresías (hoy manual por SQL); invitaciones |
 | Marketing (creadores) | Estudio local v0 | Persistencia por tenant; ayuda de NEX; exportación; conexión con YouTube (nada decidido) |
+| Marco de ingeniería KAF v1 | `AGENTS.md`, `CLAUDE.md`, reglas, skills y comandos existen | Verificar los hooks (D4: no probados; `verify.mjs` falla en esta sesión con `MODULE_NOT_FOUND`); `.mcp.json` y `lib/ai/` no existen |
 | Seguridad de aplicación | `no-store` en las rutas de API; límite de cuerpo; comprobación de mismo origen | Cabeceras HSTS/CSP/`X-Content-Type-Options`/`Referrer-Policy`/`X-Frame-Options` (A8); límite de tasa propio; revisión de CSRF en Workers |
 
 ## 5. Qué solamente está diseñado (documentado, sin código)
