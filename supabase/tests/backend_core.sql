@@ -378,6 +378,39 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------------
+-- Saved audits, activity trail, assistant thread deletion
+-- ---------------------------------------------------------------------------
+do $$
+declare t uuid := current_setting('test.t1')::uuid; a jsonb;
+begin
+  perform pg_temp.as_user('10000000-0000-4000-8000-000000000001', 'owner@example.test');
+  a := public.save_assessment(t, jsonb_build_object('businessName', 'Mi negocio', 'audit', jsonb_build_object(
+         'score', 42, 'band', 'basic', 'infrastructure', 'partial', 'answers', jsonb_build_object('web', 'defined'))));
+  if jsonb_array_length(public.list_assessments(t)) < 1 or public.list_assessments(t) #>> '{0,score}' <> '42' then raise exception 'FAIL: saved audit not listed'; end if;
+  if public.list_assessments(t) #>> '{0,name}' <> 'Mi negocio' then raise exception 'FAIL: saved audit name'; end if;
+  begin
+    perform public.save_assessment(t, '{"businessName":"x"}'::jsonb);
+    raise exception 'FAIL: an audit without results was saved';
+  exception when invalid_parameter_value then null; end;
+  if jsonb_array_length(public.list_activity(t)) < 5 then raise exception 'FAIL: activity trail too short'; end if;
+  if not exists (select 1 from jsonb_array_elements(public.list_activity(t)) e where e ->> 'kind' = 'assessment.saved') then raise exception 'FAIL: saving an audit was not logged'; end if;
+
+  perform public.delete_assistant_conversation(current_setting('test.assistant')::uuid);
+  if exists (select 1 from public.conversations where id = current_setting('test.assistant')::uuid) then raise exception 'FAIL: assistant thread not deleted'; end if;
+  begin
+    perform public.delete_assistant_conversation(current_setting('test.conv')::uuid);
+    raise exception 'FAIL: a prospect conversation was deleted through the assistant function';
+  exception when no_data_found then null; end;
+
+  perform pg_temp.as_user('10000000-0000-4000-8000-000000000004', 'viewer@example.test');
+  begin
+    perform public.save_assessment(t, '{"audit":{"score":1,"band":"initial","infrastructure":"none","answers":{}}}'::jsonb);
+    raise exception 'FAIL: viewer saved an audit';
+  exception when insufficient_privilege then null; end;
+  raise notice 'ok: assessments, activity, assistant deletion';
+end $$;
+
+-- ---------------------------------------------------------------------------
 -- Isolation between companies
 -- ---------------------------------------------------------------------------
 do $$

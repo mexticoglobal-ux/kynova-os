@@ -5,6 +5,7 @@ import { useI18n } from "@/components/i18n/I18nProvider";
 import { ASSESSMENT_OPTIONS, ASSESSMENT_QUESTIONS, type AssessmentQuestion } from "@/lib/contracts/assessment";
 import { TENANT_ROLES, isUuid, parseBusinessProfileInput, type BusinessProfileInput, type TenantRole } from "@/lib/contracts/tenancy";
 import { LOCALES, LOCALE_LABELS } from "@/lib/i18n/config";
+import { ROLE_LABEL } from "@/lib/contracts/backend";
 import { FIELD_LG, LABEL } from "@/components/ui/form";
 import { buttonClass } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -214,7 +215,7 @@ export function CompanyProfile() {
             </div>
             <div>
               <dt className="text-ink-muted">{copy.role}</dt>
-              <dd className="font-medium text-ink">{copy.roles[load.tenant.role]}</dd>
+              <dd className="font-medium text-ink">{load.tenant.role === "owner" || load.tenant.role === "member" ? copy.roles[load.tenant.role] : ROLE_LABEL[load.tenant.role]}</dd>
             </div>
           </dl>
 

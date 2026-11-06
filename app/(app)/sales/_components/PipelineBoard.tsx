@@ -1,16 +1,17 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import clsx from "clsx";
-import { Bot, CalendarCheck, ChevronDown, ChevronUp, Inbox, ShieldCheck, Sparkles } from "lucide-react";
+import { Bot, CalendarCheck, ChevronDown, ChevronUp, Inbox, ShieldCheck, Sparkles, UserCheck } from "lucide-react";
 import type { Lead, Priority } from "@/lib/contracts/pipeline";
 import { executiveSummary } from "@/lib/pipeline";
 import { CHANNEL_LABEL, GRADE_LABEL, METHOD_LABEL, PRIORITY_LABEL, STAGE_LABEL } from "@/lib/pipeline-copy";
 import { BAND_COPY } from "@/lib/audit-copy";
 import { usePipeline } from "@/components/pipeline/PipelineProvider";
-import { buttonClass } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { Button, buttonClass } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 const PRIORITY_STYLE: Record<Priority, string> = {
   high: "bg-danger/15 text-danger-soft",
@@ -29,50 +30,82 @@ function Field({ label, children, wide = false }: { label: string; children: Rea
 
 // The commercial pipeline: every prospect NEX has prepared, fed by the Business Audit through the guided chat.
 export function PipelineBoard() {
-  const { sorted, pack, focusId, focus } = usePipeline();
+  const { sorted, pack, focusId, focus, loading, error, mode } = usePipeline();
 
   return (
     <section aria-labelledby="pipeline-title" className="space-y-3">
-      <div className="flex flex-wrap items-end justify-between gap-2">
-        <div>
-          <h2 id="pipeline-title" className="text-xl font-semibold">
-            Pipeline comercial
-          </h2>
-          <p className="text-sm text-ink-muted">
-            {sorted.length} prospectos preparados por NEX. Datos de demostración: los prospectos de ejemplo son ficticios y nada se envía a nadie.
-          </p>
-        </div>
+      <div>
+        <h2 id="pipeline-title" className="text-xl font-semibold">
+          Pipeline comercial
+        </h2>
+        <p className="text-sm text-ink-muted">
+          {mode === "demo"
+            ? `${sorted.length} prospectos preparados por NEX. Datos de demostración: los prospectos de ejemplo son ficticios y nada se envía a nadie.`
+            : `${sorted.length} ${sorted.length === 1 ? "prospecto preparado" : "prospectos preparados"} por NEX en tu empresa. Todo se guarda; nada se envía a un prospecto sin tu aprobación.`}
+        </p>
       </div>
-      {sorted.length === 0 && (
-        <EmptyState icon={Inbox} title="Todavía no hay prospectos">
-          Cuando NEX reciba y analice a alguien, aparecerá aquí con su diagnóstico y su siguiente paso.
-        </EmptyState>
+      {error && (
+        <p role="alert" className="rounded-xl border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
+          {error}
+        </p>
       )}
-      <ul className="grid gap-3">
-        {sorted.map((lead, index) => (
-          <LeadCard index={index} key={lead.id} lead={lead} open={focusId === lead.id} onToggle={() => focus(focusId === lead.id ? null : lead.id)} packBrand={pack.brand} />
-        ))}
-      </ul>
+      {loading ? (
+        <div className="grid gap-3" aria-busy="true" aria-label="Cargando prospectos">
+          {[0, 1, 2].map((index) => (
+            <Skeleton key={index} className="h-44" />
+          ))}
+        </div>
+      ) : sorted.length === 0 ? (
+        <EmptyState icon={Inbox} title="Todavía no hay prospectos">
+          Cuando NEX reciba y analice a alguien, aparecerá aquí con su diagnóstico y su siguiente paso. Prueba el chat guiado desde el Dashboard.
+        </EmptyState>
+      ) : (
+        <ul className="grid gap-3">
+          {sorted.map((lead, index) => (
+            <LeadCard key={lead.id} index={index} lead={lead} open={focusId === lead.id} onToggle={() => focus(focusId === lead.id ? null : lead.id)} packBrand={pack.brand} />
+          ))}
+        </ul>
+      )}
     </section>
   );
 }
 
 function LeadCard({ lead, open, onToggle, packBrand, index }: { lead: Lead; open: boolean; onToggle: () => void; packBrand: string; index: number }) {
-  const { pack, approveMeeting, discardMeeting } = usePipeline();
+  const { pack, approveMeeting, discardMeeting, winLead, canWrite, canDecide, mode } = usePipeline();
   const ref = useRef<HTMLLIElement>(null);
+  const [confirmingWin, setConfirmingWin] = useState(false);
+  const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (open) ref.current?.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
   }, [open]);
   const brief = executiveSummary(lead, pack);
 
+  async function run(action: () => Promise<void>) {
+    setBusy(true);
+    try {
+      await action();
+    } finally {
+      setBusy(false);
+      setConfirmingWin(false);
+    }
+  }
+
   return (
-    <li ref={ref} className={clsx("card animate-fade-up p-4 transition-colors hover:border-line-strong sm:p-5", lead.arrival === "session" && "ring-1 ring-primary/50")}
-      style={{ animationDelay: `${Math.min(index, 6) * 50}ms` }} data-testid={`lead-${lead.id}`}>
+    <li
+      ref={ref}
+      className={clsx("card animate-fade-up p-4 transition-colors hover:border-line-strong sm:p-5", lead.arrival === "session" && "ring-1 ring-primary/50")}
+      style={{ animationDelay: `${Math.min(index, 6) * 50}ms` }}
+      data-testid={`lead-${lead.id}`}
+    >
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <h3 className="font-medium">
             {lead.company}
-            {lead.arrival === "session" && <Badge tone="primary" className="ml-2">Nuevo</Badge>}
+            {lead.arrival === "session" && (
+              <Badge tone="primary" className="ml-2">
+                Nuevo
+              </Badge>
+            )}
           </h3>
           <p className="text-xs text-ink-muted">{`${CHANNEL_LABEL[lead.channel]} · ${GRADE_LABEL[lead.grade]}`}</p>
         </div>
@@ -95,20 +128,38 @@ function LeadCard({ lead, open, onToggle, packBrand, index }: { lead: Lead; open
       {lead.approval && (
         <p className="mt-4 flex items-center gap-2 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning">
           <ShieldCheck aria-hidden className="h-4 w-4 shrink-0" />
-          NEX preparó una solicitud de reunión y espera su aprobación.
+          NEX preparó una solicitud de reunión y espera {canDecide ? "tu aprobación" : "la aprobación de un propietario o administrador"}.
         </p>
       )}
 
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={onToggle}
-        className={buttonClass("secondary", "md", "mt-4")}
-      >
-        <Bot aria-hidden className="h-4 w-4" />
-        {open ? "Ocultar resumen ejecutivo" : "Ver resumen ejecutivo"}
-        {open ? <ChevronUp aria-hidden className="h-4 w-4" /> : <ChevronDown aria-hidden className="h-4 w-4" />}
-      </button>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button type="button" aria-expanded={open} onClick={onToggle} className={buttonClass("secondary", "md")}>
+          <Bot aria-hidden className="h-4 w-4" />
+          {open ? "Ocultar resumen ejecutivo" : "Ver resumen ejecutivo"}
+          {open ? <ChevronUp aria-hidden className="h-4 w-4" /> : <ChevronDown aria-hidden className="h-4 w-4" />}
+        </button>
+        {canWrite && lead.stage !== "won" && lead.grade !== "human" && (
+          <>
+            {confirmingWin ? (
+              <>
+                <Button variant="accent" disabled={busy} onClick={() => void run(() => winLead(lead.id))}>
+                  <UserCheck aria-hidden className="h-4 w-4" />
+                  {busy ? "Convirtiendo…" : "Confirmar: convertir en cliente"}
+                </Button>
+                <Button variant="ghost" disabled={busy} onClick={() => setConfirmingWin(false)}>
+                  Cancelar
+                </Button>
+              </>
+            ) : (
+              <Button variant="secondary" onClick={() => setConfirmingWin(true)}>
+                <UserCheck aria-hidden className="h-4 w-4" />
+                Convertir en cliente
+              </Button>
+            )}
+          </>
+        )}
+      </div>
+      {confirmingWin && <p className="mt-2 text-xs text-ink-muted">Crea la oportunidad, la marca como ganada y registra al cliente. Es una decisión comercial: la tomas tú.</p>}
 
       {open && (
         <div className="mt-4 space-y-4 border-t border-line pt-4" data-testid="executive-summary">
@@ -134,29 +185,34 @@ function LeadCard({ lead, open, onToggle, packBrand, index }: { lead: Lead; open
                 Solicitud de reunión preparada por NEX
               </p>
               <p className="mt-2 whitespace-pre-line rounded-xl bg-shade p-3 text-sm text-ink">{lead.approval.draft}</p>
-              <p className="mt-2 text-xs text-ink-soft">Es el primer mensaje a este prospecto, así que espera su aprobación. {packBrand}: en esta demostración no se envía nada.</p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => approveMeeting(lead.id)}
-                  className={buttonClass("primary", "md")}
-                >
-                  Aprobar y solicitar reunión
-                </button>
-                <button
-                  type="button"
-                  onClick={() => discardMeeting(lead.id)}
-                  className={buttonClass("secondary", "md")}
-                >
-                  Todavía no
-                </button>
-              </div>
+              <p className="mt-2 text-xs text-ink-soft">
+                Es el primer mensaje a este prospecto, así que espera aprobación. {packBrand}:{" "}
+                {mode === "demo" ? "en esta demostración no se envía nada." : "el canal todavía no está conectado: al aprobarla queda registrada y en cola, y no sale de la plataforma."}
+              </p>
+              {canDecide ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button variant="primary" disabled={busy} onClick={() => void run(() => approveMeeting(lead.id))}>
+                    Aprobar y solicitar reunión
+                  </Button>
+                  <Button variant="secondary" disabled={busy} onClick={() => void run(() => discardMeeting(lead.id))}>
+                    Todavía no
+                  </Button>
+                </div>
+              ) : (
+                <p className="mt-3 text-sm text-ink-muted">Solo un propietario o administrador puede aprobarla.</p>
+              )}
             </div>
           )}
           {lead.stage === "meetingRequested" && !lead.approval && (
             <p className="flex items-center gap-2 text-sm text-success">
               <CalendarCheck aria-hidden className="h-4 w-4" />
-              Reunión solicitada (demostración: no se envió nada al prospecto).
+              {mode === "demo" ? "Reunión solicitada (demostración: no se envió nada al prospecto)." : "Solicitud de reunión aprobada y registrada."}
+            </p>
+          )}
+          {lead.stage === "won" && (
+            <p className="flex items-center gap-2 text-sm text-success">
+              <UserCheck aria-hidden className="h-4 w-4" />
+              Ya es cliente: consúltalo en la sección Clientes.
             </p>
           )}
         </div>

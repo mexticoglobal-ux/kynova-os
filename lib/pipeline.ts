@@ -14,7 +14,7 @@ const PRIORITY_BY_GRADE: Record<Grade, Priority> = { hot: "high", human: "high",
 export const OWNER_NEX = "NEX";
 export const OWNER_TEAM = "Equipo de Nova";
 
-function meetingDraft(pack: ClientPack, name: string, serviceName: string | undefined, treatment: Treatment): string {
+export function meetingDraft(pack: ClientPack, name: string, serviceName: string | undefined, treatment: Treatment): string {
   const t = (usted: string, tu: string) => pick(treatment, [usted, tu]);
   const topic = serviceName ? ` (${serviceName})` : "";
   return t(

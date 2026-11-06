@@ -909,6 +909,7 @@ begin
         'phone', (select value_normalized from public.contact_identities i where i.tenant_id = l.tenant_id and i.contact_id = l.contact_id and i.kind in ('phone', 'whatsapp') limit 1),
         'assessment', (select jsonb_build_object('id', a.id, 'score', a.score, 'band', a.band, 'infrastructure', a.infrastructure, 'answers', a.answers, 'createdAt', a.created_at)
                        from public.assessment_runs a where a.tenant_id = l.tenant_id and a.id = l.assessment_run_id),
+        'meetingApproved', exists (select 1 from public.approval_requests r where r.tenant_id = l.tenant_id and r.lead_id = l.id and r.kind = 'meeting_request' and r.status = 'approved'),
         'approval', (select jsonb_build_object('id', r.id, 'kind', r.kind, 'draft', r.draft, 'createdAt', r.created_at)
                      from public.approval_requests r where r.tenant_id = l.tenant_id and r.lead_id = l.id and r.status = 'pending' order by r.created_at desc limit 1)
       ) as x
@@ -1024,6 +1025,99 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------------
+-- Saved audits, assistant threads and the activity trail
+-- ---------------------------------------------------------------------------
+
+-- Saves a Business Audit that is not part of a prospect conversation (a company assessing its own business).
+create function public.save_assessment(p_tenant uuid, p jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_name text := coalesce(nullif(btrim(p ->> 'businessName'), ''), 'Diagnóstico sin nombre');
+  v_contact uuid;
+  v_run uuid;
+begin
+  perform private.require_write(p_tenant);
+  if p -> 'audit' is null or jsonb_typeof(p -> 'audit') <> 'object' or p #>> '{audit,score}' is null then
+    raise exception 'audit required' using errcode = '22023';
+  end if;
+  insert into public.contacts (tenant_id, display_name, source_provider) values (p_tenant, left(v_name, 120), 'audit') returning id into v_contact;
+  insert into public.contact_identities (tenant_id, contact_id, kind, value_normalized, is_primary)
+  values (p_tenant, v_contact, 'web_visitor', gen_random_uuid()::text, true);
+  insert into public.assessment_runs (tenant_id, contact_id, engine_version, answers, score, band, infrastructure, result, created_by)
+  values (p_tenant, v_contact, coalesce((p #>> '{audit,engineVersion}')::smallint, 1), p #> '{audit,answers}', (p #>> '{audit,score}')::smallint,
+          p #>> '{audit,band}', p #>> '{audit,infrastructure}', coalesce(p #> '{audit,result}', '{}'::jsonb), (select auth.uid()))
+  returning id into v_run;
+  perform private.log_action(p_tenant, 'assessment.saved', 1::smallint, 'Se guardó un Business Audit', null, v_contact);
+  return jsonb_build_object('assessmentId', v_run, 'contactId', v_contact);
+end;
+$$;
+
+create function public.list_assessments(p_tenant uuid, p_limit int default 20)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  perform private.require_member(p_tenant);
+  return coalesce((
+    select jsonb_agg(x order by x ->> 'createdAt' desc)
+    from (
+      select jsonb_build_object('id', a.id, 'createdAt', a.created_at, 'score', a.score, 'band', a.band, 'infrastructure', a.infrastructure,
+                                'answers', a.answers, 'name', c.display_name, 'leadId', a.lead_id) as x
+      from public.assessment_runs a join public.contacts c on c.tenant_id = a.tenant_id and c.id = a.contact_id
+      where a.tenant_id = p_tenant order by a.created_at desc limit least(greatest(p_limit, 1), 100)
+    ) q
+  ), '[]'::jsonb);
+end;
+$$;
+
+create function public.delete_assistant_conversation(p_conversation uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare c public.conversations;
+begin
+  select * into c from public.conversations where id = p_conversation and kind = 'assistant';
+  if c.id is null then raise exception 'not found' using errcode = 'P0002'; end if;
+  perform private.require_member(c.tenant_id);
+  if c.user_id is distinct from (select auth.uid()) then raise exception 'forbidden' using errcode = '42501'; end if;
+  delete from public.messages where tenant_id = c.tenant_id and conversation_id = c.id;
+  delete from public.conversations where id = c.id;
+end;
+$$;
+
+-- The action trail for the Settings screen (newest first; keyset by time).
+create function public.list_activity(p_tenant uuid, p_limit int default 50, p_before timestamptz default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  perform private.require_member(p_tenant);
+  return coalesce((
+    select jsonb_agg(x order by x ->> 'at' desc)
+    from (
+      select jsonb_build_object('id', a.id, 'at', a.occurred_at, 'kind', a.action_kind, 'level', a.level, 'summary', a.summary, 'reason', a.reason,
+                                'actor', a.actor_type, 'actorName', p.display_name, 'outcome', a.outcome) as x
+      from public.action_log a left join public.user_profiles p on p.user_id = a.actor_id and a.actor_type = 'user'
+      where a.tenant_id = p_tenant and (p_before is null or a.occurred_at < p_before)
+      order by a.occurred_at desc limit least(greatest(p_limit, 1), 200)
+    ) q
+  ), '[]'::jsonb);
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
 -- Inbound integrations and maintenance (server key only; no channel is connected yet)
 -- ---------------------------------------------------------------------------
 
@@ -1082,6 +1176,7 @@ revoke execute on function
   public.append_message(uuid, text, text, text, text, jsonb), public.list_conversations(uuid, text, int),
   public.list_messages(uuid, int, timestamptz), public.list_leads(uuid, text, int, timestamptz, uuid),
   public.list_clients(uuid, text, text, int, timestamptz, uuid), public.dashboard_digest(uuid),
+  public.save_assessment(uuid, jsonb), public.list_assessments(uuid, int), public.delete_assistant_conversation(uuid), public.list_activity(uuid, int, timestamptz),
   public.ingest_inbound_event(text, text, text, boolean, jsonb), public.maintain_partitions()
   from public, anon, authenticated, service_role;
 
@@ -1094,7 +1189,8 @@ grant execute on function
   public.erase_contact(uuid), public.decide_approval(uuid, boolean, text), public.start_assistant_conversation(uuid, text),
   public.append_message(uuid, text, text, text, text, jsonb), public.list_conversations(uuid, text, int),
   public.list_messages(uuid, int, timestamptz), public.list_leads(uuid, text, int, timestamptz, uuid),
-  public.list_clients(uuid, text, text, int, timestamptz, uuid), public.dashboard_digest(uuid)
+  public.list_clients(uuid, text, text, int, timestamptz, uuid), public.dashboard_digest(uuid),
+  public.save_assessment(uuid, jsonb), public.list_assessments(uuid, int), public.delete_assistant_conversation(uuid), public.list_activity(uuid, int, timestamptz)
   to authenticated;
 
 -- The server key executes only these two: it never reads or writes a table.

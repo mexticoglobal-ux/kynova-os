@@ -3,7 +3,7 @@
 
 import { ASSESSMENT_OPTIONS, ASSESSMENT_QUESTIONS, type AssessmentAnswers } from "./assessment";
 
-export const TENANT_ROLES = ["owner", "member"] as const;
+export const TENANT_ROLES = ["owner", "admin", "member", "viewer"] as const;
 export type TenantRole = (typeof TENANT_ROLES)[number];
 
 /** Version of the closed questionnaire the profile answers belong to. */

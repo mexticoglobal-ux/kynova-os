@@ -5,6 +5,8 @@ import clsx from "clsx";
 import { CheckCircle2, RotateCcw, Send, ShieldCheck, Sparkles } from "lucide-react";
 import { DIMENSION_COPY, pick, type Treatment } from "@/lib/audit-copy";
 import type { ClientPack } from "@/lib/audit-packs/nova-draft";
+import type { TranscriptEntry } from "@/lib/contracts/backend";
+import { entriesFromSay } from "@/lib/modules/prospects/transcript";
 import { advance, greeting, initialState, promptFor, validate, type ChatState, type Handoff, type Route, type Say } from "@/lib/guided-chat";
 import { BAND_COPY } from "@/lib/audit-copy";
 import { Card } from "@/components/ui/Card";
@@ -26,7 +28,7 @@ const METHOD_NAME = { email: "Correo", whatsapp: "WhatsApp", phone: "Teléfono" 
 // Pace of NEX's messages, so the conversation reads like someone working and not like a page that appears at once.
 const DELAY: Record<Say["kind"], number> = { text: 650, reaction: 800, working: 900, result: 1000, handoff: 800 };
 
-// Guided chat v1. Everything lives in this component's state: nothing is stored or sent anywhere.
+// Guided chat v1: closed choices and pre-approved copy. It stores nothing itself; whoever embeds it decides what to do with the handoff.
 export function GuidedChat({
   pack,
   treatment = pack.defaultTreatment,
@@ -38,7 +40,7 @@ export function GuidedChat({
   treatment?: Treatment;
   paceMs?: number;
   // Called once, when the conversation ends, with what the team needs. The pipeline subscribes to this.
-  onHandoff?: (handoff: Handoff) => void;
+  onHandoff?: (handoff: Handoff, context: { state: ChatState; transcript: TranscriptEntry[] }) => void;
   endActions?: React.ReactNode;
 }) {
   const [state, setState] = useState<ChatState>(() => initialState(treatment));
@@ -47,6 +49,7 @@ export function GuidedChat({
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const nextId = useRef(1);
+  const transcript = useRef<TranscriptEntry[]>(entriesFromSay(greeting(pack, treatment)));
   const endRef = useRef<HTMLDivElement>(null);
 
   // Plays NEX's queued messages one at a time.
@@ -71,10 +74,12 @@ export function GuidedChat({
     const result = advance(state, value, pack);
     if (result.state === state && result.say.length === 0) return;
     setItems((current) => (label === "" ? current : [...current, { id: nextId.current++, from: "user", text: label }]));
+    if (label !== "") transcript.current.push({ direction: "in", senderKind: "contact", contentType: prompt?.kind === "choice" ? "choice" : "text", body: label });
+    transcript.current.push(...entriesFromSay(result.say));
     setState(result.state);
     setQueue(result.say);
     const handoff = result.say.find((say) => say.kind === "handoff");
-    if (handoff?.kind === "handoff") onHandoff?.(handoff.handoff);
+    if (handoff?.kind === "handoff") onHandoff?.(handoff.handoff, { state: result.state, transcript: [...transcript.current] });
     setDraft("");
     setError(null);
   }
@@ -89,6 +94,7 @@ export function GuidedChat({
   function restart() {
     setState(initialState(treatment));
     setItems([]);
+    transcript.current = entriesFromSay(greeting(pack, treatment));
     setQueue(greeting(pack, treatment));
     setDraft("");
     setError(null);
@@ -101,7 +107,7 @@ export function GuidedChat({
         <NexBadge label={`NEX · ${pack.brand}`} />
         <p className="flex items-start gap-2 text-xs text-ink-muted">
           <ShieldCheck aria-hidden className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          Demostración: asistente automático con respuestas preparadas. No se guarda ni se envía nada.
+          Asistente automático con respuestas preparadas: no es una persona.
         </p>
       </header>
 
