@@ -48,7 +48,7 @@ export function ModuleView({ moduleKey, children }: { moduleKey: ModuleKey; chil
           </Button>
         ))}
       >
-        <p role="status" aria-live="polite" className="min-h-5 text-sm text-primary-soft">
+        <p role="status" aria-live="polite" className={notice ? "mt-4 text-sm text-primary-soft" : "sr-only"}>
           {notice}
         </p>
       </PageHeader>

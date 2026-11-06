@@ -20,7 +20,7 @@ export function Sparkline({ data, className, positive = true }: SparklineProps) 
       viewBox={`0 0 ${width} ${height}`}
       preserveAspectRatio="none"
       aria-hidden
-      className={clsx("h-8 w-full", positive ? "text-success" : "text-danger", className)}
+      className={clsx("h-8 w-full", positive ? "text-primary-soft" : "text-danger-soft", className)}
     >
       <polyline points={points} fill="none" stroke="currentColor" strokeWidth={2} vectorEffect="non-scaling-stroke" />
     </svg>

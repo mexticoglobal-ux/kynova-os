@@ -33,7 +33,7 @@ export function PageHeader({
         </div>
         {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
       </div>
-      {children && <div className="relative mt-4">{children}</div>}
+      {children && <div className="relative">{children}</div>}
     </Card>
   );
 }

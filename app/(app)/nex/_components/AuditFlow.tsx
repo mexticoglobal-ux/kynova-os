@@ -8,6 +8,7 @@ import { runAudit } from "@/lib/audit";
 import { buildSummary } from "@/lib/audit-summary";
 import { ANALYSIS_STEPS, DIMENSION_COPY, pick, type Treatment } from "@/lib/audit-copy";
 import type { ClientPack } from "@/lib/audit-packs/nova-draft";
+import { Card } from "@/components/ui/Card";
 import { NexBadge, ScoreCard, SummaryView } from "./AuditParts";
 import { buttonClass } from "@/components/ui/Button";
 import { choiceClass } from "@/components/ui/choice";
@@ -70,7 +71,8 @@ export function AuditFlow({ pack, analysisMs = 1600 }: { pack: ClientPack; analy
   }
 
   return (
-    <div ref={rootRef} className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
+    <div ref={rootRef} className="mx-auto max-w-2xl">
+      <Card className="p-6 sm:p-8">
       {stage === "intro" && (
         <section aria-labelledby="audit-intro">
           <NexBadge />
@@ -180,6 +182,7 @@ export function AuditFlow({ pack, analysisMs = 1600 }: { pack: ClientPack; analy
       )}
 
       {stage === "report" && isComplete(answers) && <Report answers={answers} pack={pack} treatment={treatment} businessName={businessName} onRestart={restart} />}
+      </Card>
     </div>
   );
 }

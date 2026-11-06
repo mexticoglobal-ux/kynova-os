@@ -7,6 +7,7 @@ import { DIMENSION_COPY, pick, type Treatment } from "@/lib/audit-copy";
 import type { ClientPack } from "@/lib/audit-packs/nova-draft";
 import { advance, greeting, initialState, promptFor, validate, type ChatState, type Handoff, type Route, type Say } from "@/lib/guided-chat";
 import { BAND_COPY } from "@/lib/audit-copy";
+import { Card } from "@/components/ui/Card";
 import { NexBadge, ScoreCard, SummaryView } from "./AuditParts";
 import { buttonClass } from "@/components/ui/Button";
 import { choiceClass } from "@/components/ui/choice";
@@ -94,7 +95,8 @@ export function GuidedChat({
   }
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col px-4 py-6 sm:px-6">
+    <div className="mx-auto max-w-2xl">
+      <Card className="flex flex-col p-5 sm:p-8">
       <header className="mb-4 space-y-2">
         <NexBadge label={`NEX · ${pack.brand}`} />
         <p className="flex items-start gap-2 text-xs text-ink-muted">
@@ -184,6 +186,7 @@ export function GuidedChat({
         )}
       </div>
       <div ref={endRef} />
+      </Card>
     </div>
   );
 }

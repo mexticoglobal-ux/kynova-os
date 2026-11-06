@@ -34,10 +34,11 @@
 | `IconBadge` | Icono enmarcado al inicio de una tarjeta |
 | `PageHeader` | Encabezado de cada página de módulo |
 | `Brand` | Marca KYNOVA (rombo dorado + nombre) |
+| `EmptyState` | Lo que se ve cuando una lista o panel aún no tiene nada: icono, qué falta y qué hacer |
 | `choice.ts`, `form.ts` | Opciones seleccionables y campos (`.field`), etiquetas |
 | `StatusBadge`, `KpiCard`, `Skeleton` | Construidos sobre los anteriores |
 
-Gráficos (`components/charts/`): usan `stroke-primary-soft`, `stroke-line-soft` y el degradado petróleo→dorado; nunca colores fijos. Iconos: solo `lucide-react`, 16 px en línea y 20 px en navegación, siempre `aria-hidden`.
+Gráficos (`components/charts/`): usan `stroke-primary-soft`, `stroke-line-soft` y el degradado petróleo→dorado; nunca colores fijos. Iconos: solo `lucide-react`, 16 px en línea y 20 px en navegación, siempre `aria-hidden`. Los gráficos de línea usan petróleo para lo positivo y rojo suave para lo negativo (el verde queda para etiquetas de estado).
 
 ## Para añadir un tema
 

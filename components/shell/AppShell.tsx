@@ -26,7 +26,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-line-soft bg-canvas/80 px-4 py-3 backdrop-blur lg:justify-end lg:border-none lg:bg-transparent lg:px-10 lg:pt-6">
+        <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-line-soft bg-canvas/80 px-4 py-3 backdrop-blur lg:backdrop-blur-none lg:justify-end lg:border-none lg:bg-transparent lg:px-10 lg:pt-6">
           <button
             type="button"
             onClick={() => setOpen(true)}

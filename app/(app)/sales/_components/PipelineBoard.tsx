@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import clsx from "clsx";
-import { Bot, CalendarCheck, ChevronDown, ChevronUp, ShieldCheck, Sparkles } from "lucide-react";
+import { Bot, CalendarCheck, ChevronDown, ChevronUp, Inbox, ShieldCheck, Sparkles } from "lucide-react";
 import type { Lead, Priority } from "@/lib/contracts/pipeline";
 import { executiveSummary } from "@/lib/pipeline";
 import { CHANNEL_LABEL, GRADE_LABEL, METHOD_LABEL, PRIORITY_LABEL, STAGE_LABEL } from "@/lib/pipeline-copy";
@@ -10,6 +10,7 @@ import { BAND_COPY } from "@/lib/audit-copy";
 import { usePipeline } from "@/components/pipeline/PipelineProvider";
 import { buttonClass } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 const PRIORITY_STYLE: Record<Priority, string> = {
   high: "bg-danger/15 text-danger-soft",
@@ -17,9 +18,9 @@ const PRIORITY_STYLE: Record<Priority, string> = {
   low: "bg-raised-strong text-ink-soft",
 };
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children, wide = false }: { label: string; children: React.ReactNode; wide?: boolean }) {
   return (
-    <div className="min-w-0">
+    <div className={clsx("min-w-0", wide && "col-span-2")}>
       <dt className="text-xs text-ink-muted">{label}</dt>
       <dd className="mt-0.5 break-words text-sm text-ink">{children}</dd>
     </div>
@@ -42,16 +43,21 @@ export function PipelineBoard() {
           </p>
         </div>
       </div>
+      {sorted.length === 0 && (
+        <EmptyState icon={Inbox} title="Todavía no hay prospectos">
+          Cuando NEX reciba y analice a alguien, aparecerá aquí con su diagnóstico y su siguiente paso.
+        </EmptyState>
+      )}
       <ul className="grid gap-3">
-        {sorted.map((lead) => (
-          <LeadCard key={lead.id} lead={lead} open={focusId === lead.id} onToggle={() => focus(focusId === lead.id ? null : lead.id)} packBrand={pack.brand} />
+        {sorted.map((lead, index) => (
+          <LeadCard index={index} key={lead.id} lead={lead} open={focusId === lead.id} onToggle={() => focus(focusId === lead.id ? null : lead.id)} packBrand={pack.brand} />
         ))}
       </ul>
     </section>
   );
 }
 
-function LeadCard({ lead, open, onToggle, packBrand }: { lead: Lead; open: boolean; onToggle: () => void; packBrand: string }) {
+function LeadCard({ lead, open, onToggle, packBrand, index }: { lead: Lead; open: boolean; onToggle: () => void; packBrand: string; index: number }) {
   const { pack, approveMeeting, discardMeeting } = usePipeline();
   const ref = useRef<HTMLLIElement>(null);
   useEffect(() => {
@@ -60,7 +66,8 @@ function LeadCard({ lead, open, onToggle, packBrand }: { lead: Lead; open: boole
   const brief = executiveSummary(lead, pack);
 
   return (
-    <li ref={ref} className={clsx("card p-4 sm:p-5", lead.arrival === "session" && "ring-1 ring-primary/50")} data-testid={`lead-${lead.id}`}>
+    <li ref={ref} className={clsx("card animate-fade-up p-4 transition-colors hover:border-line-strong sm:p-5", lead.arrival === "session" && "ring-1 ring-primary/50")}
+      style={{ animationDelay: `${Math.min(index, 6) * 50}ms` }} data-testid={`lead-${lead.id}`}>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <h3 className="font-medium">
@@ -72,13 +79,17 @@ function LeadCard({ lead, open, onToggle, packBrand }: { lead: Lead; open: boole
         <span className={clsx("rounded-full px-2.5 py-1 text-xs", PRIORITY_STYLE[lead.priority])}>{`Prioridad ${PRIORITY_LABEL[lead.priority].toLowerCase()}`}</span>
       </div>
 
-      <dl className="mt-4 grid gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-4">
+      <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 lg:grid-cols-4">
         <Field label="Contacto">{lead.contact ? `${lead.contactName} · ${METHOD_LABEL[lead.contact.method]}` : `${lead.contactName} · sin contacto`}</Field>
         <Field label="Business Score">{lead.score !== null && lead.band ? `${lead.score} / 100 · ${BAND_COPY[lead.band].label}` : "Sin diagnóstico"}</Field>
-        <Field label="Servicios recomendados">{lead.services.length > 0 ? lead.services.map((id) => pack.services[id]?.name ?? id).join(", ") : "—"}</Field>
         <Field label="Estado">{STAGE_LABEL[lead.stage]}</Field>
-        <Field label="Próxima acción">{lead.nextAction}</Field>
         <Field label="Responsable">{lead.owner}</Field>
+        <Field label="Servicios recomendados" wide>
+          {lead.services.length > 0 ? lead.services.map((id) => pack.services[id]?.name ?? id).join(", ") : "—"}
+        </Field>
+        <Field label="Próxima acción" wide>
+          {lead.nextAction}
+        </Field>
       </dl>
 
       {lead.approval && (

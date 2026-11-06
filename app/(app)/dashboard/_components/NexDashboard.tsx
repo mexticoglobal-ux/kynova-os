@@ -9,6 +9,7 @@ import { usePipeline } from "@/components/pipeline/PipelineProvider";
 import { DashboardView } from "./DashboardView";
 import { buttonClass } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
@@ -21,7 +22,7 @@ function greetingFor(hour: number) {
 function Done({ children }: { children: React.ReactNode }) {
   return (
     <li className="flex items-start gap-3 text-ink-soft">
-      <CheckCircle2 aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-success" />
+      <CheckCircle2 aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-primary-soft" />
       <span>{children}</span>
     </li>
   );
@@ -38,7 +39,7 @@ export function NexDashboard() {
   return (
     <div className="space-y-6">
       <PageHeader icon={Bot} eyebrow="NEX · Datos de demostración" title={<>{hello}, {dashboardData.userName}.</>} subtitle="Mientras no estabas:">
-        <ul className="space-y-2 text-sm sm:text-base" aria-label="Trabajo realizado por NEX mientras no estabas">
+        <ul className="mt-4 space-y-2 text-sm sm:text-base" aria-label="Trabajo realizado por NEX mientras no estabas">
             {overnight.analyzed > 0 && <Done>{`Analicé ${plural(overnight.analyzed, "prospecto", "prospectos")}.`}</Done>}
             {overnight.hot > 0 && <Done>{`Detecté ${plural(overnight.hot, "oportunidad caliente", "oportunidades calientes")}.`}</Done>}
             {overnight.awaitingApproval > 0 && (
@@ -62,7 +63,7 @@ export function NexDashboard() {
             {session.map((lead) => (
               <li key={lead.id} className="flex flex-wrap items-center justify-between gap-2">
                 <span className="flex items-start gap-3 text-ink-soft">
-                  <CheckCircle2 aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-success" />
+                  <CheckCircle2 aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-primary-soft" />
                   <span>
                     {`Recibí a ${lead.company} por ${CHANNEL_LABEL[lead.channel].toLowerCase()} y lo analicé`}
                     {lead.score !== null ? `: Business Score ${lead.score}, ` : ": "}
@@ -86,7 +87,11 @@ export function NexDashboard() {
             Necesita tu aprobación
           </h2>
           {approvals.length === 0 ? (
-            <p className="mt-3 text-sm text-ink-muted">No hay nada pendiente. NEX te avisará cuando prepare algo que dependa de ti.</p>
+            <div className="mt-3">
+              <EmptyState icon={ShieldCheck} title="Nada pendiente">
+                NEX te avisará cuando prepare algo que dependa de ti.
+              </EmptyState>
+            </div>
           ) : (
             <ul className="mt-3 space-y-3 text-sm">
               {approvals.map((lead) => (

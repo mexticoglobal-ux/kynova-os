@@ -27,7 +27,7 @@ export function AppNavLinks({ onNavigate }: { onNavigate?: () => void }) {
                 active ? "bg-primary/15 text-ink shadow-[inset_2px_0_0_rgb(var(--accent))]" : "text-ink-muted hover:bg-raised hover:text-ink",
               )}
             >
-              <Icon aria-hidden className={clsx("h-4 w-4 shrink-0", active && "text-accent")} />
+              <Icon aria-hidden className={clsx("h-5 w-5 shrink-0", active && "text-accent")} />
               {m.nav[key]}
             </Link>
           </li>

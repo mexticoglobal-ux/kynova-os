@@ -11,7 +11,7 @@ export function AreaChart({ data, labels, label }: AreaChartProps) {
 
   return (
     <figure className="w-full">
-      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={label} className="h-48 w-full overflow-visible">
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={label} preserveAspectRatio="none" className="h-48 w-full overflow-visible">
         <defs>
           <linearGradient id="area-fill" x1="0" x2="0" y1="0" y2="1">
             <stop offset="0%" style={{ stopColor: "rgb(var(--primary))" }} stopOpacity="0.45" />
