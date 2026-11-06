@@ -19,13 +19,14 @@ export const MODULE_KEYS = [
 
 export type ModuleKey = (typeof MODULE_KEYS)[number];
 
-export type AppNavKey = "dashboard" | "nex" | ModuleKey;
+export type AppNavKey = "dashboard" | "nex" | ModuleKey | "platform";
 
 // Single source of navigation (rule ui.md). Labels come from the i18n `nav` dictionary.
 export const appNav: ReadonlyArray<{ key: AppNavKey; href: string }> = [
   { key: "dashboard", href: "/dashboard" },
   { key: "nex", href: "/nex" },
   ...MODULE_KEYS.map((key) => ({ key, href: `/${key}` })),
+  { key: "platform", href: "/platform" },
 ];
 
 export type PublicNavKey = "pricing" | "academy" | "marketplace" | "docs";

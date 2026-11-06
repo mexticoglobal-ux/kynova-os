@@ -28,6 +28,7 @@ export const it: Messages = {
     finance: "Finanza",
     analytics: "Analytics",
     settings: "Impostazioni",
+    platform: "Piattaforma",
   },
   publicNav: {
     product: "Prodotto",

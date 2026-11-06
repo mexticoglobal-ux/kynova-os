@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  Blocks,
   Bot,
   Building2,
   Cog,
@@ -24,4 +25,5 @@ export const NAV_ICONS: Record<AppNavKey, LucideIcon> = {
   finance: Wallet,
   analytics: BarChart3,
   settings: Cog,
+  platform: Blocks,
 };
