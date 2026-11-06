@@ -24,6 +24,8 @@ export const CONFIG_FIELDS: Record<ProviderId, readonly ConfigField[]> = {
   email: [...COMMON_FIELDS, { key: "address", label: "Dirección de correo", kind: "text", required: true }, { key: "credential", label: "Credencial", kind: "secretRef", required: true }],
   stripe: [...COMMON_FIELDS, { key: "mode", label: "Modo", kind: "select", required: true, options: ["test", "live"] }, { key: "credential", label: "Credencial", kind: "secretRef", required: true }],
   paypal: [...COMMON_FIELDS, { key: "mode", label: "Modo", kind: "select", required: true, options: ["sandbox", "live"] }, { key: "credential", label: "Credencial", kind: "secretRef", required: true }],
+  bankTransfer: [...COMMON_FIELDS, { key: "accountAlias", label: "Alias de la cuenta receptora", kind: "text", required: true }, { key: "reconciliation", label: "Conciliación", kind: "select", required: true, options: ["manual", "asistida"] }],
+  crypto: [...COMMON_FIELDS],
   makapay: [...COMMON_FIELDS],
   makawallet: [...COMMON_FIELDS],
   sinpe: [...COMMON_FIELDS, { key: "reconciliation", label: "Conciliación", kind: "select", required: true, options: ["manual", "asistida"] }],

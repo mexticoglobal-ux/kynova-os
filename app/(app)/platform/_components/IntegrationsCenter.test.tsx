@@ -13,7 +13,7 @@ describe("IntegrationsCenter", () => {
   it("lists every provider as not connected and says nothing is contacted", () => {
     render(<IntegrationsCenter />);
     expect(screen.getByText(/no se contacta a ningún proveedor/)).toBeTruthy();
-    expect(screen.getAllByText("No conectado")).toHaveLength(11);
+    expect(screen.getAllByText("No conectado")).toHaveLength(13);
   });
 
   it("blocks activation until the configuration is complete, then activates and deactivates with an audit trail", () => {

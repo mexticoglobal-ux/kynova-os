@@ -5,7 +5,6 @@ import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ACTION_LEVELS, WORKER_TEMPLATES } from "@/lib/contracts/platform/workers";
 import { AUTOMATION_TEMPLATES, validateAutomation } from "@/lib/contracts/platform/automations";
-import { PAYMENT_STATUSES } from "@/lib/contracts/platform/payments";
 import { LISTING_KINDS } from "@/lib/contracts/platform/marketplace";
 
 const LEVEL_TONE: Record<1 | 2 | 3, BadgeTone> = { 1: "success", 2: "warning", 3: "danger" };
@@ -16,26 +15,6 @@ const Soon = ({ children }: { children: string }) => (
     {children}
   </Button>
 );
-
-export function PaymentsSection() {
-  return (
-    <div className="space-y-4">
-      <Card className="space-y-3 p-5">
-        <h2 className="font-semibold">Estados de un pago</h2>
-        <p className="text-sm text-ink-muted">Un pago solo avanza; los estados finales no vuelven atrás. El dinero se guarda en unidades menores con su moneda.</p>
-        <div className="flex flex-wrap gap-1.5">
-          {PAYMENT_STATUSES.map((status) => (
-            <Badge key={status}>{status}</Badge>
-          ))}
-        </div>
-      </Card>
-      <EmptyState icon={Plug} title="Sin proveedores de pago conectados">
-        Al conectar uno, aquí verá los cobros, los reembolsos y la conciliación. Crear un enlace de cobro siempre pide aprobación.
-      </EmptyState>
-      <Soon>Crear enlace de cobro</Soon>
-    </div>
-  );
-}
 
 export function ReferralsSection() {
   return (

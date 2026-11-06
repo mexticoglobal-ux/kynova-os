@@ -10,12 +10,12 @@ import { AUTOMATION_TEMPLATES, MAX_ACTIONS, validateAutomation, type AutomationD
 
 describe("integrations", () => {
   it("declares the providers the channel and payment registries know (the form is not a provider), plus the calendar", () => {
-    expect([...PROVIDER_IDS].sort()).toEqual([...CONVERSATION_CHANNELS.filter((channel) => channel !== "form"), ...PAYMENT_RAILS, "googleCalendar"].sort());
+    expect([...PROVIDER_IDS].sort()).toEqual([...CONVERSATION_CHANNELS.filter((channel) => channel !== "form"), ...PAYMENT_RAILS, "bankTransfer", "crypto", "googleCalendar"].sort());
     expect(validateManifests()).toEqual([]);
   });
 
   it("keeps the providers whose API is unknown honest: nothing is assumed", () => {
-    for (const id of ["makapay", "makawallet", "sinpe"] as const) {
+    for (const id of ["makapay", "makawallet", "crypto"] as const) {
       expect(PROVIDER_MANIFESTS[id].authKinds).toEqual(["undefined"]);
       expect(PROVIDER_MANIFESTS[id].webhook).toBe("pending");
       expect(PROVIDER_MANIFESTS[id].toVerify.length).toBeGreaterThan(0);
