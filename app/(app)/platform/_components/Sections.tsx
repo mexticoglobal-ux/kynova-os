@@ -3,7 +3,6 @@ import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { PROVIDER_IDS, PROVIDER_MANIFESTS, approvalCapabilities } from "@/lib/contracts/platform/integrations";
 import { ACTION_LEVELS, WORKER_TEMPLATES } from "@/lib/contracts/platform/workers";
 import { AUTOMATION_TEMPLATES, validateAutomation } from "@/lib/contracts/platform/automations";
 import { PAYMENT_STATUSES } from "@/lib/contracts/platform/payments";
@@ -11,43 +10,12 @@ import { LISTING_KINDS } from "@/lib/contracts/platform/marketplace";
 
 const LEVEL_TONE: Record<1 | 2 | 3, BadgeTone> = { 1: "success", 2: "warning", 3: "danger" };
 const LEVEL_LABEL = { 1: "Nivel 1 · observa y prepara", 2: "Nivel 2 · autorizado", 3: "Nivel 3 · siempre confirma" } as const;
-const CATEGORY_LABEL = { conversation: "Conversación", payment: "Pago", calendar: "Calendario" } as const;
 
 const Soon = ({ children }: { children: string }) => (
   <Button variant="secondary" size="sm" disabled title="Disponible cuando se conecte el proveedor">
     {children}
   </Button>
 );
-
-export function IntegrationsSection() {
-  return (
-    <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-      {PROVIDER_IDS.map((id) => {
-        const manifest = PROVIDER_MANIFESTS[id];
-        const approvals = approvalCapabilities(manifest).length;
-        return (
-          <Card as="li" key={id} className="space-y-3 p-5">
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="font-semibold">{manifest.label}</h2>
-              <Badge>No conectado</Badge>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              <Badge tone="primary">{CATEGORY_LABEL[manifest.category]}</Badge>
-              {manifest.authKinds.includes("undefined") && <Badge tone="warning">Documentación pendiente</Badge>}
-              {approvals > 0 && (
-                <Badge tone="accent">
-                  {approvals} {approvals === 1 ? "acción" : "acciones"} con aprobación
-                </Badge>
-              )}
-            </div>
-            {manifest.toVerify.length > 0 && <p className="text-xs text-ink-muted">Por confirmar: {manifest.toVerify[0]}</p>}
-            <Soon>Conectar</Soon>
-          </Card>
-        );
-      })}
-    </ul>
-  );
-}
 
 export function PaymentsSection() {
   return (
