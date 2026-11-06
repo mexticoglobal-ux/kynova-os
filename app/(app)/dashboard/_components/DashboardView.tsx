@@ -44,13 +44,15 @@ function HealthRing({ score }: { score: number }) {
   );
 }
 
-export function DashboardView() {
+// `compact` hides the page header: the NEX dashboard shows these metrics below the work NEX has done.
+export function DashboardView({ compact = false }: { compact?: boolean }) {
   const { m, tag } = useI18n();
   const data = dashboardData;
   const overall = Math.round(HEALTH_ORDER.reduce((sum, area) => sum + data.health[area], 0) / HEALTH_ORDER.length);
 
   return (
     <div className="space-y-6">
+      {!compact && (
       <header className="animate-fade-up">
         <span className="inline-flex items-center gap-2 rounded-full bg-white/5 px-3 py-1 text-xs text-zinc-400">
           <DashboardIcon aria-hidden className="h-3.5 w-3.5 text-primary" />
@@ -61,6 +63,7 @@ export function DashboardView() {
         </h1>
         <p className="mt-2 text-zinc-400">{m.dashboard.subtitle}</p>
       </header>
+      )}
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {(Object.keys(data.kpis) as Array<keyof typeof data.kpis>).map((key, index) => (

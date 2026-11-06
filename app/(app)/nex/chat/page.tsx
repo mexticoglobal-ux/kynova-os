@@ -1,6 +1,5 @@
 import { pageMetadata } from "@/lib/seo/metadata";
-import { NOVA_DRAFT_PACK } from "@/lib/audit-packs/nova-draft";
-import { GuidedChat } from "../_components/GuidedChat";
+import { ConnectedGuidedChat } from "../_components/ConnectedGuidedChat";
 
 export const metadata = pageMetadata({
   title: "Chat guiado",
@@ -9,5 +8,5 @@ export const metadata = pageMetadata({
 });
 
 export default function GuidedChatPage() {
-  return <GuidedChat pack={NOVA_DRAFT_PACK} paceMs={1} />;
+  return <ConnectedGuidedChat />;
 }

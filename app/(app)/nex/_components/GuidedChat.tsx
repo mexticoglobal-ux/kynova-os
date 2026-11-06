@@ -24,7 +24,20 @@ const METHOD_NAME = { email: "Correo", whatsapp: "WhatsApp", phone: "Teléfono" 
 const DELAY: Record<Say["kind"], number> = { text: 650, reaction: 800, working: 900, result: 1000, handoff: 800 };
 
 // Guided chat v1. Everything lives in this component's state: nothing is stored or sent anywhere.
-export function GuidedChat({ pack, treatment = pack.defaultTreatment, paceMs = 1 }: { pack: ClientPack; treatment?: Treatment; paceMs?: number }) {
+export function GuidedChat({
+  pack,
+  treatment = pack.defaultTreatment,
+  paceMs = 1,
+  onHandoff,
+  endActions,
+}: {
+  pack: ClientPack;
+  treatment?: Treatment;
+  paceMs?: number;
+  // Called once, when the conversation ends, with what the team needs. The pipeline subscribes to this.
+  onHandoff?: (handoff: Handoff) => void;
+  endActions?: React.ReactNode;
+}) {
   const [state, setState] = useState<ChatState>(() => initialState(treatment));
   const [items, setItems] = useState<Item[]>([]);
   const [queue, setQueue] = useState<Say[]>(() => greeting(pack, treatment));
@@ -57,6 +70,8 @@ export function GuidedChat({ pack, treatment = pack.defaultTreatment, paceMs = 1
     setItems((current) => (label === "" ? current : [...current, { id: nextId.current++, from: "user", text: label }]));
     setState(result.state);
     setQueue(result.say);
+    const handoff = result.say.find((say) => say.kind === "handoff");
+    if (handoff?.kind === "handoff") onHandoff?.(handoff.handoff);
     setDraft("");
     setError(null);
   }
@@ -154,6 +169,7 @@ export function GuidedChat({ pack, treatment = pack.defaultTreatment, paceMs = 1
             )}
           </form>
         )}
+        {prompt?.kind === "end" && endActions}
         {prompt?.kind === "end" && (
           <button
             type="button"

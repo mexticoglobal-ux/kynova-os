@@ -63,6 +63,8 @@ export type Route = "hot" | "warm" | "cold" | "human";
 
 export type Handoff = {
   route: Route;
+  name?: string;
+  treatment: Treatment;
   // Why a person should look at this, in the visitor's own words where possible.
   reasons: string[];
   contact: { name?: string; method: Exclude<ContactMethod, "none">; value: string } | null;
@@ -372,6 +374,8 @@ export function buildHandoff(state: ChatState, pack: ClientPack): Handoff {
 
   return {
     route,
+    name: state.name,
+    treatment: state.treatment,
     reasons,
     contact: method && state.contact ? { name: state.name, method, value: state.contact } : null,
     business: { name: state.businessName, challenge: state.challenge ? CHALLENGE_LABEL[state.challenge] : undefined },
