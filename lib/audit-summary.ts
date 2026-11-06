@@ -1,7 +1,7 @@
 import type { AuditDimension, AuditResult, ServiceRecommendation } from "@/lib/contracts/audit";
 import type { CatalogService } from "@/lib/contracts/audit";
 import { recommendServices } from "@/lib/audit";
-import { BAND_COPY, DIMENSION_COPY, GENERIC_APPROVALS, INFRASTRUCTURE_COPY, pick, type Treatment } from "@/lib/audit-copy";
+import { BAND_COPY, DIMENSION_COPY, GAP_CLAUSE, GENERIC_APPROVALS, INFRASTRUCTURE_COPY, pick, type Treatment } from "@/lib/audit-copy";
 
 // The consultant's closing summary, built by rules from the audit result. No model is involved: the same answers
 // always produce the same summary. It always answers the same five questions (AUDIT_SUMMARY_SECTIONS).
@@ -11,6 +11,8 @@ export const AUDIT_SUMMARY_SECTIONS = ["found", "opportunities", "first", "autom
 export type SummaryOpportunity = { dimension: AuditDimension; title: string; why: string; action: string };
 
 export type AuditSummary = {
+  // The number never appears alone: one plain sentence that says what the score means for this business.
+  status: string;
   // 1. What was found
   found: string[];
   // 2. The three most important opportunities (fewer if the business has fewer gaps)
@@ -26,6 +28,22 @@ export type AuditSummary = {
 };
 
 export const TOP_OPPORTUNITIES = 3;
+
+export function scoreStatus(result: AuditResult, treatment: Treatment = "usted", businessName?: string): string {
+  const subject = businessName?.trim() ? businessName.trim() : pick(treatment, ["Su empresa", "Tu empresa"]);
+  const poss = pick(treatment, ["su", "tu"]);
+  const base = {
+    initial: `está empezando a construir ${poss} base digital`,
+    basic: "ya tiene algunas bases, pero todavía depende mucho del trabajo manual",
+    intermediate: "tiene una buena base",
+    advanced: "tiene una base digital sólida",
+  }[result.band];
+  const clauses = [...new Set(result.gaps.slice(0, TOP_OPPORTUNITIES).map((gap) => GAP_CLAUSE[gap.dimension]))].slice(0, 2);
+  if (clauses.length === 0) return `${subject} ${base}, y el siguiente paso es sostener y medir lo que ya funciona.`;
+  const joiner = result.band === "intermediate" ? ", pero existen" : result.band === "advanced" ? ", y aún hay" : ", y existen";
+  const importance = result.band === "advanced" ? "oportunidades" : "oportunidades importantes";
+  return `${subject} ${base}${joiner} ${importance} para ${clauses.join(" y ")}.`;
+}
 
 export function buildSummary(
   result: AuditResult,
@@ -54,5 +72,5 @@ export function buildSummary(
   const automate = top.map(({ dimension }) => DIMENSION_COPY[dimension].automate);
   const approval = [...top.map(({ dimension }) => DIMENSION_COPY[dimension].approval), ...GENERIC_APPROVALS];
 
-  return { found, opportunities, first, automate, approval, services: recommendServices(result, catalog, TOP_OPPORTUNITIES) };
+  return { status: scoreStatus(result, treatment, businessName), found, opportunities, first, automate, approval, services: recommendServices(result, catalog, TOP_OPPORTUNITIES) };
 }

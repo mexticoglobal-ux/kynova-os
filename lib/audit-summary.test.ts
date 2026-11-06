@@ -3,7 +3,7 @@ import { AUDIT_DIMENSIONS, type AuditAnswers, type MaturityLevel } from "@/lib/c
 import { runAudit } from "@/lib/audit";
 import { DIMENSION_COPY } from "@/lib/audit-copy";
 import { NOVA_DRAFT_PACK } from "@/lib/audit-packs/nova-draft";
-import { buildSummary } from "./audit-summary";
+import { buildSummary, scoreStatus } from "./audit-summary";
 
 const all = (level: MaturityLevel): AuditAnswers => Object.fromEntries(AUDIT_DIMENSIONS.map((dimension) => [dimension, level])) as AuditAnswers;
 const catalog = NOVA_DRAFT_PACK.catalog;
@@ -57,5 +57,14 @@ describe("consultant summary", () => {
         expect(DIMENSION_COPY[dimension].reaction[level].length).toBeGreaterThan(0);
       }
     }
+  });
+
+  it("gives the score a plain-language status that names what to improve", () => {
+    const intermediate = runAudit({ ...all("defined"), capture: "none", automation: "adHoc" });
+    expect(intermediate.band).toBe("intermediate");
+    expect(scoreStatus(intermediate)).toBe("Su empresa tiene una buena base, pero existen oportunidades importantes para atraer más clientes y automatizar procesos.");
+    expect(scoreStatus(intermediate, "tu")).toMatch(/^Tu empresa tiene una buena base/);
+    expect(scoreStatus(runAudit(all("none")), "usted", "Café Sol")).toMatch(/^Café Sol está empezando a construir su base digital, y existen oportunidades importantes para atraer más clientes/);
+    expect(scoreStatus(runAudit(all("optimized")))).toMatch(/base digital sólida, y el siguiente paso es sostener y medir/);
   });
 });

@@ -53,6 +53,7 @@ describe("Business Audit flow", () => {
     expect(screen.getByRole("heading", { name: /oportunidades más importantes/ })).toBeInTheDocument();
     expect(screen.getByText(/Servicios de ejemplo, en borrador/)).toBeInTheDocument();
     expect(screen.getByText(/No se guardó nada/)).toBeInTheDocument();
+    expect(screen.getByText("Estado actual:")).toBeInTheDocument();
   });
 
   it("shows no opportunities section for a business with no gaps, and can restart", async () => {

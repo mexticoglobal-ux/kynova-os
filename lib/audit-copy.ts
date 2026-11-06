@@ -240,3 +240,24 @@ export const GENERIC_APPROVALS = [
   "Cualquier gasto, contrato o compromiso en nombre del negocio.",
   "Compartir datos de clientes o conectar herramientas externas.",
 ] as const;
+
+// What NEX says while it works. Every line describes something the engine really does:
+// it does not claim to compare the business with other companies, because it does not.
+export const ANALYSIS_STEPS: readonly (readonly [string, string])[] = [
+  ["Estoy trabajando en el análisis de su empresa.", "Estoy trabajando en el análisis de tu empresa."],
+  ["Estoy contrastando sus respuestas con nuestro marco de madurez digital.", "Estoy contrastando tus respuestas con nuestro marco de madurez digital."],
+  ["Estoy identificando oportunidades de crecimiento.", "Estoy identificando oportunidades de crecimiento."],
+  ["Estoy preparando sus primeras recomendaciones.", "Estoy preparando tus primeras recomendaciones."],
+];
+
+// How each gap reads in the plain-language status sentence next to the Business Score.
+export const GAP_CLAUSE: Record<AuditDimension, string> = {
+  web: "atraer más clientes",
+  capture: "atraer más clientes",
+  social: "hacerse ver en redes",
+  followUp: "no perder oportunidades de venta",
+  automation: "automatizar procesos",
+  ai: "automatizar procesos",
+  analytics: "decidir con números",
+  advertising: "invertir en publicidad con retorno",
+};
