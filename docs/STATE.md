@@ -98,6 +98,8 @@ Hallazgos aceptados de `/code-review` (`ed96ca0`), no son deuda:
 - **Siguiente:** Go o No-Go con evidencia (`docs/supabase-spike/RESULTADO.md`); con Go, resto de la fase 2 (guardar el Assessment en el perfil, exportación y borrado).
 - **Para que Nova use datos reales** (ADR-0006, todo pendiente): Go del spike; decidir y aprobar el entorno de datos reales (no Preview), la región, la retención y la eliminación; análisis legal aparte; **exportación y borrado del perfil implementados y verificados**; autenticación y aislamiento verificados en ese entorno. Hasta entonces, solo datos ficticios.
 
+**ADR-0010 — Conversaciones y datos de prospectos** (Propuesto, 2026-11-06): arquitectura de datos del embudo Prospecto → Lead → Oportunidad → Cliente, multiempresa, particiones, auditoría e integraciones (`docs/architecture/`). **Sin código ni migraciones**; pendiente de revisión de Jeffrey. Decisiones abiertas P1–P10 en el ADR.
+
 **Prueba de Creator Economy con Nova (Marketing)** — v0 local, sin datos reales
 - **Hecho:** estudio de creadores en `/marketing` (bajo la cabecera): tema y audiencia del canal, banco de ideas (prioridad y estado), borradores de guion con recuento de palabras y duración estimada, y calendario y estado de producción (6 etapas). Contenido de muestra ficticio y textos en 8 idiomas. Se guarda solo en el navegador; no usa red, no se conecta a YouTube ni redes y no publica nada. Pruebas automáticas de la lógica y de la interfaz; aún sin probar con Nova en un navegador real.
 - **Sigue siendo demo:** los KPI, las tarjetas y la tabla de campañas de Marketing; el contenido de muestra; los textos de muestra solo están en español.
