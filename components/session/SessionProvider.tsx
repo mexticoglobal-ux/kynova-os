@@ -23,6 +23,8 @@ type SessionValue =
       signOut: () => Promise<void>;
     };
 
+const DEMO_SESSION: SessionValue = { mode: "demo", tenantId: null, role: "owner", can: (permission) => can("owner", permission) };
+
 const SessionContext = createContext<SessionValue | null>(null);
 
 type BackendInput = { userId: string; email: string | null; displayName: string; memberships: MembershipDto[]; active: MembershipDto };
@@ -65,7 +67,6 @@ export function SessionProvider({ children, backend }: { children: ReactNode; ba
 }
 
 export function useSession(): SessionValue {
-  const value = useContext(SessionContext);
-  if (!value) throw new Error("useSession must be used inside SessionProvider");
-  return value;
+  // Without a provider (isolated components, tests) the app behaves as the local demonstration.
+  return useContext(SessionContext) ?? DEMO_SESSION;
 }

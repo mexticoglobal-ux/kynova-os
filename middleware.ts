@@ -55,6 +55,8 @@ export async function middleware(request: NextRequest) {
   return response;
 }
 
+// Next.js reads the matcher statically at build time, so it is written out. Keep it in step with APP_PATHS
+// (lib/auth/paths.ts): lib/auth/paths.test.ts fails if they drift apart.
 export const config = {
   matcher: [
     "/spike/:path*",
@@ -63,6 +65,27 @@ export const config = {
     "/api/auth/:path*",
     "/api/v1/:path*",
     "/login",
-    ...APP_PATHS.flatMap((prefix) => [`/${prefix}`, `/${prefix}/:path*`]),
+    "/dashboard",
+    "/dashboard/:path*",
+    "/nex",
+    "/nex/:path*",
+    "/sales",
+    "/sales/:path*",
+    "/marketing",
+    "/marketing/:path*",
+    "/clients",
+    "/clients/:path*",
+    "/properties",
+    "/properties/:path*",
+    "/automation",
+    "/automation/:path*",
+    "/finance",
+    "/finance/:path*",
+    "/analytics",
+    "/analytics/:path*",
+    "/settings",
+    "/settings/:path*",
+    "/onboarding",
+    "/onboarding/:path*",
   ],
 };

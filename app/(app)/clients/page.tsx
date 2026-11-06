@@ -1,6 +1,6 @@
-import { ModuleView } from "@/components/module/ModuleView";
 import { es } from "@/lib/i18n/messages/es";
 import { pageMetadata } from "@/lib/seo/metadata";
+import { ClientsScreen } from "./_components/ClientsScreen";
 
 export const metadata = pageMetadata({
   title: es.modules.clients.title,
@@ -9,5 +9,5 @@ export const metadata = pageMetadata({
 });
 
 export default function ClientsPage() {
-  return <ModuleView moduleKey="clients" />;
+  return <ClientsScreen />;
 }

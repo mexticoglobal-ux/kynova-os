@@ -24,6 +24,7 @@ type PipelineContextValue = {
   sorted: Lead[];
   digest: Digest;
   activity: ActivityItem[];
+  server: ServerDigest | null;
   loading: boolean;
   error: string | null;
   canWrite: boolean;
@@ -67,6 +68,7 @@ function DemoPipeline({ children, pack, seed }: { children: ReactNode; pack: Cli
       sorted: sortLeads(leads),
       digest: digest(leads),
       activity: [],
+      server: null,
       loading: false,
       error: null,
       canWrite: true,
@@ -142,6 +144,7 @@ function BackendPipeline({ children, pack, tenantId }: { children: ReactNode; pa
       sorted,
       digest: server ? digestFromServer(server, leads) : { overnight: { analyzed: 0, hot: 0, awaitingApproval: 0, needFollowUp: 0, withMeeting: 0 }, session: [], approvals: [], total: 0 },
       activity: server?.activity ?? [],
+      server,
       loading,
       error,
       canWrite: session.can("write"),
