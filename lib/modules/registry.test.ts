@@ -12,7 +12,7 @@ describe("module registry (ADR-0005)", () => {
   it("navigation hrefs are unique and point to known routes", () => {
     const hrefs = appNav.map((item) => item.href);
     expect(new Set(hrefs).size).toBe(hrefs.length);
-    expect(hrefs).toEqual(["/dashboard", "/nex", ...MODULE_KEYS.map((key) => `/${key}`)]);
+    expect(hrefs).toEqual(["/dashboard", "/nex", ...MODULE_KEYS.map((key) => `/${key}`), "/platform"]);
   });
 
   it.each(LOCALES)("%s: module copy matches module data", async (locale) => {

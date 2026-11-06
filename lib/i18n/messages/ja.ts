@@ -28,6 +28,7 @@ export const ja: Messages = {
     finance: "財務",
     analytics: "分析",
     settings: "設定",
+    platform: "プラットフォーム",
   },
   publicNav: {
     product: "製品",

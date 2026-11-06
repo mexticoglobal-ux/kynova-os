@@ -85,6 +85,8 @@ export const config = {
     "/analytics/:path*",
     "/settings",
     "/settings/:path*",
+    "/platform",
+    "/platform/:path*",
     "/onboarding",
     "/onboarding/:path*",
   ],

@@ -28,6 +28,7 @@ export const zh: Messages = {
     finance: "财务",
     analytics: "分析",
     settings: "设置",
+    platform: "平台",
   },
   publicNav: {
     product: "产品",

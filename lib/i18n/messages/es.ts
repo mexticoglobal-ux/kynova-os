@@ -27,6 +27,7 @@ export const es = {
     finance: "Finanzas",
     analytics: "Analytics",
     settings: "Configuración",
+    platform: "Plataforma",
   },
   publicNav: {
     product: "Producto",
