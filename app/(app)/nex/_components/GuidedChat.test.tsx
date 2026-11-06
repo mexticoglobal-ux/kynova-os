@@ -22,7 +22,7 @@ describe("Guided chat", () => {
     expect(await screen.findByText(/asistente automatizado de Nova Marketing Studio/)).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "Quiero un diagnóstico de mi negocio" }, { timeout: 4000 })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Prefiero hablar con una persona" })).toBeInTheDocument();
-    expect(screen.getByText(/No se guarda ni se envía nada/)).toBeInTheDocument();
+    expect(screen.getByText(/Asistente automático con respuestas preparadas/)).toBeInTheDocument();
   });
 
   it("goes from first hello to a prepared handoff in one conversation", async () => {

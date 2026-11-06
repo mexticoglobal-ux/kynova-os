@@ -59,3 +59,6 @@ jobs:
 
       - name: Run isolation and privilege tests
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/isolation.sql
+
+      - name: Run Backend Core tests (roles, commercial flow, isolation, append-only, ingestion)
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/backend_core.sql

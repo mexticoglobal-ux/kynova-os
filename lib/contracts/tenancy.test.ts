@@ -130,7 +130,7 @@ describe("parseMembershipRow", () => {
   });
 
   it("rejects unknown roles and incomplete rows", () => {
-    expect(parseMembershipRow({ tenant_id: TENANT_ID, role: "admin", tenants: { name: "A" } })).toBeNull();
+    expect(parseMembershipRow({ tenant_id: TENANT_ID, role: "superuser", tenants: { name: "A" } })).toBeNull();
     expect(parseMembershipRow({ tenant_id: TENANT_ID, role: "member", tenants: null })).toBeNull();
     expect(parseMembershipRow({ tenant_id: TENANT_ID, role: "member", tenants: [] })).toBeNull();
     expect(parseMembershipRow({ tenant_id: "x", role: "member", tenants: { name: "A" } })).toBeNull();
@@ -154,14 +154,22 @@ describe("database migration stays in sync with the contract", () => {
     expect(checkValues(PROFILE_ANSWER_COLUMNS[question])).toEqual([...ASSESSMENT_OPTIONS[question]].sort());
   });
 
-  it("the role CHECK lists exactly the contract roles", () => {
-    expect(checkValues("role")).toEqual([...TENANT_ROLES].sort());
+  it("the latest role CHECK lists exactly the contract roles", () => {
+    // Later migrations may widen the set: the last definition is the one in force.
+    const definitions = [...sql.matchAll(/memberships_role_check\s+check\s*\(\s*role\s+in\s*\(([^)]*)\)\s*\)/gi)];
+    const latest = definitions.at(-1)?.[1]?.split(",").map((value) => value.trim().replace(/^'|'$/g, "")).sort();
+    expect(latest).toEqual([...TENANT_ROLES].sort());
   });
 
   it("enables RLS on every table the migration creates and never grants DELETE on business profiles", () => {
     const tables = [...sql.matchAll(/create table public\.(\w+)/gi)].map((match) => match[1]);
     expect(tables.length).toBeGreaterThan(0);
-    for (const table of tables) expect(sql).toMatch(new RegExp(`alter table public\\.${table} enable row level security`, "i"));
+    // RLS is enabled either directly or through the shared helper (private.apply_tenant_rls).
+    for (const table of tables) {
+      const direct = new RegExp(`alter table public\\.${table} enable row level security`, "i").test(sql);
+      const viaHelper = new RegExp(`apply_tenant_rls\\('${table}'`, "i").test(sql);
+      expect(direct || viaHelper, `RLS for ${table}`).toBe(true);
+    }
     expect(sql).not.toMatch(/grant[^;]*\bdelete\b[^;]*business_profiles/i);
   });
 });

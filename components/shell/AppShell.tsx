@@ -7,6 +7,7 @@ import { Menu, X } from "lucide-react";
 import { site } from "@/config/site";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
+import { AccountMenu } from "@/components/session/AccountMenu";
 import { AppNavLinks } from "./AppNavLinks";
 import { Brand } from "@/components/ui/Brand";
 
@@ -39,7 +40,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Link href="/" className="lg:hidden">
             <Brand name={site.product} />
           </Link>
-          <LanguageSwitcher />
+          <div className="flex min-w-0 items-center gap-2">
+            <AccountMenu />
+            <LanguageSwitcher />
+          </div>
         </header>
         <main className="min-w-0 flex-1 px-4 pb-10 pt-4 sm:px-6 lg:px-10">{children}</main>
       </div>

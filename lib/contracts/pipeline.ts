@@ -66,6 +66,8 @@ export type Lead = {
   nextAction: string;
   owner: string;
   approval: MeetingApproval | null;
+  // The database id of the pending approval (backend mode only).
+  approvalId?: string;
 };
 
 // Normalised shape every conversation channel must produce. The web chat's handoff already has it (see lib/pipeline.ts).

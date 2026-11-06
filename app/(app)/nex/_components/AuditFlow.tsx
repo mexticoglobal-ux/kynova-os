@@ -8,6 +8,11 @@ import { runAudit } from "@/lib/audit";
 import { buildSummary } from "@/lib/audit-summary";
 import { ANALYSIS_STEPS, DIMENSION_COPY, pick, type Treatment } from "@/lib/audit-copy";
 import type { ClientPack } from "@/lib/audit-packs/nova-draft";
+import type { AssessmentDto } from "@/lib/contracts/backend";
+import { parseAuditAnswers } from "@/lib/audit";
+import { apiFetch } from "@/lib/api/client";
+import { formatDate } from "@/lib/format-money";
+import { useSession } from "@/components/session/SessionProvider";
 import { Card } from "@/components/ui/Card";
 import { NexBadge, ScoreCard, SummaryView } from "./AuditParts";
 import { buttonClass } from "@/components/ui/Button";
@@ -28,6 +33,23 @@ export function AuditFlow({ pack, analysisMs = 1600 }: { pack: ClientPack; analy
   const [businessName, setBusinessName] = useState("");
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<Draft>({});
+  const session = useSession();
+  const [history, setHistory] = useState<AssessmentDto[]>([]);
+  const tenantId = session.mode === "backend" ? session.tenantId : null;
+
+  // Saved audits of the company, newest first. Reopening one reruns the engine on its stored answers.
+  useEffect(() => {
+    if (!tenantId) return;
+    void apiFetch<{ assessments: AssessmentDto[] }>(`/api/v1/assessments?tenantId=${tenantId}`).then((result) => result.ok && setHistory(result.data.assessments));
+  }, [tenantId, stage]);
+
+  function reopen(saved: AssessmentDto) {
+    const parsed = parseAuditAnswers(saved.answers);
+    if (!parsed) return;
+    setAnswers(parsed);
+    setBusinessName(saved.name === "Diagnóstico sin nombre" ? "" : saved.name);
+    setStage("report");
+  }
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -118,11 +140,26 @@ export function AuditFlow({ pack, analysisMs = 1600 }: { pack: ClientPack; analy
             {pick(treatment, ["Comenzar", "Comenzar"])}
             <ArrowRight aria-hidden className="h-4 w-4" />
           </button>
+          {history.length > 0 && (
+            <section className="mt-6" aria-labelledby="saved-audits">
+              <h2 id="saved-audits" className="text-sm font-medium text-ink-soft">Diagnósticos guardados</h2>
+              <ul className="mt-2 divide-y divide-line-soft rounded-xl border border-line">
+                {history.map((saved) => (
+                  <li key={saved.id}>
+                    <button type="button" onClick={() => reopen(saved)} className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm transition hover:bg-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+                      <span className="min-w-0 truncate">{saved.name}</span>
+                      <span className="shrink-0 text-xs text-ink-muted">{`${saved.score} / 100 · ${formatDate(saved.createdAt)}`}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
           <p className="mt-4 flex items-start gap-2 text-xs text-ink-muted">
             <ShieldCheck aria-hidden className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             {pick(treatment, [
-              "Sus respuestas viven solo en esta pantalla: no se guardan ni se envían a nadie. El resultado se basa únicamente en lo que usted declare.",
-              "Tus respuestas viven solo en esta pantalla: no se guardan ni se envían a nadie. El resultado se basa únicamente en lo que declares.",
+              session.mode === "backend" ? "Nada se guarda hasta que usted pulse «Guardar diagnóstico». El resultado se basa únicamente en lo que usted declare." : "Sus respuestas viven solo en esta pantalla: no se guardan ni se envían a nadie. El resultado se basa únicamente en lo que usted declare.",
+              session.mode === "backend" ? "Nada se guarda hasta que pulses «Guardar diagnóstico». El resultado se basa únicamente en lo que declares." : "Tus respuestas viven solo en esta pantalla: no se guardan ni se envían a nadie. El resultado se basa únicamente en lo que declares.",
             ])}
           </p>
         </section>
@@ -181,7 +218,7 @@ export function AuditFlow({ pack, analysisMs = 1600 }: { pack: ClientPack; analy
         </section>
       )}
 
-      {stage === "report" && isComplete(answers) && <Report answers={answers} pack={pack} treatment={treatment} businessName={businessName} onRestart={restart} />}
+      {stage === "report" && isComplete(answers) && <Report answers={answers} pack={pack} treatment={treatment} businessName={businessName} onRestart={restart} saveTo={session.mode === "backend" && session.can("write") ? tenantId : null} />}
       </Card>
     </div>
   );
@@ -193,13 +230,24 @@ function Report({
   treatment,
   businessName,
   onRestart,
+  saveTo,
 }: {
   answers: AuditAnswers;
   pack: ClientPack;
   treatment: Treatment;
   businessName: string;
   onRestart: () => void;
+  // Company to save the audit in, or null when saving is not available (demonstration or read-only).
+  saveTo: string | null;
 }) {
+  const [saved, setSaved] = useState<"idle" | "saving" | "saved" | "error">("idle");
+
+  async function save() {
+    setSaved("saving");
+    const result = await apiFetch("/api/v1/assessments", { body: { tenantId: saveTo, businessName: businessName.trim() || undefined, answers } });
+    setSaved(result.ok ? "saved" : "error");
+  }
+
   const result = useMemo(() => runAudit(answers), [answers]);
   const summary = useMemo(() => buildSummary(result, { catalog: pack.catalog, treatment, businessName }), [result, pack, treatment, businessName]);
 
@@ -219,8 +267,16 @@ function Report({
 
       <footer className="space-y-3 border-t border-line pt-5">
         <p className="text-xs text-ink-muted">
-          Diagnóstico basado únicamente en lo que usted declaró; no se verificó el sitio, las redes ni ningún dato real del negocio. No se guardó nada.
+          Diagnóstico basado únicamente en lo que usted declaró; no se verificó el sitio, las redes ni ningún dato real del negocio.{saveTo === null && " No se guardó nada."}
         </p>
+        {saveTo && (
+          <div className="flex flex-wrap items-center gap-3">
+            <button type="button" onClick={() => void save()} disabled={saved === "saving" || saved === "saved"} className={primaryButton}>
+              {saved === "saved" ? "Diagnóstico guardado" : saved === "saving" ? "Guardando…" : "Guardar diagnóstico"}
+            </button>
+            {saved === "error" && <span role="alert" className="text-sm text-warning">No pudimos guardarlo. Inténtalo de nuevo.</span>}
+          </div>
+        )}
         <button type="button" onClick={onRestart} className={secondaryButton}>
           <RotateCcw aria-hidden className="h-4 w-4" />
           Repetir el diagnóstico

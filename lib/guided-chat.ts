@@ -1,6 +1,9 @@
 import {
   AUDIT_DIMENSIONS,
+  BUDGETS,
+  DECISION_ROLES,
   MATURITY_LEVELS,
+  TIMELINES,
   type AuditAnswers,
   type AuditBand,
   type AuditDimension,
@@ -12,7 +15,7 @@ import {
   type Timeline,
 } from "@/lib/contracts/audit";
 import { qualifyLead, runAudit } from "@/lib/audit";
-import { ANALYSIS_STEPS, DIMENSION_COPY, pick, type Treatment } from "@/lib/audit-copy";
+import { ANALYSIS_STEPS, DIMENSION_COPY, TREATMENTS, pick, type Treatment } from "@/lib/audit-copy";
 import { buildSummary, scoreStatus, type AuditSummary } from "@/lib/audit-summary";
 import type { ClientPack } from "@/lib/audit-packs/nova-draft";
 
@@ -59,6 +62,55 @@ export type ChatState = {
   contact?: string;
 };
 
+const STEPS: readonly Step[] = ["start", "question", "name", "businessName", "challenge", "audit", "qualBudget", "qualTimeline", "qualRole", "contactMethod", "contactValue", "end"];
+const oneOfList = <T extends string>(list: readonly T[], value: unknown): value is T => typeof value === "string" && (list as readonly string[]).includes(value);
+const shortText = (value: unknown, max: number): string | undefined | null =>
+  value === undefined ? undefined : typeof value === "string" && value.length <= max ? value : null;
+
+// The state arrives from a browser: every field is checked against the closed values before the server trusts it.
+export function parseChatState(value: unknown): ChatState | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const v = value as Record<string, unknown>;
+  if (!oneOfList(STEPS, v.step) || !oneOfList(TREATMENTS, v.treatment)) return null;
+  if (!Number.isInteger(v.auditIndex) || (v.auditIndex as number) < 0 || (v.auditIndex as number) > AUDIT_DIMENSIONS.length) return null;
+  if (v.intent !== undefined && !oneOfList(INTENTS, v.intent)) return null;
+  if (v.challenge !== undefined && !oneOfList(CHALLENGES, v.challenge)) return null;
+  if (v.budget !== undefined && !oneOfList(BUDGETS, v.budget)) return null;
+  if (v.timeline !== undefined && !oneOfList(TIMELINES, v.timeline)) return null;
+  if (v.role !== undefined && !oneOfList(DECISION_ROLES, v.role)) return null;
+  if (v.contactMethod !== undefined && !oneOfList(CONTACT_METHODS, v.contactMethod)) return null;
+  const name = shortText(v.name, 80);
+  const businessName = shortText(v.businessName, 80);
+  const question = shortText(v.question, 500);
+  const contact = shortText(v.contact, 120);
+  if (name === null || businessName === null || question === null || contact === null) return null;
+
+  const answers: Partial<AuditAnswers> = {};
+  if (v.answers !== undefined) {
+    if (typeof v.answers !== "object" || v.answers === null || Array.isArray(v.answers)) return null;
+    for (const [key, level] of Object.entries(v.answers)) {
+      if (!oneOfList(AUDIT_DIMENSIONS, key) || !oneOfList(MATURITY_LEVELS, level)) return null;
+      answers[key] = level;
+    }
+  }
+  return {
+    step: v.step,
+    treatment: v.treatment,
+    auditIndex: v.auditIndex as number,
+    answers,
+    ...(v.intent !== undefined && { intent: v.intent }),
+    ...(name !== undefined && { name }),
+    ...(businessName !== undefined && { businessName }),
+    ...(v.challenge !== undefined && { challenge: v.challenge }),
+    ...(question !== undefined && { question }),
+    ...(v.budget !== undefined && { budget: v.budget }),
+    ...(v.timeline !== undefined && { timeline: v.timeline }),
+    ...(v.role !== undefined && { role: v.role }),
+    ...(v.contactMethod !== undefined && { contactMethod: v.contactMethod }),
+    ...(contact !== undefined && { contact }),
+  };
+}
+
 export type Route = "hot" | "warm" | "cold" | "human";
 
 export type Handoff = {
@@ -89,7 +141,7 @@ export type Prompt =
   | { kind: "text"; field: "question" | "name" | "businessName" | "contact"; label: string; maxLength: number; optional?: boolean; inputType: "text" | "email" | "tel" }
   | { kind: "end" };
 
-const CHALLENGE_LABEL: Record<Challenge, string> = {
+export const CHALLENGE_LABEL: Record<Challenge, string> = {
   moreClients: "Conseguir más clientes",
   sellMore: "Venderle más a los clientes que ya tengo",
   saveTime: "Ahorrar tiempo en tareas repetitivas",
