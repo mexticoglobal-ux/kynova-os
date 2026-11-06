@@ -1,5 +1,7 @@
 "use client";
 
+import { FIELD_LG, LABEL } from "@/components/ui/form";
+import { buttonClass } from "@/components/ui/Button";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import type { SupabaseSpikeStatus } from "@/lib/contracts/supabase-spike";
 
@@ -16,13 +18,13 @@ export function SpikeLoginForm({ status }: { status: SupabaseSpikeStatus }) {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-xl items-center px-4 py-10">
-      <section className="w-full rounded-card border border-white/10 bg-white/[0.03] p-6 shadow-xl sm:p-8" aria-labelledby="spike-title">
+      <section className="w-full rounded-card border border-line bg-surface p-6 shadow-xl sm:p-8" aria-labelledby="spike-title">
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">KYNOVA · TEST</p>
         <h1 id="spike-title" className="mt-3 text-2xl font-semibold">{copy.title}</h1>
-        <p className="mt-2 text-sm leading-6 text-zinc-400">{copy.description}</p>
+        <p className="mt-2 text-sm leading-6 text-ink-muted">{copy.description}</p>
 
         {announcement && (
-          <p className="mt-5 rounded-xl border border-white/10 bg-white/[0.04] p-3 text-sm text-zinc-200" role={status === "error" ? "alert" : "status"} aria-live="polite">
+          <p className="mt-5 rounded-xl border border-line bg-surface p-3 text-sm text-ink-soft" role={status === "error" ? "alert" : "status"} aria-live="polite">
             {announcement}
           </p>
         )}
@@ -30,7 +32,7 @@ export function SpikeLoginForm({ status }: { status: SupabaseSpikeStatus }) {
         {status !== "setup" && (status === "sent" ? (
           <form action="/api/spike/auth/verify" method="post" className="mt-6 space-y-4">
             <div>
-              <label htmlFor="spike-token" className="mb-2 block text-sm font-medium text-zinc-200">{copy.code}</label>
+              <label htmlFor="spike-token" className={LABEL}>{copy.code}</label>
               <input
                 id="spike-token"
                 name="token"
@@ -40,10 +42,10 @@ export function SpikeLoginForm({ status }: { status: SupabaseSpikeStatus }) {
                 pattern="[0-9]{6,10}"
                 maxLength={10}
                 required
-                className="min-h-12 w-full rounded-xl border border-white/15 bg-black/20 px-4 text-base text-white outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                className={FIELD_LG}
               />
             </div>
-            <button type="submit" className="min-h-12 w-full rounded-xl bg-primary px-4 text-sm font-semibold text-white hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg">
+            <button type="submit" className={buttonClass("primary", "md", "min-h-12 w-full")}>
               {copy.verifyCode}
             </button>
             <a href="/spike/login" className="inline-block text-sm text-primary-soft underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
@@ -53,7 +55,7 @@ export function SpikeLoginForm({ status }: { status: SupabaseSpikeStatus }) {
         ) : (
           <form action="/api/spike/auth/request" method="post" className="mt-6 space-y-4">
             <div>
-              <label htmlFor="spike-email" className="mb-2 block text-sm font-medium text-zinc-200">{copy.email}</label>
+              <label htmlFor="spike-email" className={LABEL}>{copy.email}</label>
               <input
                 id="spike-email"
                 name="email"
@@ -63,10 +65,10 @@ export function SpikeLoginForm({ status }: { status: SupabaseSpikeStatus }) {
                 spellCheck={false}
                 required
                 maxLength={254}
-                className="min-h-12 w-full rounded-xl border border-white/15 bg-black/20 px-4 text-base text-white outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                className={FIELD_LG}
               />
             </div>
-            <button type="submit" className="min-h-12 w-full rounded-xl bg-primary px-4 text-sm font-semibold text-white hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg">
+            <button type="submit" className={buttonClass("primary", "md", "min-h-12 w-full")}>
               {copy.sendCode}
             </button>
           </form>

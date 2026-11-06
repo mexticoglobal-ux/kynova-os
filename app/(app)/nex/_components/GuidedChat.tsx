@@ -8,6 +8,8 @@ import type { ClientPack } from "@/lib/audit-packs/nova-draft";
 import { advance, greeting, initialState, promptFor, validate, type ChatState, type Handoff, type Route, type Say } from "@/lib/guided-chat";
 import { BAND_COPY } from "@/lib/audit-copy";
 import { NexBadge, ScoreCard, SummaryView } from "./AuditParts";
+import { buttonClass } from "@/components/ui/Button";
+import { choiceClass } from "@/components/ui/choice";
 
 type Item = { id: number; from: "nex" | "user"; say?: Say; text?: string };
 
@@ -95,7 +97,7 @@ export function GuidedChat({
     <div className="mx-auto flex max-w-2xl flex-col px-4 py-6 sm:px-6">
       <header className="mb-4 space-y-2">
         <NexBadge label={`NEX · ${pack.brand}`} />
-        <p className="flex items-start gap-2 text-xs text-zinc-400">
+        <p className="flex items-start gap-2 text-xs text-ink-muted">
           <ShieldCheck aria-hidden className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           Demostración: asistente automático con respuestas preparadas. No se guarda ni se envía nada.
         </p>
@@ -105,7 +107,7 @@ export function GuidedChat({
         {items.map((item, index) => (
           <li key={item.id} className={clsx("flex", item.from === "user" ? "justify-end" : "justify-start")}>
             {item.from === "user" || !item.say ? (
-              <p className="max-w-[85%] rounded-2xl rounded-br-md bg-primary px-4 py-2.5 text-sm text-white">{item.text}</p>
+              <p className="max-w-[85%] rounded-2xl rounded-br-md bg-primary px-4 py-2.5 text-sm text-on-primary">{item.text}</p>
             ) : (
               <NexMessage say={item.say} pack={pack} treatment={treatment} done={index < items.length - 1 || queue.length > 0} />
             )}
@@ -113,9 +115,9 @@ export function GuidedChat({
         ))}
         {busy && (
           <li className="flex" role="status" aria-label="NEX está escribiendo">
-            <span className="inline-flex gap-1 rounded-2xl rounded-bl-md bg-white/[0.06] px-4 py-3" aria-hidden>
+            <span className="inline-flex gap-1 rounded-2xl rounded-bl-md bg-raised px-4 py-3" aria-hidden>
               {[0, 1, 2].map((dot) => (
-                <span key={dot} className="h-1.5 w-1.5 animate-pulse rounded-full bg-zinc-400" style={{ animationDelay: `${dot * 150}ms` }} />
+                <span key={dot} className="h-1.5 w-1.5 animate-pulse rounded-full bg-ink-muted" style={{ animationDelay: `${dot * 150}ms` }} />
               ))}
             </span>
           </li>
@@ -130,7 +132,7 @@ export function GuidedChat({
                 key={option.id}
                 type="button"
                 onClick={() => submit(option.label, option.id)}
-                className="rounded-xl border border-white/10 bg-white/[0.03] p-3 text-left text-sm transition hover:border-primary/40 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                className={choiceClass()}
               >
                 {option.label}
               </button>
@@ -139,7 +141,7 @@ export function GuidedChat({
         )}
         {prompt?.kind === "text" && (
           <form onSubmit={submitText} noValidate className="space-y-2">
-            <label htmlFor="guided-input" className="text-sm text-zinc-300">
+            <label htmlFor="guided-input" className="text-sm text-ink-soft">
               {prompt.label}
             </label>
             <div className="flex gap-2">
@@ -150,20 +152,20 @@ export function GuidedChat({
                 maxLength={prompt.maxLength + 1}
                 onChange={(event) => setDraft(event.target.value)}
                 autoFocus
-                className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                className="field min-w-0 flex-1"
               />
-              <button type="submit" className="inline-flex items-center gap-2 rounded-full bg-primary px-4 text-sm font-medium text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-soft">
+              <button type="submit" className={buttonClass("primary", "md")}>
                 <Send aria-hidden className="h-4 w-4" />
                 Enviar
               </button>
             </div>
             {prompt.optional && (
-              <button type="button" onClick={() => submit("Prefiero omitirlo", "")} className="text-sm text-zinc-400 underline-offset-2 hover:underline">
+              <button type="button" onClick={() => submit("Prefiero omitirlo", "")} className="text-sm text-ink-muted underline-offset-2 hover:underline">
                 Omitir
               </button>
             )}
             {error && (
-              <p role="alert" className="text-sm text-amber-300">
+              <p role="alert" className="text-sm text-warning">
                 {error}
               </p>
             )}
@@ -174,7 +176,7 @@ export function GuidedChat({
           <button
             type="button"
             onClick={restart}
-            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-zinc-200 transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            className={buttonClass("secondary", "md")}
           >
             <RotateCcw aria-hidden className="h-4 w-4" />
             Empezar de nuevo
@@ -189,27 +191,27 @@ export function GuidedChat({
 function NexMessage({ say, pack, treatment, done }: { say: Say; pack: ClientPack; treatment: Treatment; done: boolean }) {
   switch (say.kind) {
     case "text":
-      return <p className="max-w-[85%] rounded-2xl rounded-bl-md bg-white/[0.06] px-4 py-2.5 text-sm text-zinc-100">{say.text}</p>;
+      return <p className="max-w-[85%] rounded-2xl rounded-bl-md bg-raised px-4 py-2.5 text-sm text-ink">{say.text}</p>;
     case "reaction":
       return (
-        <p className="flex max-w-[85%] items-start gap-2 rounded-2xl rounded-bl-md border border-primary/30 bg-primary/10 px-4 py-2.5 text-sm text-zinc-100" data-testid="reaction">
+        <p className="flex max-w-[85%] items-start gap-2 rounded-2xl rounded-bl-md border border-primary/30 bg-primary/10 px-4 py-2.5 text-sm text-ink" data-testid="reaction">
           <Sparkles aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-primary-soft" />
           {say.text}
         </p>
       );
     case "working":
       return (
-        <p className={clsx("flex items-center gap-2 px-1 text-sm", done ? "text-zinc-400" : "text-zinc-100")} data-testid="working">
+        <p className={clsx("flex items-center gap-2 px-1 text-sm", done ? "text-ink-muted" : "text-ink")} data-testid="working">
           {done ? <CheckCircle2 aria-hidden className="h-4 w-4 text-primary-soft" /> : <span aria-hidden className="h-3 w-3 animate-pulse rounded-full bg-primary/70" />}
           {say.text}
         </p>
       );
     case "result":
       return (
-        <div className="w-full space-y-6 rounded-2xl border border-white/10 bg-white/[0.02] p-4 sm:p-5" data-testid="result">
+        <div className="w-full space-y-6 rounded-2xl border border-line bg-surface p-4 sm:p-5" data-testid="result">
           <ScoreCard result={{ version: 1, basis: "selfReported", score: say.score, band: say.band, infrastructure: say.infrastructure, gaps: [], strengths: [] }} status={say.status} />
           <SummaryView summary={say.summary} pack={pack} treatment={treatment} />
-          <p className="text-xs text-zinc-400">Diagnóstico basado únicamente en lo que usted declaró; no se verificó ningún dato real del negocio.</p>
+          <p className="text-xs text-ink-muted">Diagnóstico basado únicamente en lo que usted declaró; no se verificó ningún dato real del negocio.</p>
         </div>
       );
     case "handoff":
@@ -237,8 +239,8 @@ function HandoffCard({ handoff, pack }: { handoff: Handoff; pack: ClientPack }) 
       <dl className="mt-3 grid gap-2 text-sm">
         {rows.map(([label, value]) => (
           <div key={label} className="grid gap-0.5 sm:grid-cols-[9rem_1fr] sm:gap-3">
-            <dt className="text-zinc-400">{label}</dt>
-            <dd className="text-zinc-100">{value}</dd>
+            <dt className="text-ink-muted">{label}</dt>
+            <dd className="text-ink">{value}</dd>
           </div>
         ))}
       </dl>

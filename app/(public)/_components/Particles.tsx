@@ -4,7 +4,7 @@ export function Particles() {
       {Array.from({ length: 24 }, (_, index) => (
         <span
           key={index}
-          className="absolute h-1 w-1 animate-float rounded-full bg-white/30"
+          className="absolute h-1 w-1 animate-float rounded-full bg-accent-soft/40"
           style={{
             left: `${(index * 37) % 100}%`,
             top: `${(index * 53) % 100}%`,

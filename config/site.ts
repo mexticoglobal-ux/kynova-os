@@ -3,7 +3,7 @@ export const site = {
   product: "KYNOVA OS",
   ai: "NEX",
   url: "https://kynova.ai",
-  themeColor: "#09090B",
+  themeColor: "#0F161A",
 };
 
 export const MODULE_KEYS = [

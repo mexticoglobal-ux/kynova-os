@@ -8,18 +8,20 @@ import { executiveSummary } from "@/lib/pipeline";
 import { CHANNEL_LABEL, GRADE_LABEL, METHOD_LABEL, PRIORITY_LABEL, STAGE_LABEL } from "@/lib/pipeline-copy";
 import { BAND_COPY } from "@/lib/audit-copy";
 import { usePipeline } from "@/components/pipeline/PipelineProvider";
+import { buttonClass } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
 
 const PRIORITY_STYLE: Record<Priority, string> = {
-  high: "bg-rose-500/15 text-rose-200",
-  medium: "bg-amber-500/15 text-amber-200",
-  low: "bg-white/10 text-zinc-300",
+  high: "bg-danger/15 text-danger-soft",
+  medium: "bg-warning/15 text-warning",
+  low: "bg-raised-strong text-ink-soft",
 };
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="min-w-0">
-      <dt className="text-xs text-zinc-400">{label}</dt>
-      <dd className="mt-0.5 break-words text-sm text-zinc-100">{children}</dd>
+      <dt className="text-xs text-ink-muted">{label}</dt>
+      <dd className="mt-0.5 break-words text-sm text-ink">{children}</dd>
     </div>
   );
 }
@@ -35,7 +37,7 @@ export function PipelineBoard() {
           <h2 id="pipeline-title" className="text-xl font-semibold">
             Pipeline comercial
           </h2>
-          <p className="text-sm text-zinc-400">
+          <p className="text-sm text-ink-muted">
             {sorted.length} prospectos preparados por NEX. Datos de demostración: los prospectos de ejemplo son ficticios y nada se envía a nadie.
           </p>
         </div>
@@ -58,14 +60,14 @@ function LeadCard({ lead, open, onToggle, packBrand }: { lead: Lead; open: boole
   const brief = executiveSummary(lead, pack);
 
   return (
-    <li ref={ref} className={clsx("glass p-4 sm:p-5", lead.arrival === "session" && "ring-1 ring-primary/50")} data-testid={`lead-${lead.id}`}>
+    <li ref={ref} className={clsx("card p-4 sm:p-5", lead.arrival === "session" && "ring-1 ring-primary/50")} data-testid={`lead-${lead.id}`}>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <h3 className="font-medium">
             {lead.company}
-            {lead.arrival === "session" && <span className="ml-2 rounded-full bg-primary/20 px-2 py-0.5 text-xs text-primary-soft">Nuevo</span>}
+            {lead.arrival === "session" && <Badge tone="primary" className="ml-2">Nuevo</Badge>}
           </h3>
-          <p className="text-xs text-zinc-400">{`${CHANNEL_LABEL[lead.channel]} · ${GRADE_LABEL[lead.grade]}`}</p>
+          <p className="text-xs text-ink-muted">{`${CHANNEL_LABEL[lead.channel]} · ${GRADE_LABEL[lead.grade]}`}</p>
         </div>
         <span className={clsx("rounded-full px-2.5 py-1 text-xs", PRIORITY_STYLE[lead.priority])}>{`Prioridad ${PRIORITY_LABEL[lead.priority].toLowerCase()}`}</span>
       </div>
@@ -80,7 +82,7 @@ function LeadCard({ lead, open, onToggle, packBrand }: { lead: Lead; open: boole
       </dl>
 
       {lead.approval && (
-        <p className="mt-4 flex items-center gap-2 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-sm text-amber-100">
+        <p className="mt-4 flex items-center gap-2 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning">
           <ShieldCheck aria-hidden className="h-4 w-4 shrink-0" />
           NEX preparó una solicitud de reunión y espera su aprobación.
         </p>
@@ -90,7 +92,7 @@ function LeadCard({ lead, open, onToggle, packBrand }: { lead: Lead; open: boole
         type="button"
         aria-expanded={open}
         onClick={onToggle}
-        className="mt-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-zinc-200 transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        className={buttonClass("secondary", "md", "mt-4")}
       >
         <Bot aria-hidden className="h-4 w-4" />
         {open ? "Ocultar resumen ejecutivo" : "Ver resumen ejecutivo"}
@@ -98,7 +100,7 @@ function LeadCard({ lead, open, onToggle, packBrand }: { lead: Lead; open: boole
       </button>
 
       {open && (
-        <div className="mt-4 space-y-4 border-t border-white/10 pt-4" data-testid="executive-summary">
+        <div className="mt-4 space-y-4 border-t border-line pt-4" data-testid="executive-summary">
           <div>
             <p className="flex items-center gap-2 text-xs uppercase tracking-wide text-primary-soft">
               <Sparkles aria-hidden className="h-3.5 w-3.5" />
@@ -115,25 +117,25 @@ function LeadCard({ lead, open, onToggle, packBrand }: { lead: Lead; open: boole
           </dl>
 
           {lead.approval && (
-            <div className="rounded-2xl border border-amber-400/30 bg-amber-400/10 p-4">
-              <p className="flex items-center gap-2 text-sm font-medium text-amber-100">
+            <div className="rounded-2xl border border-warning/30 bg-warning/10 p-4">
+              <p className="flex items-center gap-2 text-sm font-medium text-warning">
                 <CalendarCheck aria-hidden className="h-4 w-4" />
                 Solicitud de reunión preparada por NEX
               </p>
-              <p className="mt-2 whitespace-pre-line rounded-xl bg-black/20 p-3 text-sm text-zinc-100">{lead.approval.draft}</p>
-              <p className="mt-2 text-xs text-zinc-300">Es el primer mensaje a este prospecto, así que espera su aprobación. {packBrand}: en esta demostración no se envía nada.</p>
+              <p className="mt-2 whitespace-pre-line rounded-xl bg-shade p-3 text-sm text-ink">{lead.approval.draft}</p>
+              <p className="mt-2 text-xs text-ink-soft">Es el primer mensaje a este prospecto, así que espera su aprobación. {packBrand}: en esta demostración no se envía nada.</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <button
                   type="button"
                   onClick={() => approveMeeting(lead.id)}
-                  className="rounded-full bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                  className={buttonClass("primary", "md")}
                 >
                   Aprobar y solicitar reunión
                 </button>
                 <button
                   type="button"
                   onClick={() => discardMeeting(lead.id)}
-                  className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-zinc-200 transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  className={buttonClass("secondary", "md")}
                 >
                   Todavía no
                 </button>
@@ -141,7 +143,7 @@ function LeadCard({ lead, open, onToggle, packBrand }: { lead: Lead; open: boole
             </div>
           )}
           {lead.stage === "meetingRequested" && !lead.approval && (
-            <p className="flex items-center gap-2 text-sm text-emerald-200">
+            <p className="flex items-center gap-2 text-sm text-success">
               <CalendarCheck aria-hidden className="h-4 w-4" />
               Reunión solicitada (demostración: no se envió nada al prospecto).
             </p>

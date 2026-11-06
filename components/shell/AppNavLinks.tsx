@@ -24,10 +24,10 @@ export function AppNavLinks({ onNavigate }: { onNavigate?: () => void }) {
               aria-current={active ? "page" : undefined}
               className={clsx(
                 "flex items-center gap-3 rounded-xl px-3 py-2 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-                active ? "bg-primary/15 text-white" : "text-zinc-400 hover:bg-white/5 hover:text-white",
+                active ? "bg-primary/15 text-ink shadow-[inset_2px_0_0_rgb(var(--accent))]" : "text-ink-muted hover:bg-raised hover:text-ink",
               )}
             >
-              <Icon aria-hidden className={clsx("h-4 w-4 shrink-0", active && "text-primary")} />
+              <Icon aria-hidden className={clsx("h-4 w-4 shrink-0", active && "text-accent")} />
               {m.nav[key]}
             </Link>
           </li>

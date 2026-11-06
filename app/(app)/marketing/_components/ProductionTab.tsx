@@ -4,7 +4,8 @@ import { useI18n } from "@/components/i18n/I18nProvider";
 import { PRODUCTION_STAGES, type ProductionStage, type Video } from "@/lib/contracts/creator";
 import { localToday, nextStage, planProduction, stageCounts } from "@/lib/creator";
 import type { CreatorStudioActions } from "./useCreatorStudio";
-import { BUTTON_GHOST, FIELD, OPTION } from "./styles";
+import { FIELD, OPTION } from "@/components/ui/form";
+import { buttonClass } from "@/components/ui/Button";
 
 type Props = {
   videos: Video[];
@@ -23,10 +24,10 @@ function ProductionRow({ video, onOpen, actions }: { video: Video } & Pick<Props
   const following = nextStage(video.stage);
 
   return (
-    <li className="flex flex-wrap items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+    <li className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-surface p-3">
       <div className="min-w-0 flex-1">
-        <p className="truncate font-medium text-zinc-100">{video.title}</p>
-        <p className="text-xs text-zinc-400">{video.plannedDate ? formatDate(video.plannedDate, tag) : copy.unscheduled}</p>
+        <p className="truncate font-medium text-ink">{video.title}</p>
+        <p className="text-xs text-ink-muted">{video.plannedDate ? formatDate(video.plannedDate, tag) : copy.unscheduled}</p>
       </div>
       <select
         aria-label={`${m.creatorStudio.scripts.stage}: ${video.title}`}
@@ -41,11 +42,11 @@ function ProductionRow({ video, onOpen, actions }: { video: Video } & Pick<Props
         ))}
       </select>
       {following && (
-        <button type="button" onClick={() => actions.setStage(video.id, following)} aria-label={`${copy.advance}: ${video.title}`} className={BUTTON_GHOST}>
+        <button type="button" onClick={() => actions.setStage(video.id, following)} aria-label={`${copy.advance}: ${video.title}`} className={buttonClass("secondary", "md", "min-h-11")}>
           {copy.advance}
         </button>
       )}
-      <button type="button" onClick={() => onOpen(video.id)} aria-label={`${copy.open}: ${video.title}`} className={BUTTON_GHOST}>
+      <button type="button" onClick={() => onOpen(video.id)} aria-label={`${copy.open}: ${video.title}`} className={buttonClass("secondary", "md", "min-h-11")}>
         {copy.open}
       </button>
     </li>
@@ -71,22 +72,22 @@ export function ProductionTab({ videos, onOpen, actions }: Props) {
       <section aria-label={copy.summary}>
         <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
           {PRODUCTION_STAGES.map((stage) => (
-            <li key={stage} className="rounded-xl border border-white/10 bg-black/20 p-3 text-center">
+            <li key={stage} className="rounded-xl border border-line bg-shade p-3 text-center">
               <p className="text-2xl font-semibold tabular-nums">{counts[stage]}</p>
-              <p className="text-xs text-zinc-400">{copy.stages[stage]}</p>
+              <p className="text-xs text-ink-muted">{copy.stages[stage]}</p>
             </li>
           ))}
         </ul>
       </section>
 
       {videos.length === 0 ? (
-        <p className="rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-zinc-300">{copy.empty}</p>
+        <p className="rounded-xl border border-line bg-shade p-4 text-sm text-ink-soft">{copy.empty}</p>
       ) : (
         groups
           .filter((group) => group.videos.length > 0)
           .map((group) => (
             <section key={group.key} aria-label={group.title}>
-              <h4 className={`mb-2 text-sm font-medium ${group.tone ?? "text-zinc-200"}`}>{group.title}</h4>
+              <h4 className={`mb-2 text-sm font-medium ${group.tone ?? "text-ink-soft"}`}>{group.title}</h4>
               <ul className="space-y-2">
                 {group.videos.map((video) => (
                   <ProductionRow key={video.id} video={video} onOpen={onOpen} actions={actions} />
@@ -96,7 +97,7 @@ export function ProductionTab({ videos, onOpen, actions }: Props) {
           ))
       )}
 
-      <p className="text-xs text-zinc-400">{copy.note}</p>
+      <p className="text-xs text-ink-muted">{copy.note}</p>
     </div>
   );
 }

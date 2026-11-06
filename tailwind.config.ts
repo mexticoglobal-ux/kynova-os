@@ -1,19 +1,31 @@
 import type { Config } from "tailwindcss";
 
+// Every color comes from a CSS variable defined per theme in app/globals.css, so a theme change never touches a component.
+const token = (name: string) => `rgb(var(--${name}) / <alpha-value>)`;
+
 export default {
   content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}"],
   theme: {
     extend: {
       colors: {
-        bg: "#09090B",
-        primary: { DEFAULT: "#2563EB", soft: "#93C5FD" },
-        accent: "#7C3AED",
-        success: "#22C55E",
-        warning: "#F59E0B",
+        canvas: token("canvas"),
+        surface: token("surface"),
+        raised: { DEFAULT: token("raised"), strong: token("raised-strong") },
+        shade: token("shade"),
+        scrim: token("scrim"),
+        line: { DEFAULT: token("line"), soft: token("line-soft"), strong: token("line-strong") },
+        ink: { DEFAULT: token("ink"), soft: token("ink-soft"), muted: token("ink-muted") },
+        primary: { DEFAULT: token("primary"), soft: token("primary-soft") },
+        "on-primary": token("on-primary"),
+        accent: { DEFAULT: token("accent"), soft: token("accent-soft") },
+        "on-accent": token("on-accent"),
+        success: token("success"),
+        warning: token("warning"),
         // `soft` is the AA-compliant variant for small text on tinted backgrounds.
-        danger: { DEFAULT: "#EF4444", soft: "#F87171" },
+        danger: { DEFAULT: token("danger"), soft: token("danger-soft") },
       },
       borderRadius: { card: "20px" },
+      boxShadow: { card: "var(--shadow-card)", raised: "var(--shadow-raised)" },
       fontFamily: { sans: ["var(--font-inter)", "Inter", "system-ui", "sans-serif"] },
       // CSS entrance animations run before hydration, so content never waits for JavaScript to appear.
       keyframes: {

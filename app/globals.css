@@ -2,32 +2,217 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+  KYNOVA design tokens. Colors are RGB triplets so Tailwind can add opacity (`bg-primary/15`).
+  Three themes share exactly the same token names (checked by app/design-tokens.test.ts):
+    premium (default): petrol blue + graphite + premium gold
+    dark: neutral graphite, same accents
+    light: warm paper
+  No theme uses pure black or pure white as the page background.
+*/
+:root,
+[data-theme="premium"] {
+  color-scheme: dark;
+  --canvas: 15 22 26; /* #0F161A graphite with a petrol tint */
+  --surface: 23 33 39; /* cards */
+  --raised: 32 45 53; /* controls, chips */
+  --raised-strong: 44 60 70; /* hover, pressed */
+  --shade: 11 17 20; /* inset wells inside cards */
+  --scrim: 6 10 12; /* overlays behind dialogs */
+  --line: 50 66 76;
+  --line-soft: 38 52 60;
+  --line-strong: 74 94 106;
+  --ink: 244 241 234; /* warm off-white */
+  --ink-soft: 202 209 212;
+  --ink-muted: 148 162 169;
+  --primary: 20 120 130; /* petrol blue */
+  --primary-soft: 104 200 209; /* petrol for text and icons on dark */
+  --on-primary: 255 255 255;
+  --accent: 201 162 75; /* premium gold */
+  --accent-soft: 232 205 133;
+  --on-accent: 28 22 8;
+  --success: 84 196 146;
+  --warning: 233 178 79;
+  --danger: 226 92 92;
+  --danger-soft: 244 140 140;
+  --glow-a: 20 120 130;
+  --glow-b: 201 162 75;
+  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 12px 36px -14px rgb(0 0 0 / 0.55);
+  --shadow-raised: 0 10px 30px -10px rgb(0 0 0 / 0.6);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --canvas: 22 24 27;
+  --surface: 30 33 37;
+  --raised: 40 44 49;
+  --raised-strong: 53 58 64;
+  --shade: 17 19 21;
+  --scrim: 8 9 10;
+  --line: 58 63 69;
+  --line-soft: 45 49 54;
+  --line-strong: 84 91 99;
+  --ink: 240 241 242;
+  --ink-soft: 200 204 208;
+  --ink-muted: 150 156 163;
+  --primary: 24 128 139;
+  --primary-soft: 112 205 214;
+  --on-primary: 255 255 255;
+  --accent: 201 162 75;
+  --accent-soft: 232 205 133;
+  --on-accent: 28 22 8;
+  --success: 84 196 146;
+  --warning: 233 178 79;
+  --danger: 226 92 92;
+  --danger-soft: 244 140 140;
+  --glow-a: 24 128 139;
+  --glow-b: 201 162 75;
+  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 12px 36px -14px rgb(0 0 0 / 0.5);
+  --shadow-raised: 0 10px 30px -10px rgb(0 0 0 / 0.55);
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --canvas: 243 241 235; /* warm paper */
+  --surface: 252 251 248;
+  --raised: 234 231 223;
+  --raised-strong: 223 219 209;
+  --shade: 238 235 228;
+  --scrim: 20 28 32;
+  --line: 214 210 199;
+  --line-soft: 226 222 212;
+  --line-strong: 184 179 166;
+  --ink: 23 33 39;
+  --ink-soft: 62 75 82;
+  --ink-muted: 90 102 109;
+  --primary: 14 103 112;
+  --primary-soft: 11 89 97; /* darker than primary: this one is for text on light */
+  --on-primary: 255 255 255;
+  --accent: 143 104 18;
+  --accent-soft: 118 86 14;
+  --on-accent: 255 255 255;
+  --success: 25 127 88;
+  --warning: 156 99 6;
+  --danger: 187 48 48;
+  --danger-soft: 170 40 40;
+  --glow-a: 14 103 112;
+  --glow-b: 201 162 75;
+  --shadow-card: 0 1px 2px rgb(23 33 39 / 0.06), 0 12px 30px -16px rgb(23 33 39 / 0.18);
+  --shadow-raised: 0 10px 28px -12px rgb(23 33 39 / 0.25);
+}
+
 html {
   scroll-behavior: smooth;
 }
 
 body {
-  background: theme("colors.bg");
-  color: #fafafa;
+  background: rgb(var(--canvas));
+  color: rgb(var(--ink));
   font-family: theme("fontFamily.sans");
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
 }
 
-.glass {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(20px);
-  border-radius: theme("borderRadius.card");
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.04) inset,
-    0 10px 40px -12px rgba(0, 0, 0, 0.6);
-}
+/*
+  Shared building blocks. Components use these through components/ui (Button, Card, Badge, IconBadge);
+  nothing else should restyle them, so the whole product changes in one place.
+*/
+@layer components {
+  .card {
+    background: rgb(var(--surface) / 0.9);
+    border: 1px solid rgb(var(--line));
+    backdrop-filter: blur(12px);
+    border-radius: theme("borderRadius.card");
+    box-shadow: var(--shadow-card);
+  }
 
-.glow {
-  background:
-    radial-gradient(60% 50% at 50% 0%, rgba(37, 99, 235, 0.35), transparent),
-    radial-gradient(40% 40% at 80% 20%, rgba(124, 58, 237, 0.3), transparent);
+  .glow {
+    background:
+      radial-gradient(60% 50% at 50% 0%, rgb(var(--glow-a) / 0.32), transparent),
+      radial-gradient(40% 40% at 85% 15%, rgb(var(--glow-b) / 0.18), transparent);
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 9999px;
+    font-weight: 500;
+    transition:
+      background-color 0.15s,
+      border-color 0.15s,
+      color 0.15s;
+  }
+  .btn:focus-visible {
+    outline: none;
+    box-shadow:
+      0 0 0 2px rgb(var(--canvas)),
+      0 0 0 4px rgb(var(--primary-soft));
+  }
+  .btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  .btn-primary {
+    background: rgb(var(--primary));
+    color: rgb(var(--on-primary));
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: rgb(var(--primary) / 0.88);
+  }
+  .btn-secondary {
+    background: rgb(var(--raised));
+    color: rgb(var(--ink-soft));
+    border: 1px solid rgb(var(--line));
+  }
+  .btn-secondary:hover:not(:disabled) {
+    background: rgb(var(--raised-strong));
+    color: rgb(var(--ink));
+  }
+  .btn-accent {
+    background: rgb(var(--accent));
+    color: rgb(var(--on-accent));
+  }
+  .btn-accent:hover:not(:disabled) {
+    background: rgb(var(--accent) / 0.9);
+  }
+  .btn-ghost {
+    color: rgb(var(--ink-muted));
+  }
+  .btn-ghost:hover:not(:disabled) {
+    background: rgb(var(--raised));
+    color: rgb(var(--ink));
+  }
+  .btn-sm {
+    padding: 0.375rem 0.875rem;
+    font-size: 0.8125rem;
+  }
+  .btn-md {
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+  }
+  .btn-lg {
+    padding: 0.75rem 1.75rem;
+    font-size: 1rem;
+  }
+
+  .field {
+    width: 100%;
+    border-radius: 0.75rem;
+    border: 1px solid rgb(var(--line-strong));
+    background: rgb(var(--shade));
+    color: rgb(var(--ink));
+    padding: 0.625rem 0.875rem;
+    font-size: 0.875rem;
+  }
+  .field::placeholder {
+    color: rgb(var(--ink-muted));
+  }
+  .field:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px rgb(var(--primary-soft));
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

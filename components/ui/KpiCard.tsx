@@ -13,8 +13,8 @@ export function KpiCard({ label, kpi }: { label: string; kpi: ModuleKpi }) {
   const Arrow = kpi.delta >= 0 ? ArrowUpRight : ArrowDownRight;
 
   return (
-    <div className="glass flex flex-col gap-3 p-5 transition hover:-translate-y-0.5 hover:border-white/15">
-      <p className="text-sm text-zinc-400">{label}</p>
+    <div className="card flex flex-col gap-3 p-5 transition hover:-translate-y-0.5 hover:border-line-strong">
+      <p className="text-sm text-ink-muted">{label}</p>
       <p className="text-2xl font-semibold tabular-nums sm:text-3xl">{formatValue(kpi.value, kpi.format, tag)}</p>
       <div className="flex items-center gap-1.5 text-xs">
         <span
@@ -26,7 +26,7 @@ export function KpiCard({ label, kpi }: { label: string; kpi: ModuleKpi }) {
           <Arrow aria-hidden className="h-3 w-3" />
           {formatDelta(kpi.delta, tag)}
         </span>
-        <span className="text-zinc-400">{m.common.vsLastMonth}</span>
+        <span className="text-ink-muted">{m.common.vsLastMonth}</span>
       </div>
       <Sparkline data={kpi.trend} positive={improving} />
     </div>

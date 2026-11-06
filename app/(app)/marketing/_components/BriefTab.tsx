@@ -3,7 +3,7 @@
 import { useId } from "react";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import { CREATOR_LIMITS, FACELESS_FORMATS, type ChannelBrief, type FacelessFormat } from "@/lib/contracts/creator";
-import { AREA, FIELD, LABEL, OPTION } from "./styles";
+import { AREA, FIELD, LABEL, OPTION } from "@/components/ui/form";
 
 const CADENCES = Array.from({ length: CREATOR_LIMITS.maxVideosPerWeek }, (_, index) => index + 1);
 
@@ -65,7 +65,7 @@ export function BriefTab({ brief, onChange }: { brief: ChannelBrief; onChange: (
           </select>
         </div>
       </div>
-      <p className="text-xs text-zinc-400">{copy.saveHint}</p>
+      <p className="text-xs text-ink-muted">{copy.saveHint}</p>
     </form>
   );
 }

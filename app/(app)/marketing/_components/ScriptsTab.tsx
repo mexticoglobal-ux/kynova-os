@@ -5,7 +5,8 @@ import { useI18n } from "@/components/i18n/I18nProvider";
 import { CREATOR_LIMITS, PRODUCTION_STAGES, type ProductionStage, type Video } from "@/lib/contracts/creator";
 import { formatDuration, scriptStats } from "@/lib/creator";
 import type { CreatorStudioActions } from "./useCreatorStudio";
-import { AREA, BUTTON_GHOST, BUTTON_PRIMARY, FIELD, LABEL, OPTION } from "./styles";
+import { AREA, FIELD, LABEL, OPTION } from "@/components/ui/form";
+import { buttonClass } from "@/components/ui/Button";
 
 type Props = {
   videos: Video[];
@@ -46,8 +47,8 @@ export function ScriptsTab({ videos, selectedId, onSelect, onGoIdeas, actions }:
     return (
       <div className="space-y-4">
         <h3 className="font-medium">{copy.title}</h3>
-        <p className="rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-zinc-300">{copy.empty}</p>
-        <button type="button" onClick={onGoIdeas} className={BUTTON_PRIMARY}>
+        <p className="rounded-xl border border-line bg-shade p-4 text-sm text-ink-soft">{copy.empty}</p>
+        <button type="button" onClick={onGoIdeas} className={buttonClass("primary", "md", "min-h-11")}>
           {copy.goIdeas}
         </button>
       </div>
@@ -144,11 +145,11 @@ export function ScriptsTab({ videos, selectedId, onSelect, onGoIdeas, actions }:
         </div>
       </div>
 
-      <p role="status" className="text-sm text-zinc-300">
-        <span className="font-medium text-zinc-100">{words}</span> {copy.words} · {copy.duration}: <span className="font-medium text-zinc-100">{formatDuration(seconds)}</span>
+      <p role="status" className="text-sm text-ink-soft">
+        <span className="font-medium text-ink">{words}</span> {copy.words} · {copy.duration}: <span className="font-medium text-ink">{formatDuration(seconds)}</span>
       </p>
 
-      <button type="button" onClick={() => actions.removeVideo(video.id)} className={BUTTON_GHOST}>
+      <button type="button" onClick={() => actions.removeVideo(video.id)} className={buttonClass("secondary", "md", "min-h-11")}>
         {copy.remove}
       </button>
     </div>

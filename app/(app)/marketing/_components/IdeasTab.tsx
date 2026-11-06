@@ -5,7 +5,8 @@ import { useI18n } from "@/components/i18n/I18nProvider";
 import { CREATOR_LIMITS, IDEA_PRIORITIES, IDEA_STATUSES, type Idea, type IdeaPriority, type IdeaStatus, type Video } from "@/lib/contracts/creator";
 import { sortIdeas } from "@/lib/creator";
 import type { CreatorStudioActions } from "./useCreatorStudio";
-import { AREA, BUTTON_GHOST, BUTTON_PRIMARY, FIELD, LABEL, OPTION } from "./styles";
+import { AREA, FIELD, LABEL, OPTION } from "@/components/ui/form";
+import { buttonClass } from "@/components/ui/Button";
 
 type Props = {
   ideas: Idea[];
@@ -62,7 +63,7 @@ export function IdeasTab({ ideas, videos, actions, onCreateScript, onOpenScript 
               ))}
             </select>
           </div>
-          <button type="submit" className={BUTTON_PRIMARY}>
+          <button type="submit" className={buttonClass("primary", "md", "min-h-11")}>
             {copy.add}
           </button>
         </div>
@@ -71,19 +72,19 @@ export function IdeasTab({ ideas, videos, actions, onCreateScript, onOpenScript 
       <div>
         <div className="flex items-center justify-between gap-3">
           <h3 className="font-medium">{copy.title}</h3>
-          <span className="text-sm text-zinc-400">{copy.count.replace("{count}", String(ideas.length))}</span>
+          <span className="text-sm text-ink-muted">{copy.count.replace("{count}", String(ideas.length))}</span>
         </div>
 
         {ideas.length === 0 ? (
-          <p className="mt-4 rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-zinc-300">{copy.empty}</p>
+          <p className="mt-4 rounded-xl border border-line bg-shade p-4 text-sm text-ink-soft">{copy.empty}</p>
         ) : (
           <ul className="mt-4 space-y-3">
             {sortIdeas(ideas).map((idea) => {
               const video = videos.find((candidate) => candidate.ideaId === idea.id);
               return (
-                <li key={idea.id} className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-                  <p className="font-medium text-zinc-100">{idea.title}</p>
-                  {idea.note && <p className="mt-1 text-sm text-zinc-400">{idea.note}</p>}
+                <li key={idea.id} className="rounded-xl border border-line bg-surface p-4">
+                  <p className="font-medium text-ink">{idea.title}</p>
+                  {idea.note && <p className="mt-1 text-sm text-ink-muted">{idea.note}</p>}
                   <div className="mt-3 flex flex-wrap items-center gap-3">
                     <select
                       aria-label={`${copy.priority}: ${idea.title}`}
@@ -110,15 +111,15 @@ export function IdeasTab({ ideas, videos, actions, onCreateScript, onOpenScript 
                       ))}
                     </select>
                     {video ? (
-                      <button type="button" onClick={() => onOpenScript(video.id)} className={BUTTON_GHOST}>
+                      <button type="button" onClick={() => onOpenScript(video.id)} className={buttonClass("secondary", "md", "min-h-11")}>
                         {copy.openScript}
                       </button>
                     ) : (
-                      <button type="button" onClick={() => onCreateScript(idea.id)} disabled={idea.status === "discarded" || videos.length >= CREATOR_LIMITS.videos} className={BUTTON_PRIMARY}>
+                      <button type="button" onClick={() => onCreateScript(idea.id)} disabled={idea.status === "discarded" || videos.length >= CREATOR_LIMITS.videos} className={buttonClass("primary", "md", "min-h-11")}>
                         {copy.promote}
                       </button>
                     )}
-                    <button type="button" onClick={() => actions.removeIdea(idea.id)} aria-label={`${copy.remove}: ${idea.title}`} className={BUTTON_GHOST}>
+                    <button type="button" onClick={() => actions.removeIdea(idea.id)} aria-label={`${copy.remove}: ${idea.title}`} className={buttonClass("secondary", "md", "min-h-11")}>
                       {copy.remove}
                     </button>
                   </div>

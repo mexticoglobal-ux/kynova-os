@@ -9,16 +9,16 @@ import { buildSummary } from "@/lib/audit-summary";
 import { ANALYSIS_STEPS, DIMENSION_COPY, pick, type Treatment } from "@/lib/audit-copy";
 import type { ClientPack } from "@/lib/audit-packs/nova-draft";
 import { NexBadge, ScoreCard, SummaryView } from "./AuditParts";
+import { buttonClass } from "@/components/ui/Button";
+import { choiceClass } from "@/components/ui/choice";
 
 type Draft = Partial<AuditAnswers>;
 type Stage = "intro" | "questions" | "analyzing" | "report";
 
 const isComplete = (draft: Draft): draft is AuditAnswers => AUDIT_DIMENSIONS.every((dimension) => draft[dimension] !== undefined);
 
-const primaryButton =
-  "inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-medium text-white transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-soft disabled:opacity-40";
-const secondaryButton =
-  "inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-zinc-200 transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-40";
+const primaryButton = buttonClass("primary", "md", "px-5");
+const secondaryButton = buttonClass("secondary");
 
 // The audit lives only in this component's state: nothing is stored or sent anywhere (Business Audit v1, self-reported).
 export function AuditFlow({ pack, analysisMs = 1600 }: { pack: ClientPack; analysisMs?: number }) {
@@ -77,13 +77,13 @@ export function AuditFlow({ pack, analysisMs = 1600 }: { pack: ClientPack; analy
           <h1 id="audit-intro" className="mt-4 text-3xl font-semibold">
             {pick(treatment, ["Conozcamos su negocio", "Conozcamos tu negocio"])}
           </h1>
-          <p className="mt-3 text-zinc-300">
+          <p className="mt-3 text-ink-soft">
             {pick(treatment, [
               `Soy NEX, el asistente de ${pack.brand}. Le haré ${total} preguntas breves, de unos dos minutos, para entender en qué punto está su negocio y qué le conviene hacer primero.`,
               `Soy NEX, el asistente de ${pack.brand}. Te haré ${total} preguntas breves, de unos dos minutos, para entender en qué punto está tu negocio y qué te conviene hacer primero.`,
             ])}
           </p>
-          <label className="mt-6 block text-sm text-zinc-300" htmlFor="audit-name">
+          <label className="mt-6 block text-sm text-ink-soft" htmlFor="audit-name">
             {pick(treatment, ["¿Cómo se llama su negocio? (opcional)", "¿Cómo se llama tu negocio? (opcional)"])}
           </label>
           <input
@@ -91,11 +91,11 @@ export function AuditFlow({ pack, analysisMs = 1600 }: { pack: ClientPack; analy
             value={businessName}
             maxLength={80}
             onChange={(event) => setBusinessName(event.target.value)}
-            className="mt-2 w-full rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            className="field mt-2"
           />
           <fieldset className="mt-5">
-            <legend className="text-sm text-zinc-300">Tratamiento</legend>
-            <div className="mt-2 inline-flex rounded-full border border-white/10 p-1" role="group">
+            <legend className="text-sm text-ink-soft">Tratamiento</legend>
+            <div className="mt-2 inline-flex rounded-full border border-line p-1" role="group">
               {(["usted", "tu"] as const).map((option) => (
                 <button
                   key={option}
@@ -104,7 +104,7 @@ export function AuditFlow({ pack, analysisMs = 1600 }: { pack: ClientPack; analy
                   onClick={() => setTreatment(option)}
                   className={clsx(
                     "rounded-full px-4 py-1.5 text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-                    treatment === option ? "bg-primary text-white" : "text-zinc-300 hover:bg-white/5",
+                    treatment === option ? "bg-primary text-on-primary" : "text-ink-soft hover:bg-raised",
                   )}
                 >
                   {option === "usted" ? "Usted" : "Tú"}
@@ -116,7 +116,7 @@ export function AuditFlow({ pack, analysisMs = 1600 }: { pack: ClientPack; analy
             {pick(treatment, ["Comenzar", "Comenzar"])}
             <ArrowRight aria-hidden className="h-4 w-4" />
           </button>
-          <p className="mt-4 flex items-start gap-2 text-xs text-zinc-400">
+          <p className="mt-4 flex items-start gap-2 text-xs text-ink-muted">
             <ShieldCheck aria-hidden className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             {pick(treatment, [
               "Sus respuestas viven solo en esta pantalla: no se guardan ni se envían a nadie. El resultado se basa únicamente en lo que usted declare.",
@@ -128,8 +128,8 @@ export function AuditFlow({ pack, analysisMs = 1600 }: { pack: ClientPack; analy
 
       {stage === "questions" && dimension && (
         <section aria-live="polite">
-          <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">{`Pregunta ${step + 1} de ${total} · ${DIMENSION_COPY[dimension].label}`}</p>
-          <div className="mt-2 h-1.5 rounded-full bg-white/[0.06]" aria-hidden>
+          <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">{`Pregunta ${step + 1} de ${total} · ${DIMENSION_COPY[dimension].label}`}</p>
+          <div className="mt-2 h-1.5 rounded-full bg-raised" aria-hidden>
             <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${((step + (current ? 1 : 0)) / total) * 100}%` }} />
           </div>
           <h2 className="mt-6 text-xl font-medium">{pick(treatment, DIMENSION_COPY[dimension].prompt)}</h2>
@@ -140,10 +140,7 @@ export function AuditFlow({ pack, analysisMs = 1600 }: { pack: ClientPack; analy
                 type="button"
                 aria-pressed={current === level}
                 onClick={() => choose(level)}
-                className={clsx(
-                  "rounded-xl border p-3 text-left text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-                  current === level ? "border-primary/60 bg-primary/15" : "border-white/10 bg-white/[0.03] hover:border-primary/40 hover:bg-white/5",
-                )}
+                className={choiceClass(current === level)}
               >
                 {DIMENSION_COPY[dimension].options[level]}
               </button>
@@ -152,7 +149,7 @@ export function AuditFlow({ pack, analysisMs = 1600 }: { pack: ClientPack; analy
           {current && (
             <div className="mt-5 flex items-start gap-3 rounded-2xl border border-primary/30 bg-primary/10 p-4" data-testid="reaction">
               <Sparkles aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-primary-soft" />
-              <p className="text-sm text-zinc-100">{DIMENSION_COPY[dimension].reaction[current]}</p>
+              <p className="text-sm text-ink">{DIMENSION_COPY[dimension].reaction[current]}</p>
             </div>
           )}
           <div className="mt-6 flex flex-wrap gap-2">
@@ -173,7 +170,7 @@ export function AuditFlow({ pack, analysisMs = 1600 }: { pack: ClientPack; analy
           <Sparkles aria-hidden className="h-8 w-8 animate-pulse text-primary-soft" />
           <ul className="mt-5 grid gap-3">
             {ANALYSIS_STEPS.slice(0, Math.min(working + 1, ANALYSIS_STEPS.length)).map((line, index) => (
-              <li key={line[0]} className={clsx("flex items-center gap-2 text-sm", index < working ? "text-zinc-400" : "text-zinc-100")}>
+              <li key={line[0]} className={clsx("flex items-center gap-2 text-sm", index < working ? "text-ink-muted" : "text-ink")}>
                 {index < working ? <CheckCircle2 aria-hidden className="h-4 w-4 text-primary-soft" /> : <span aria-hidden className="h-4 w-4 animate-pulse rounded-full bg-primary/60" />}
                 {pick(treatment, line)}
               </li>
@@ -217,8 +214,8 @@ function Report({
 
       <SummaryView summary={summary} pack={pack} treatment={treatment} />
 
-      <footer className="space-y-3 border-t border-white/10 pt-5">
-        <p className="text-xs text-zinc-400">
+      <footer className="space-y-3 border-t border-line pt-5">
+        <p className="text-xs text-ink-muted">
           Diagnóstico basado únicamente en lo que usted declaró; no se verificó el sitio, las redes ni ningún dato real del negocio. No se guardó nada.
         </p>
         <button type="button" onClick={onRestart} className={secondaryButton}>

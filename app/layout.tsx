@@ -4,6 +4,7 @@ import { Inter } from "next/font/google";
 import { site } from "@/config/site";
 import { es } from "@/lib/i18n/messages/es";
 import { Providers } from "@/components/providers/Providers";
+import { DEFAULT_THEME } from "@/lib/theme";
 
 const inter = Inter({ subsets: ["latin", "latin-ext"], display: "swap", variable: "--font-inter" });
 
@@ -32,7 +33,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es-ES" className={inter.variable}>
+    <html lang="es-ES" data-theme={DEFAULT_THEME} className={inter.variable}>
       <body>
         <Providers>{children}</Providers>
       </body>

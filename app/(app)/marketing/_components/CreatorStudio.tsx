@@ -7,8 +7,9 @@ import { BriefTab } from "./BriefTab";
 import { IdeasTab } from "./IdeasTab";
 import { ProductionTab } from "./ProductionTab";
 import { ScriptsTab } from "./ScriptsTab";
-import { BUTTON_GHOST, BUTTON_PRIMARY } from "./styles";
+import { buttonClass } from "@/components/ui/Button";
 import { useCreatorStudio } from "./useCreatorStudio";
+import { Badge } from "@/components/ui/Badge";
 
 // Creator studio v0 inside Marketing (ADR-0005: a module view of its own lives in _components/). A faceless
 // YouTube channel workspace that is local to this browser: it connects to no service and publishes nothing.
@@ -53,25 +54,25 @@ export function CreatorStudio() {
   }
 
   return (
-    <section className="glass animate-fade-up p-5 sm:p-6" aria-labelledby={`${ids}-title`}>
+    <section className="card animate-fade-up p-5 sm:p-6" aria-labelledby={`${ids}-title`}>
       <div className="flex flex-wrap items-center gap-3">
         <h2 id={`${ids}-title`} className="text-lg font-semibold">
           {copy.title}
         </h2>
-        <span className="rounded-full bg-primary/15 px-3 py-1 text-xs text-primary-soft">{copy.tag}</span>
+        <Badge tone="primary">{copy.tag}</Badge>
       </div>
-      <p className="mt-1 text-sm text-zinc-400">{copy.subtitle}</p>
-      <p className="mt-3 rounded-xl border border-white/10 bg-white/[0.04] p-3 text-sm text-zinc-300">{copy.notice}</p>
+      <p className="mt-1 text-sm text-ink-muted">{copy.subtitle}</p>
+      <p className="mt-3 rounded-xl border border-line bg-surface p-3 text-sm text-ink-soft">{copy.notice}</p>
 
       {!ready ? (
-        <p role="status" className="mt-5 text-sm text-zinc-400">
+        <p role="status" className="mt-5 text-sm text-ink-muted">
           {m.common.loading}
         </p>
       ) : (
         <>
           <div className="mt-5 flex flex-wrap items-center gap-3">
             {isEmpty && (
-              <button type="button" onClick={actions.loadSample} className={BUTTON_PRIMARY}>
+              <button type="button" onClick={actions.loadSample} className={buttonClass("primary", "md", "min-h-11")}>
                 {copy.loadSample}
               </button>
             )}
@@ -86,22 +87,22 @@ export function CreatorStudio() {
                       setVideoId(null);
                       setTab("brief");
                     }}
-                    className={BUTTON_PRIMARY}
+                    className={buttonClass("primary", "md", "min-h-11")}
                   >
                     {copy.resetConfirm}
                   </button>
-                  <button type="button" onClick={() => setConfirmingReset(false)} className={BUTTON_GHOST}>
+                  <button type="button" onClick={() => setConfirmingReset(false)} className={buttonClass("secondary", "md", "min-h-11")}>
                     {copy.resetCancel}
                   </button>
                 </>
               ) : (
-                <button type="button" onClick={() => setConfirmingReset(true)} className={BUTTON_GHOST}>
+                <button type="button" onClick={() => setConfirmingReset(true)} className={buttonClass("secondary", "md", "min-h-11")}>
                   {copy.reset}
                 </button>
               ))}
           </div>
 
-          <div role="tablist" aria-label={copy.tabsLabel} className="mt-5 flex flex-wrap gap-2 border-b border-white/10 pb-3">
+          <div role="tablist" aria-label={copy.tabsLabel} className="mt-5 flex flex-wrap gap-2 border-b border-line pb-3">
             {TABS.map((name) => (
               <button
                 key={name}
@@ -113,11 +114,7 @@ export function CreatorStudio() {
                 tabIndex={tab === name ? 0 : -1}
                 onClick={() => setTab(name)}
                 onKeyDown={(event) => onTabKeyDown(event, name)}
-                className={
-                  tab === name
-                    ? "min-h-11 rounded-full bg-primary px-4 text-sm font-medium text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-                    : "min-h-11 rounded-full border border-white/10 bg-white/5 px-4 text-sm text-zinc-200 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                }
+                className={buttonClass(tab === name ? "primary" : "secondary", "md", "min-h-11")}
               >
                 {copy.tabs[name]}
               </button>

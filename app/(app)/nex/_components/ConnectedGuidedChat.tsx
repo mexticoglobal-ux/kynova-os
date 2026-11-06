@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { usePipeline } from "@/components/pipeline/PipelineProvider";
 import { GuidedChat } from "./GuidedChat";
+import { buttonClass } from "@/components/ui/Button";
 
 // The guided chat wired to the shared pipeline: when the conversation ends, the prospect appears in the Pipeline and the Dashboard.
 export function ConnectedGuidedChat({ paceMs }: { paceMs?: number }) {
@@ -15,11 +16,11 @@ export function ConnectedGuidedChat({ paceMs }: { paceMs?: number }) {
       onHandoff={receiveHandoff}
       endActions={
         <div className="mb-3 flex flex-wrap gap-2">
-          <Link href="/sales" className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
+          <Link href="/sales" className={buttonClass("primary", "md")}>
             Ver el prospecto en el Pipeline
             <ArrowRight aria-hidden className="h-4 w-4" />
           </Link>
-          <Link href="/dashboard" className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-zinc-200 transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+          <Link href="/dashboard" className={buttonClass("secondary", "md")}>
             Volver al Dashboard
           </Link>
         </div>

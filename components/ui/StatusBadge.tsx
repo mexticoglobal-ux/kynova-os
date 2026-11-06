@@ -1,8 +1,8 @@
 "use client";
 
-import clsx from "clsx";
 import type { StatusKey } from "@/lib/contracts/module";
 import { useI18n } from "@/components/i18n/I18nProvider";
+import { Badge, type BadgeTone } from "./Badge";
 
 const TONE: Record<StatusKey, "positive" | "neutral" | "warning" | "negative"> = {
   won: "positive",
@@ -23,18 +23,14 @@ const TONE: Record<StatusKey, "positive" | "neutral" | "warning" | "negative"> =
   overdue: "negative",
 };
 
-const TONE_CLASS = {
-  positive: "bg-success/15 text-success",
-  neutral: "bg-white/10 text-zinc-300",
-  warning: "bg-warning/15 text-warning",
-  negative: "bg-danger/15 text-danger-soft",
+const BADGE_TONE: Record<"positive" | "neutral" | "warning" | "negative", BadgeTone> = {
+  positive: "success",
+  neutral: "neutral",
+  warning: "warning",
+  negative: "danger",
 };
 
 export function StatusBadge({ status }: { status: StatusKey }) {
   const { m } = useI18n();
-  return (
-    <span className={clsx("inline-flex rounded-full px-2.5 py-1 text-xs font-medium", TONE_CLASS[TONE[status]])}>
-      {m.status[status]}
-    </span>
-  );
+  return <Badge tone={BADGE_TONE[TONE[status]]}>{m.status[status]}</Badge>;
 }

@@ -9,6 +9,8 @@ import type { Message } from "@/types";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import { AssessmentFlow } from "./AssessmentFlow";
 import { useConversations } from "./useConversations";
+import { buttonClass } from "@/components/ui/Button";
+import { IconBadge } from "@/components/ui/IconBadge";
 
 const QUICK_ACTION_ICONS = [Mail, Megaphone, Receipt, Building2];
 
@@ -63,21 +65,21 @@ export function NexChat() {
     <div className="flex h-[calc(100dvh-7.5rem)] min-h-[32rem] gap-4">
       <aside
         className={clsx(
-          "glass w-64 shrink-0 flex-col p-4",
+          "card w-64 shrink-0 flex-col p-4",
           showHistory ? "fixed inset-x-4 top-20 z-40 flex max-h-[70vh] w-auto lg:static lg:max-h-none lg:w-64" : "hidden lg:flex",
         )}
       >
         <button
           type="button"
           onClick={startNew}
-          className="flex items-center justify-center gap-2 rounded-xl bg-primary px-3 py-2 text-sm font-medium transition hover:bg-primary/90"
+          className={buttonClass("primary", "md", "w-full")}
         >
           <MessageSquarePlus aria-hidden className="h-4 w-4" />
           {m.nex.newChat}
         </button>
-        <h2 className="mt-5 text-xs font-medium uppercase tracking-wide text-zinc-400">{m.nex.history}</h2>
+        <h2 className="mt-5 text-xs font-medium uppercase tracking-wide text-ink-muted">{m.nex.history}</h2>
         <ul className="mt-2 flex-1 space-y-1 overflow-y-auto text-sm">
-          {conversations.length === 0 && <li className="px-2 py-2 text-zinc-400">{m.nex.noHistory}</li>}
+          {conversations.length === 0 && <li className="px-2 py-2 text-ink-muted">{m.nex.noHistory}</li>}
           {conversations.map((conversation) => (
             <li key={conversation.id} className="group flex items-center gap-1">
               <button
@@ -89,7 +91,7 @@ export function NexChat() {
                 }}
                 className={clsx(
                   "min-w-0 flex-1 truncate rounded-lg px-2 py-2 text-left transition",
-                  conversation.id === activeId ? "bg-white/10 text-white" : "text-zinc-400 hover:bg-white/5 hover:text-white",
+                  conversation.id === activeId ? "bg-raised-strong text-ink" : "text-ink-muted hover:bg-raised hover:text-ink",
                 )}
               >
                 {conversation.title || m.nex.untitled}
@@ -98,7 +100,7 @@ export function NexChat() {
                 type="button"
                 onClick={() => remove(conversation.id)}
                 aria-label={m.nex.deleteChat}
-                className="rounded-lg p-1.5 text-zinc-400 opacity-100 transition hover:bg-white/5 hover:text-danger lg:opacity-0 lg:group-hover:opacity-100 lg:focus-visible:opacity-100"
+                className="rounded-lg p-1.5 text-ink-muted opacity-100 transition hover:bg-raised hover:text-danger lg:opacity-0 lg:group-hover:opacity-100 lg:focus-visible:opacity-100"
               >
                 <Trash2 aria-hidden className="h-3.5 w-3.5" />
               </button>
@@ -107,15 +109,13 @@ export function NexChat() {
         </ul>
       </aside>
 
-      <section className="glass flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="flex items-center justify-between gap-3 border-b border-white/5 px-4 py-3">
+      <section className="card flex min-w-0 flex-1 flex-col overflow-hidden">
+        <header className="flex items-center justify-between gap-3 border-b border-line-soft px-4 py-3">
           <div className="flex min-w-0 items-center gap-2">
-            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-primary/15 text-primary">
-              <Bot aria-hidden className="h-4 w-4" />
-            </span>
+            <IconBadge icon={Bot} className="shrink-0" />
             <div className="min-w-0">
               <h1 className="truncate font-medium">{m.nav.nex}</h1>
-              <p className="truncate text-xs text-zinc-400">{m.nex.subtitle}</p>
+              <p className="truncate text-xs text-ink-muted">{m.nex.subtitle}</p>
             </div>
           </div>
           <div className="flex gap-1 lg:hidden">
@@ -124,11 +124,11 @@ export function NexChat() {
               onClick={() => setShowHistory((value) => !value)}
               aria-label={m.nex.history}
               aria-expanded={showHistory}
-              className="rounded-xl p-2 text-zinc-300 hover:bg-white/5"
+              className="rounded-xl p-2 text-ink-soft hover:bg-raised"
             >
               <History aria-hidden className="h-4 w-4" />
             </button>
-            <button type="button" onClick={startNew} aria-label={m.nex.newChat} className="rounded-xl p-2 text-zinc-300 hover:bg-white/5">
+            <button type="button" onClick={startNew} aria-label={m.nex.newChat} className="rounded-xl p-2 text-ink-soft hover:bg-raised">
               <MessageSquarePlus aria-hidden className="h-4 w-4" />
             </button>
           </div>
@@ -140,18 +140,18 @@ export function NexChat() {
           ) : messages.length === 0 ? (
             <div className="mx-auto max-w-2xl">
               <h2 className="text-center text-2xl font-semibold sm:text-3xl">{m.nex.title}</h2>
-              <h3 className="mt-8 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
+              <h3 className="mt-8 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-ink-muted">
                 <Sparkles aria-hidden className="h-3.5 w-3.5" />
                 {m.nex.suggestions}
               </h3>
               <div className="mt-3 flex flex-wrap gap-2">
                 {m.nex.suggestionItems.map((item) => (
-                  <button key={item} type="button" onClick={() => void send(item)} className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm transition hover:bg-white/10">
+                  <button key={item} type="button" onClick={() => void send(item)} className={buttonClass("secondary", "md")}>
                     {item}
                   </button>
                 ))}
               </div>
-              <h3 className="mt-8 text-xs font-medium uppercase tracking-wide text-zinc-400">{m.nex.quickActions}</h3>
+              <h3 className="mt-8 text-xs font-medium uppercase tracking-wide text-ink-muted">{m.nex.quickActions}</h3>
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 <button type="button" onClick={() => setAssessing(true)} className="flex items-center gap-3 rounded-xl border border-primary/40 bg-primary/10 p-3 text-left text-sm transition hover:bg-primary/15">
                   <ClipboardList aria-hidden className="h-4 w-4 shrink-0 text-primary" />
@@ -160,21 +160,21 @@ export function NexChat() {
                 {m.nex.quickActionItems.map((item, index) => {
                   const Icon = QUICK_ACTION_ICONS[index] ?? Sparkles;
                   return (
-                    <button key={item} type="button" onClick={() => void send(item)} className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-left text-sm transition hover:border-primary/40 hover:bg-white/5">
+                    <button key={item} type="button" onClick={() => void send(item)} className="flex items-center gap-3 rounded-xl border border-line bg-surface p-3 text-left text-sm transition hover:border-primary/40 hover:bg-raised">
                       <Icon aria-hidden className="h-4 w-4 shrink-0 text-primary" />
                       {item}
                     </button>
                   );
                 })}
               </div>
-              <h3 className="mt-8 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
+              <h3 className="mt-8 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-ink-muted">
                 <Lightbulb aria-hidden className="h-3.5 w-3.5" />
                 {m.nex.examples}
               </h3>
               <ul className="mt-3 space-y-1">
                 {m.nex.exampleItems.map((item) => (
                   <li key={item}>
-                    <button type="button" onClick={() => void send(item)} className="text-left text-sm text-zinc-400 underline-offset-4 hover:text-white hover:underline">
+                    <button type="button" onClick={() => void send(item)} className="text-left text-sm text-ink-muted underline-offset-4 hover:text-ink hover:underline">
                       “{item}”
                     </button>
                   </li>
@@ -190,12 +190,12 @@ export function NexChat() {
                   animate={{ opacity: 1, y: 0 }}
                   className={clsx(
                     "max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-relaxed",
-                    message.role === "user" ? "ml-auto bg-primary" : "border border-white/10 bg-white/[0.04]",
+                    message.role === "user" ? "ml-auto bg-primary" : "border border-line bg-surface",
                   )}
                 >
                   <span className="sr-only">{message.role === "user" ? m.nex.you : m.nav.nex}: </span>
                   {message.role === "nex" && (
-                    <span data-simulated-notice className="mb-2 flex w-fit items-center gap-2 rounded-full bg-white/5 px-3 py-1 text-xs text-zinc-400">
+                    <span data-simulated-notice className="mb-2 flex w-fit items-center gap-2 rounded-full bg-raised px-3 py-1 text-xs text-ink-muted">
                       <Sparkles aria-hidden className="h-3.5 w-3.5 text-primary" />
                       {m.nex.simulatedReply}
                       <span className="sr-only">. </span>
@@ -206,10 +206,10 @@ export function NexChat() {
               ))}
               <AnimatePresence>
                 {busy && (
-                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-zinc-400">
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="inline-flex items-center gap-2 rounded-2xl border border-line bg-surface px-4 py-3 text-sm text-ink-muted">
                     <span className="flex gap-1" aria-hidden>
                       {[0, 1, 2].map((dot) => (
-                        <motion.span key={dot} className="h-1.5 w-1.5 rounded-full bg-zinc-400" animate={{ opacity: [0.3, 1, 0.3] }} transition={{ repeat: Infinity, duration: 1, delay: dot * 0.2 }} />
+                        <motion.span key={dot} className="h-1.5 w-1.5 rounded-full bg-ink-muted" animate={{ opacity: [0.3, 1, 0.3] }} transition={{ repeat: Infinity, duration: 1, delay: dot * 0.2 }} />
                       ))}
                     </span>
                     {m.nex.thinking}
@@ -231,9 +231,9 @@ export function NexChat() {
             event.preventDefault();
             void send(text);
           }}
-          className="border-t border-white/5 p-3"
+          className="border-t border-line-soft p-3"
         >
-          <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-1.5 focus-within:border-primary/50">
+          <div className="flex items-center gap-2 rounded-2xl border border-line bg-surface p-1.5 focus-within:border-primary/50">
             <label htmlFor="nex-input" className="sr-only">
               {m.nex.placeholder}
             </label>
@@ -243,18 +243,18 @@ export function NexChat() {
               onChange={(event) => setText(event.target.value)}
               placeholder={m.nex.placeholder}
               autoComplete="off"
-              className="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm outline-none placeholder:text-zinc-400"
+              className="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm outline-none placeholder:text-ink-muted"
             />
             <button
               type="submit"
               disabled={busy || !text.trim()}
               aria-label={m.nex.send}
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary transition hover:bg-primary/90 disabled:opacity-40"
+              className={buttonClass("primary", "md", "h-9 w-9 shrink-0 !p-0")}
             >
               <SendHorizontal aria-hidden className="h-4 w-4" />
             </button>
           </div>
-          <p className="mt-2 text-center text-xs text-zinc-400">{m.nex.disclaimer}</p>
+          <p className="mt-2 text-center text-xs text-ink-muted">{m.nex.disclaimer}</p>
         </form>
       </section>
     </div>

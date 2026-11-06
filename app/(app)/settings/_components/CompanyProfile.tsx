@@ -5,6 +5,9 @@ import { useI18n } from "@/components/i18n/I18nProvider";
 import { ASSESSMENT_OPTIONS, ASSESSMENT_QUESTIONS, type AssessmentQuestion } from "@/lib/contracts/assessment";
 import { TENANT_ROLES, isUuid, parseBusinessProfileInput, type BusinessProfileInput, type TenantRole } from "@/lib/contracts/tenancy";
 import { LOCALES, LOCALE_LABELS } from "@/lib/i18n/config";
+import { FIELD_LG, LABEL } from "@/components/ui/form";
+import { buttonClass } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
 
 // Company profile v1 (ADR-0006, phase 2): reads and writes only through GET/PUT /api/profile. The tenant and
 // the author never travel from here: the server takes them from the session.
@@ -87,9 +90,6 @@ function countryName(code: string, tag: string): string | null {
   }
 }
 
-const FIELD =
-  "min-h-12 w-full rounded-xl border border-white/15 bg-black/20 px-4 text-base text-white outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-60";
-const LABEL = "mb-2 block text-sm font-medium text-zinc-200";
 
 export function CompanyProfile() {
   const { m, locale, tag } = useI18n();
@@ -163,19 +163,19 @@ export function CompanyProfile() {
   const name = draft ? countryName(draft.country, tag) : null;
 
   return (
-    <section className="glass animate-fade-up p-5 sm:p-6" aria-labelledby={`${ids}-title`} aria-busy={load.status === "loading"}>
+    <section className="card animate-fade-up p-5 sm:p-6" aria-labelledby={`${ids}-title`} aria-busy={load.status === "loading"}>
       <div className="flex flex-wrap items-center gap-3">
         <h2 id={`${ids}-title`} className="text-lg font-semibold">
           {copy.title}
         </h2>
         {/* The rest of the Settings page is demo content: say plainly that this section is not. */}
-        <span className="rounded-full bg-primary/15 px-3 py-1 text-xs text-primary-soft">{copy.realDataTag}</span>
+        <Badge tone="primary">{copy.realDataTag}</Badge>
       </div>
-      <p className="mt-1 text-sm text-zinc-400">{copy.description}</p>
-      <p className="mt-3 rounded-xl border border-white/10 bg-white/[0.04] p-3 text-sm text-zinc-300">{copy.pilotNotice}</p>
+      <p className="mt-1 text-sm text-ink-muted">{copy.description}</p>
+      <p className="mt-3 rounded-xl border border-line bg-surface p-3 text-sm text-ink-soft">{copy.pilotNotice}</p>
 
       {load.status === "loading" && (
-        <p role="status" className="mt-5 text-sm text-zinc-400">
+        <p role="status" className="mt-5 text-sm text-ink-muted">
           {m.common.loading}
         </p>
       )}
@@ -189,7 +189,7 @@ export function CompanyProfile() {
             {load.failure === "unauthorized" && (
               <a
                 href={SIGN_IN_PATH}
-                className="inline-flex min-h-11 items-center rounded-xl bg-primary px-5 text-sm font-semibold text-white hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                className={buttonClass("primary", "md", "min-h-11 px-5")}
               >
                 {copy.signIn}
               </a>
@@ -197,7 +197,7 @@ export function CompanyProfile() {
             <button
               type="button"
               onClick={retry}
-              className="min-h-11 rounded-xl border border-white/15 px-5 text-sm text-zinc-200 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              className={buttonClass("secondary", "md", "min-h-11 px-5")}
             >
               {copy.retry}
             </button>
@@ -209,17 +209,17 @@ export function CompanyProfile() {
         <form onSubmit={onSubmit} noValidate className="mt-5 space-y-5">
           <dl className="grid gap-3 text-sm sm:grid-cols-2">
             <div>
-              <dt className="text-zinc-400">{copy.company}</dt>
-              <dd className="font-medium text-zinc-100">{load.tenant.name}</dd>
+              <dt className="text-ink-muted">{copy.company}</dt>
+              <dd className="font-medium text-ink">{load.tenant.name}</dd>
             </div>
             <div>
-              <dt className="text-zinc-400">{copy.role}</dt>
-              <dd className="font-medium text-zinc-100">{copy.roles[load.tenant.role]}</dd>
+              <dt className="text-ink-muted">{copy.role}</dt>
+              <dd className="font-medium text-ink">{copy.roles[load.tenant.role]}</dd>
             </div>
           </dl>
 
-          {readOnly && <p className="text-sm text-zinc-300">{copy.readOnly}</p>}
-          {!hasProfile && !readOnly && <p className="text-sm text-zinc-300">{copy.noProfileYet}</p>}
+          {readOnly && <p className="text-sm text-ink-soft">{copy.readOnly}</p>}
+          {!hasProfile && !readOnly && <p className="text-sm text-ink-soft">{copy.noProfileYet}</p>}
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
@@ -233,7 +233,7 @@ export function CompanyProfile() {
                 value={draft.tradeName}
                 disabled={readOnly || saving}
                 onChange={(event) => update("tradeName", event.target.value)}
-                className={FIELD}
+                className={FIELD_LG}
               />
             </div>
 
@@ -251,9 +251,9 @@ export function CompanyProfile() {
                 disabled={readOnly || saving}
                 aria-describedby={`${ids}-country-hint`}
                 onChange={(event) => update("country", event.target.value.replace(/[^A-Za-z]/g, "").toUpperCase())}
-                className={FIELD}
+                className={FIELD_LG}
               />
-              <p id={`${ids}-country-hint`} className="mt-1 text-xs text-zinc-400">
+              <p id={`${ids}-country-hint`} className="mt-1 text-xs text-ink-muted">
                 {name ?? copy.fields.countryHint}
               </p>
             </div>
@@ -267,10 +267,10 @@ export function CompanyProfile() {
                 value={draft.locale || locale}
                 disabled={readOnly || saving}
                 onChange={(event) => update("locale", event.target.value)}
-                className={FIELD}
+                className={FIELD_LG}
               >
                 {LOCALES.map((code) => (
-                  <option key={code} value={code} className="bg-zinc-900 text-white">
+                  <option key={code} value={code} className="bg-surface text-ink">
                     {LOCALE_LABELS[code]}
                   </option>
                 ))}
@@ -287,13 +287,13 @@ export function CompanyProfile() {
                   value={draft[question]}
                   disabled={readOnly || saving}
                   onChange={(event) => update(question, event.target.value)}
-                  className={FIELD}
+                  className={FIELD_LG}
                 >
-                  <option value="" className="bg-zinc-900 text-white">
+                  <option value="" className="bg-surface text-ink">
                     {copy.choose}
                   </option>
                   {ASSESSMENT_OPTIONS[question].map((option) => (
-                    <option key={option} value={option} className="bg-zinc-900 text-white">
+                    <option key={option} value={option} className="bg-surface text-ink">
                       {(answerOptions[question] as Record<string, string>)[option]}
                     </option>
                   ))}
@@ -303,7 +303,7 @@ export function CompanyProfile() {
           </div>
 
           {feedback?.kind === "saved" && (
-            <p role="status" className="rounded-xl border border-white/10 bg-white/[0.04] p-3 text-sm text-primary-soft">
+            <p role="status" className="rounded-xl border border-line bg-surface p-3 text-sm text-primary-soft">
               {copy.saved}
             </p>
           )}
@@ -320,7 +320,7 @@ export function CompanyProfile() {
               {feedback.failure === "unauthorized" && (
                 <a
                   href={SIGN_IN_PATH}
-                  className="inline-flex min-h-11 items-center rounded-xl border border-white/15 px-5 text-sm text-zinc-200 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  className={buttonClass("secondary", "md", "min-h-11 px-5")}
                 >
                   {copy.signIn}
                 </a>
@@ -332,7 +332,7 @@ export function CompanyProfile() {
             <button
               type="submit"
               disabled={saving}
-              className="min-h-12 rounded-xl bg-primary px-6 text-sm font-semibold text-white hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg disabled:cursor-not-allowed disabled:opacity-60"
+              className={buttonClass("primary", "lg", "min-h-12")}
             >
               {saving ? copy.saving : copy.save}
             </button>
