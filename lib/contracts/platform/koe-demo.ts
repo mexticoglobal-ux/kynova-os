@@ -103,6 +103,10 @@ export function demoKoeState(): { state: KoeState; errors: string[] } {
     collaboration: { delegatesTo: [], acceptsFrom: ["coordinator"] },
   }) });
   send({ ...nova, at: day(6), type: "worker.submit", definitionId: "reclamos" });
+  // ---- per-company installation: the tutor was installed and then switched off, and the sales assistant is limited by this company
+  send({ ...nova, at: day(7), type: "worker.enable", definitionId: "tutor" });
+  send({ ...nova, at: day(7), type: "instance.disable", instanceId: instance("tenant-nova", "tutor") });
+  send({ ...nova, at: day(7), type: "instance.configure", instanceId: instance("tenant-nova", "sales"), maxRunsPerDay: 20, deniedProviders: ["proveedor-d"] });
   return { state, errors };
 }
 

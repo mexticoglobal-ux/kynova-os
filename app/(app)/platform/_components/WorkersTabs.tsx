@@ -9,7 +9,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { hiddenNote, latest } from "@/lib/contracts/platform/display";
 import { autonomyOf, definitionOf, delegationGraph, instanceFor, instanceUsage, memoryOf } from "@/lib/contracts/platform/koe-engine";
 import { label } from "@/lib/contracts/platform/koe-messages";
-import { CLEARANCES, MODEL_CLASSES, routeModel, validateModel, type Clearance, type ModelClass, type ModelManifest, type WorkerDefinition } from "@/lib/contracts/platform/koe-registry";
+import { CLEARANCES, MODEL_CLASSES, modelAvailability, routeModel, validateModel, type Clearance, type ModelClass, type ModelManifest, type WorkerDefinition } from "@/lib/contracts/platform/koe-registry";
 import { levelForAction, type AutonomyLevel } from "@/lib/contracts/platform/workers";
 import type { WorkersTabProps } from "./WorkersCenter";
 
@@ -46,88 +46,39 @@ export function ToolChips({ state, tools }: { state: WorkersTabProps["state"]; t
   );
 }
 
-// ---------------------------------------------------------------- Workers: definitions, autonomy, collaboration, instances
+// ---------------------------------------------------------------- Workers: installed, available, status, models, configuration
+const INSTANCE_TONE = { active: "success", paused: "warning", disabled: "danger" } as const;
+
 export function WorkersTab({ state, send, persona, admin }: WorkersTabProps) {
   const [reason, setReason] = useState("");
-  const [limits, setLimits] = useState<Record<string, string>>({});
-  const names = (ids: readonly string[]) => (ids.length === 0 ? "nadie" : ids.map((id) => (id === "*" ? "cualquiera" : definitionOf(state, id)?.name ?? id)).join(", "));
   const visible = state.definitions.filter((definition) => definition.ownerTenantId === persona.tenantId || (definition.origin === "kynova" && (definition.status === "active" || admin)));
+  const hasInstance = (definition: WorkerDefinition) => Boolean(instanceFor(state, persona.tenantId, definition.id));
+  const installed = visible.filter(hasInstance);
+  const available = visible.filter((definition) => !hasInstance(definition) && definition.status === "active");
+  const preparing = visible.filter((definition) => !hasInstance(definition) && definition.status !== "active");
   const edges = delegationGraph(state, persona.tenantId);
-  const now = new Date().toISOString();
+
+  const section = (title: string, items: WorkerDefinition[], empty: string) => (
+    <section className="space-y-3" aria-label={title}>
+      <h2 className="font-semibold">{title} ({items.length})</h2>
+      {items.length === 0 ? <p className="text-xs text-ink-muted">{empty}</p> : (
+        <ul className="grid gap-4 lg:grid-cols-2">
+          {items.map((definition) => <WorkerCard key={definition.id} definition={definition} state={state} send={send} persona={persona} admin={admin} reason={reason} />)}
+        </ul>
+      )}
+    </section>
+  );
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <Card className="space-y-2 p-5">
         <h2 className="font-semibold">Motivo</h2>
         <input aria-label="Motivo" className={input} placeholder="Obligatorio para rechazar un Worker" value={reason} onChange={(event) => setReason(event.target.value)} />
         <p className="text-xs text-ink-muted">Un Worker nuevo es solo datos: especialidad, herramientas, memoria, modelos y colaboración. Lo envía una persona y lo aprueba otra distinta.</p>
       </Card>
-      <ul className="grid gap-4 lg:grid-cols-2">
-        {visible.map((definition) => {
-          const summary = autonomyOf(definition, state.tools);
-          const instance = instanceFor(state, persona.tenantId, definition.id);
-          const usage = instance ? instanceUsage(state, instance, now) : null;
-          const owner = definition.origin === "kynova" ? admin : definition.ownerTenantId === persona.tenantId;
-          const level2 = definition.tools.filter((id) => levelForAction(id) === 2);
-          return (
-            <Card as="li" key={definition.id} className="space-y-3 p-5" aria-label={`Worker ${definition.name}`}>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h2 className="font-semibold">{definition.name}</h2>
-                <div className="flex flex-wrap gap-1.5">
-                  <Badge tone="primary">{label("specialty", definition.specialty)}</Badge>
-                  <Badge>{label("origin", definition.origin)}</Badge>
-                  <Badge tone={STATUS_TONE[definition.status]}>{label("definitionStatus", definition.status)}</Badge>
-                </div>
-              </div>
-              <p className="text-sm text-ink-muted">{definition.summary}</p>
-              <div className="flex flex-wrap items-center gap-2 text-xs text-ink-muted"><span>Autonomía máxima:</span><LevelBadge level={summary.highest} /></div>
-              <ToolChips state={state} tools={definition.tools} />
-              <ul className="space-y-0.5 text-xs text-ink-muted">
-                <li>Datos hasta: {label("clearance", definition.dataClearance)}</li>
-                <li>Memoria: {definition.memory.maxEntries} entradas, {definition.memory.maxChars} caracteres{definition.memory.durable ? " · puede conservar" : " · solo de la ejecución"}{definition.memory.allowPersonal ? " · admite datos personales" : ""}</li>
-                <li>Modelos que necesita: {definition.routing.needs.map((need) => label("modelClass", need)).join(", ")}</li>
-                <li>Delega en: {names(definition.collaboration.delegatesTo)} · Recibe de: {names(definition.collaboration.acceptsFrom)}</li>
-                <li>Límites: {definition.limits.maxRunsPerDay} ejecuciones al día · {definition.limits.maxStepsPerRun} pasos · delegación hasta {definition.limits.maxDelegationDepth}</li>
-              </ul>
-
-              <div className="flex flex-wrap gap-2">
-                {definition.status === "active" && !instance && <Button size="sm" variant="primary" onClick={() => send({ type: "worker.enable", definitionId: definition.id })}>Activar en mi empresa</Button>}
-                {instance && <Button size="sm" variant="ghost" onClick={() => send({ type: instance.status === "active" ? "instance.pause" : "instance.resume", instanceId: instance.id })}>{instance.status === "active" ? "Pausar" : "Reanudar"}</Button>}
-                {definition.status === "draft" && owner && <Button size="sm" variant="primary" onClick={() => send({ type: "worker.submit", definitionId: definition.id })}>Enviar a revisión</Button>}
-                {definition.status === "pendingReview" && owner && (
-                  <>
-                    <Button size="sm" variant="primary" onClick={() => send({ type: "worker.review", definitionId: definition.id, approve: true })}>Aprobar Worker</Button>
-                    <Button size="sm" variant="ghost" onClick={() => send({ type: "worker.review", definitionId: definition.id, approve: false, reason })}>Rechazar Worker</Button>
-                  </>
-                )}
-                {definition.status === "active" && owner && <Button size="sm" variant="ghost" onClick={() => send({ type: "worker.retire", definitionId: definition.id })}>Retirar</Button>}
-              </div>
-              {definition.status === "pendingReview" && <p className="text-xs text-ink-muted">Enviado por {definition.submittedBy}. Lo aprueba otra persona.</p>}
-              {definition.createdBy.startsWith("worker:") && <p className="text-xs text-ink-muted">Borrador preparado por {definition.createdBy} (Nivel 1).</p>}
-
-              {instance && usage && (
-                <div className="space-y-2 rounded-2xl border border-line p-3 text-sm">
-                  <p className="text-xs text-ink-muted">Activo en su empresa · {usage.runsToday} de {Math.min(instance.maxRunsPerDay, definition.limits.maxRunsPerDay)} ejecuciones hoy · {label("instanceStatus", instance.status)}</p>
-                  {level2.map((action) => (
-                    <div key={action} className="grid gap-2 sm:grid-cols-3">
-                      <span className="self-center text-xs">{state.tools[action]?.manifest.label ?? action} (Nivel 2)</span>
-                      <input aria-label={`Máximo por día de ${action}`} className={input} inputMode="numeric" placeholder="máx. por día" value={limits[`${instance.id}:${action}`] ?? ""} onChange={(event) => setLimits({ ...limits, [`${instance.id}:${action}`]: event.target.value })} />
-                      <Button size="sm" variant="secondary" onClick={() => send({ type: "authorization.grant", instanceId: instance.id, action, maxPerDay: Number(limits[`${instance.id}:${action}`] ?? 0) })}>Autorizar {action}</Button>
-                    </div>
-                  ))}
-                  {usage.authorizations.map(({ authorization, usedToday }) => (
-                    <div key={authorization.id} className="flex flex-wrap items-center justify-between gap-2 text-xs text-ink-muted">
-                      <span>Autorizado: {authorization.action} · {usedToday} de {authorization.maxPerDay} hoy · por {authorization.grantedBy}</span>
-                      <Button size="sm" variant="ghost" onClick={() => send({ type: "authorization.revoke", authorizationId: authorization.id })}>Revocar</Button>
-                    </div>
-                  ))}
-                  {level2.length === 0 && <p className="text-xs text-ink-muted">Este Worker no tiene acciones de Nivel 2. Las de Nivel 3 nunca se autorizan: siempre piden confirmación.</p>}
-                </div>
-              )}
-            </Card>
-          );
-        })}
-      </ul>
+      {section("Instalados en su empresa", installed, "Todavía no instaló ningún Worker: elija uno de los disponibles.")}
+      {section("Disponibles para instalar", available, "No hay más Workers disponibles para su empresa.")}
+      {section("En preparación y retirados", preparing, "Aquí aparecen los borradores, los que esperan revisión y los retirados.")}
 
       <Card className="space-y-2 p-5">
         <h2 className="font-semibold">Colaboración en su empresa</h2>
@@ -137,6 +88,98 @@ export function WorkersTab({ state, send, persona, admin }: WorkersTabProps) {
         )}
       </Card>
     </div>
+  );
+}
+
+function WorkerCard({ definition, state, send, persona, admin, reason }: { definition: WorkerDefinition; state: WorkersTabProps["state"]; send: WorkersTabProps["send"]; persona: WorkersTabProps["persona"]; admin: boolean; reason: string }) {
+  const instance = instanceFor(state, persona.tenantId, definition.id);
+  const [limits, setLimits] = useState<Record<string, string>>({});
+  const [runs, setRuns] = useState(String(instance?.maxRunsPerDay ?? definition.limits.maxRunsPerDay));
+  const [excluded, setExcluded] = useState((instance?.deniedProviders ?? []).join(", "));
+  const names = (ids: readonly string[]) => (ids.length === 0 ? "nadie" : ids.map((id) => (id === "*" ? "cualquiera" : definitionOf(state, id)?.name ?? id)).join(", "));
+  const summary = autonomyOf(definition, state.tools);
+  const usage = instance ? instanceUsage(state, instance, new Date().toISOString()) : null;
+  const owner = definition.origin === "kynova" ? admin : definition.ownerTenantId === persona.tenantId;
+  const level2 = definition.tools.filter((id) => levelForAction(id) === 2);
+  const models = modelAvailability(state.models, definition, instance?.deniedProviders ?? []);
+  const usable = models.filter((entry) => entry.usable);
+  const blocked = models.filter((entry) => !entry.usable);
+
+  return (
+    <Card as="li" className="space-y-3 p-5" aria-label={`Worker ${definition.name}`}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="font-semibold">{definition.name}</h2>
+        <div className="flex flex-wrap gap-1.5">
+          <Badge tone="primary">{label("specialty", definition.specialty)}</Badge>
+          <Badge>{label("origin", definition.origin)}</Badge>
+          <Badge tone={STATUS_TONE[definition.status]}>{label("definitionStatus", definition.status)}</Badge>
+          {instance && <Badge tone={INSTANCE_TONE[instance.status]}>{label("instanceStatus", instance.status)}</Badge>}
+        </div>
+      </div>
+      <p className="text-sm text-ink-muted">{definition.summary}</p>
+      <div className="flex flex-wrap items-center gap-2 text-xs text-ink-muted"><span>Autonomía máxima:</span><LevelBadge level={summary.highest} /></div>
+      <ToolChips state={state} tools={definition.tools} />
+      <ul className="space-y-0.5 text-xs text-ink-muted">
+        <li>Datos hasta: {label("clearance", definition.dataClearance)}</li>
+        <li>Memoria: {definition.memory.maxEntries} entradas, {definition.memory.maxChars} caracteres{definition.memory.durable ? " · puede conservar" : " · solo de la ejecución"}{definition.memory.allowPersonal ? " · admite datos personales" : ""}</li>
+        <li>Modelos que necesita: {definition.routing.needs.map((need) => label("modelClass", need)).join(", ")}</li>
+        <li>Delega en: {names(definition.collaboration.delegatesTo)} · Recibe de: {names(definition.collaboration.acceptsFrom)}</li>
+        <li>Límites: {definition.limits.maxRunsPerDay} ejecuciones al día · {definition.limits.maxStepsPerRun} pasos · delegación hasta {definition.limits.maxDelegationDepth}</li>
+      </ul>
+
+      <div className="space-y-1 rounded-2xl border border-line p-3 text-xs" aria-label={`Modelos de ${definition.name}`}>
+        <p><span className="font-medium">Puede usar:</span> {usable.length ? usable.map((entry) => entry.model.label).join(", ") : "ningún modelo (revise sus capacidades o su política de datos)"}</p>
+        {blocked.length > 0 && <p className="text-ink-muted">No puede usar: {blocked.map((entry) => `${entry.model.label} (${entry.reasons[0]})`).join("; ")}</p>}
+        <p className="text-ink-muted">Lo decide KOE por capacidad y política de datos, no por proveedor. Aquí no se conecta ninguna API.</p>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {definition.status === "active" && !instance && <Button size="sm" variant="primary" onClick={() => send({ type: "worker.enable", definitionId: definition.id })}>Activar en mi empresa</Button>}
+        {instance?.status === "active" && <Button size="sm" variant="ghost" onClick={() => send({ type: "instance.pause", instanceId: instance.id })}>Pausar</Button>}
+        {instance?.status === "paused" && <Button size="sm" variant="ghost" onClick={() => send({ type: "instance.resume", instanceId: instance.id })}>Reanudar</Button>}
+        {instance && instance.status !== "disabled" && <Button size="sm" variant="ghost" onClick={() => send({ type: "instance.disable", instanceId: instance.id })}>Deshabilitar</Button>}
+        {instance?.status === "disabled" && <Button size="sm" variant="secondary" onClick={() => send({ type: "instance.enable", instanceId: instance.id })}>Habilitar</Button>}
+        {definition.status === "draft" && owner && <Button size="sm" variant="primary" onClick={() => send({ type: "worker.submit", definitionId: definition.id })}>Enviar a revisión</Button>}
+        {definition.status === "pendingReview" && owner && (
+          <>
+            <Button size="sm" variant="primary" onClick={() => send({ type: "worker.review", definitionId: definition.id, approve: true })}>Aprobar Worker</Button>
+            <Button size="sm" variant="ghost" onClick={() => send({ type: "worker.review", definitionId: definition.id, approve: false, reason })}>Rechazar Worker</Button>
+          </>
+        )}
+        {definition.status === "active" && owner && <Button size="sm" variant="ghost" onClick={() => send({ type: "worker.retire", definitionId: definition.id })}>Retirar</Button>}
+      </div>
+      {definition.status === "pendingReview" && <p className="text-xs text-ink-muted">Enviado por {definition.submittedBy}. Lo aprueba otra persona.</p>}
+      {definition.createdBy.startsWith("worker:") && <p className="text-xs text-ink-muted">Borrador preparado por {definition.createdBy} (Nivel 1).</p>}
+
+      {instance && usage && (
+        <div className="space-y-3 rounded-2xl border border-line p-3 text-sm">
+          <p className="text-xs text-ink-muted">{instance.status === "active" ? "Activo en su empresa" : "Instalado en su empresa"} · {usage.runsToday} de {Math.min(instance.maxRunsPerDay, definition.limits.maxRunsPerDay)} ejecuciones hoy · {label("instanceStatus", instance.status)}</p>
+          <div className="space-y-2">
+            <h3 className="text-xs font-semibold">Configuración de su empresa</h3>
+            <div className="grid gap-2 sm:grid-cols-3">
+              <input aria-label={`Máximo de ejecuciones de ${definition.id}`} className={input} inputMode="numeric" value={runs} onChange={(event) => setRuns(event.target.value)} />
+              <input aria-label={`Proveedores excluidos de ${definition.id}`} className={input} placeholder="proveedores excluidos (comas)" value={excluded} onChange={(event) => setExcluded(event.target.value)} />
+              <Button size="sm" variant="secondary" onClick={() => send({ type: "instance.configure", instanceId: instance.id, maxRunsPerDay: Number(runs), deniedProviders: excluded.split(",").map((value) => value.trim()).filter(Boolean) })}>Guardar configuración</Button>
+            </div>
+            <p className="text-xs text-ink-muted">Su empresa puede bajar el límite diario y excluir proveedores de modelos; nunca ampliar lo que la definición del Worker permite.</p>
+          </div>
+          {level2.map((action) => (
+            <div key={action} className="grid gap-2 sm:grid-cols-3">
+              <span className="self-center text-xs">{state.tools[action]?.manifest.label ?? action} (Nivel 2)</span>
+              <input aria-label={`Máximo por día de ${action}`} className={input} inputMode="numeric" placeholder="máx. por día" value={limits[`${instance.id}:${action}`] ?? ""} onChange={(event) => setLimits({ ...limits, [`${instance.id}:${action}`]: event.target.value })} />
+              <Button size="sm" variant="secondary" onClick={() => send({ type: "authorization.grant", instanceId: instance.id, action, maxPerDay: Number(limits[`${instance.id}:${action}`] ?? 0) })}>Autorizar {action}</Button>
+            </div>
+          ))}
+          {usage.authorizations.map(({ authorization, usedToday }) => (
+            <div key={authorization.id} className="flex flex-wrap items-center justify-between gap-2 text-xs text-ink-muted">
+              <span>Autorizado: {authorization.action} · {usedToday} de {authorization.maxPerDay} hoy · por {authorization.grantedBy}</span>
+              <Button size="sm" variant="ghost" onClick={() => send({ type: "authorization.revoke", authorizationId: authorization.id })}>Revocar</Button>
+            </div>
+          ))}
+          {level2.length === 0 && <p className="text-xs text-ink-muted">Este Worker no tiene acciones de Nivel 2. Las de Nivel 3 nunca se autorizan: siempre piden confirmación.</p>}
+        </div>
+      )}
+    </Card>
   );
 }
 

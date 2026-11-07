@@ -14,7 +14,7 @@
 
 import { isPerson, isWorker } from "./actors";
 import { addDays } from "./billing";
-import { message, type ErrorCode } from "./koe-messages";
+import { label, message, type ErrorCode } from "./koe-messages";
 import {
   BASE_MODELS, BASE_TOOLS, CLEARANCE_RANK, MEMORY_DURABLE_DAYS, PLATFORM_OWNER, STARTER_WORKERS, autonomyOf, covers, looksSecret, routeModel, validateModel, validateTool, validateWorker,
   type Clearance, type ModelManifest, type TaskProfile, type ToolEntry, type ToolManifest, type WorkerDefinition,
@@ -22,7 +22,9 @@ import {
 import { decide as decideAutonomy, levelForAction, type AutonomyLevel } from "./workers";
 
 // ---------------------------------------------------------------- state
-export type WorkerInstance = { id: string; tenantId: string; definitionId: string; status: "active" | "paused"; enabledBy: string; enabledAt: string; maxRunsPerDay: number };
+// "paused" is temporary; "disabled" is switched off (nothing runs, live runs are cancelled) until a person enables it again.
+// The company can also lower the run limit and exclude model providers for this Worker, never beyond what its definition allows.
+export type WorkerInstance = { id: string; tenantId: string; definitionId: string; status: "active" | "paused" | "disabled"; enabledBy: string; enabledAt: string; maxRunsPerDay: number; deniedProviders: readonly string[] };
 export type StepKind = "tool" | "model" | "delegate" | "memory" | "note" | "result";
 export type Decision = "allowed" | "needsApproval" | "approved" | "rejected" | "refused" | "expired";
 export type RunStep = { id: string; at: string; kind: StepKind; detail: string; tool?: string; level?: AutonomyLevel; decision?: Decision; modelId?: string; routing?: string; childRunId?: string; output?: string; approvalId?: string; tokens?: number };
@@ -78,6 +80,9 @@ export type KoeEvent =
   | (Base & { type: "worker.review"; definitionId: string; approve: boolean; reason?: string })
   | (Base & { type: "worker.retire"; definitionId: string })
   | (Base & { type: "worker.enable"; definitionId: string })
+  | (Base & { type: "instance.disable"; instanceId: string })
+  | (Base & { type: "instance.enable"; instanceId: string })
+  | (Base & { type: "instance.configure"; instanceId: string; maxRunsPerDay: number; deniedProviders: readonly string[] })
   | (Base & { type: "instance.pause"; instanceId: string })
   | (Base & { type: "instance.resume"; instanceId: string })
   | (Base & { type: "tenant.pause"; paused: boolean })
@@ -179,6 +184,7 @@ export function reduceKoe(state: KoeState, event: KoeEvent): KoeResult {
     const stopped = paused(run.tenantId); // a kill switch wins over everything else
     if (stopped) return { failure: stopped };
     if (run.status !== "running") return { failure: refuse("runNotRunning", { status: run.status }) };
+    if (instance.status === "disabled") return { failure: refuse("instanceDisabled") };
     if (instance.status === "paused") return { failure: refuse("instancePaused") };
     return { run, definition, instance };
   };
@@ -247,7 +253,7 @@ export function reduceKoe(state: KoeState, event: KoeEvent): KoeResult {
       if (definition.origin === "kynova" ? !isAdmin(state, event.actor) : definition.ownerTenantId !== event.tenantId) return refuse("notYours", undefined, true);
       if (definition.status !== "active") return refuse("invalidTransition", { from: definition.status, to: "retired" });
       // retiring a Worker stops its instances and its runs everywhere
-      const instances = state.instances.map((instance) => (instance.definitionId === definition.id ? { ...instance, status: "paused" as const } : instance));
+      const instances = state.instances.map((instance) => (instance.definitionId === definition.id && instance.status !== "disabled" ? { ...instance, status: "paused" as const } : instance)); // an instance that was switched off stays off
       const runs = state.runs.map((run) => (run.workerId === definition.id && isLive(run) ? { ...run, status: "cancelled" as const, finishedAt: event.at } : run));
       return { state: note({ ...state, instances, runs, definitions: replace(state.definitions, { ...definition, status: "retired" }) }, event, "worker.retire", definition.id, "warn") };
     }
@@ -261,7 +267,7 @@ export function reduceKoe(state: KoeState, event: KoeEvent): KoeResult {
       if (definition.status !== "active") return refuse("notActive");
       if (instanceFor(state, event.tenantId, definition.id)) return refuse("alreadyEnabled");
       const created = nextId(state, "wi");
-      const instance: WorkerInstance = { id: created.id, tenantId: event.tenantId, definitionId: definition.id, status: "active", enabledBy: event.actor, enabledAt: event.at, maxRunsPerDay: definition.limits.maxRunsPerDay };
+      const instance: WorkerInstance = { id: created.id, tenantId: event.tenantId, definitionId: definition.id, status: "active", enabledBy: event.actor, enabledAt: event.at, maxRunsPerDay: definition.limits.maxRunsPerDay, deniedProviders: [] };
       return { state: note({ ...created.state, instances: append(created.state.instances, instance) }, event, "worker.enable", `${instance.id} · ${definition.id}`) };
     }
 
@@ -272,7 +278,57 @@ export function reduceKoe(state: KoeState, event: KoeEvent): KoeResult {
       const instance = state.instances.find((item) => item.id === event.instanceId);
       if (!instance) return refuse("instanceNotFound");
       if (instance.tenantId !== event.tenantId) return refuse("notYours", undefined, true);
-      return { state: note({ ...state, instances: replace(state.instances, { ...instance, status: event.type === "instance.pause" ? ("paused" as const) : ("active" as const) }) }, event, event.type, instance.id, event.type === "instance.pause" ? "warn" : "info") };
+      const to = event.type === "instance.pause" ? "paused" : "active";
+      if (instance.status !== (to === "paused" ? "active" : "paused")) return refuse("invalidTransition", { from: label("instanceStatus", instance.status), to: label("instanceStatus", to) });
+      return { state: note({ ...state, instances: replace(state.instances, { ...instance, status: to }) }, event, event.type, instance.id, event.type === "instance.pause" ? "warn" : "info") };
+    }
+
+    // Switching a Worker off in a company: its live runs (and what they delegated) are cancelled, pending approvals are rejected, and it stays off until enabled again.
+    case "instance.disable": {
+      const denied = needPerson();
+      if (denied) return denied;
+      const instance = state.instances.find((item) => item.id === event.instanceId);
+      if (!instance) return refuse("instanceNotFound");
+      if (instance.tenantId !== event.tenantId) return refuse("notYours", undefined, true);
+      if (instance.status === "disabled") return refuse("invalidTransition", { from: label("instanceStatus", "disabled"), to: label("instanceStatus", "disabled") });
+      const stopped = new Set<string>();
+      for (const run of state.runs.filter((item) => item.instanceId === instance.id && isLive(item))) {
+        stopped.add(run.id);
+        for (const child of live(state, run.id)) stopped.add(child.id);
+      }
+      const runs = state.runs.map((item) => (stopped.has(item.id) ? { ...item, status: "cancelled" as const, finishedAt: event.at } : item));
+      const approvals = state.approvals.map((item) => (stopped.has(item.runId) && item.status === "pending" ? { ...item, status: "rejected" as const, decidedBy: event.actor, decidedAt: event.at, reason: "Worker deshabilitado" } : item));
+      const memory = state.memory.map((item) => (item.runId && stopped.has(item.runId) && item.scope === "run" ? { ...item, value: "", cleared: true } : item));
+      return { state: note({ ...state, runs, approvals, memory, instances: replace(state.instances, { ...instance, status: "disabled" as const }) }, event, "instance.disable", `${instance.id}${stopped.size ? ` · ${stopped.size} ejecuciones canceladas` : ""}`, "warn") };
+    }
+
+    case "instance.enable": {
+      const denied = needPerson();
+      if (denied) return denied;
+      const instance = state.instances.find((item) => item.id === event.instanceId);
+      if (!instance) return refuse("instanceNotFound");
+      if (instance.tenantId !== event.tenantId) return refuse("notYours", undefined, true);
+      if (instance.status !== "disabled") return refuse("invalidTransition", { from: label("instanceStatus", instance.status), to: label("instanceStatus", "active") });
+      const definition = definitionOf(state, instance.definitionId);
+      if (!definition || definition.status !== "active") return refuse("notActive");
+      return { state: note({ ...state, instances: replace(state.instances, { ...instance, status: "active" as const }) }, event, "instance.enable", instance.id) };
+    }
+
+    // Per-company configuration: a lower daily run limit, and model providers this company does not want this Worker to use.
+    case "instance.configure": {
+      const denied = needPerson();
+      if (denied) return denied;
+      const instance = state.instances.find((item) => item.id === event.instanceId);
+      if (!instance) return refuse("instanceNotFound");
+      if (instance.tenantId !== event.tenantId) return refuse("notYours", undefined, true);
+      const definition = definitionOf(state, instance.definitionId);
+      if (!definition) return refuse("definitionNotFound");
+      if (!Number.isInteger(event.maxRunsPerDay) || event.maxRunsPerDay < 1 || event.maxRunsPerDay > definition.limits.maxRunsPerDay) return refuse("configInvalid", { detail: `ejecuciones por día de 1 a ${definition.limits.maxRunsPerDay}` });
+      const known = new Set(state.models.map((model) => model.provider));
+      const unknown = event.deniedProviders.find((provider) => !known.has(provider));
+      if (unknown) return refuse("configInvalid", { detail: `proveedor desconocido: ${unknown}` });
+      const providers = [...new Set(event.deniedProviders)];
+      return { state: note({ ...state, instances: replace(state.instances, { ...instance, maxRunsPerDay: event.maxRunsPerDay, deniedProviders: providers }) }, event, "instance.configure", `${instance.id} · ${event.maxRunsPerDay}/día${providers.length ? ` · sin ${providers.join(", ")}` : ""}`) };
     }
 
     // ================================================================ kill switches: a person can stop everything at once
@@ -323,6 +379,7 @@ export function reduceKoe(state: KoeState, event: KoeEvent): KoeResult {
       const instance = state.instances.find((item) => item.id === event.instanceId);
       if (!instance) return refuse("instanceNotFound");
       if (instance.tenantId !== event.tenantId) return refuse("notYours", undefined, true);
+      if (instance.status === "disabled") return refuse("instanceDisabled");
       if (instance.status === "paused") return refuse("instancePaused");
       const definition = definitionOf(state, instance.definitionId);
       if (!definition || definition.status !== "active") return refuse("notActive");
@@ -391,7 +448,9 @@ export function reduceKoe(state: KoeState, event: KoeEvent): KoeResult {
       const task: TaskProfile = { needs: definition.routing.needs, dataClearance: run.dataTouched, contextTokens: 2_000, needsTools: true, ...event.task };
       // the task can ask for more than the Worker's defaults, but never for less data protection than what the run has touched
       const protectedTask: TaskProfile = { ...task, dataClearance: higher(task.dataClearance, run.dataTouched) };
-      const routed = routeModel(state.models, protectedTask, definition.routing.policy);
+      // the company's own exclusions add to the Worker's policy; neither can widen the other
+      const policy = { ...definition.routing.policy, deniedProviders: [...(definition.routing.policy.deniedProviders ?? []), ...(found.instance?.deniedProviders ?? [])] };
+      const routed = routeModel(state.models, protectedTask, policy);
       if (!routed.chosen) {
         const failed = note(state, event, "model.none", routed.reason, "warn", run.id);
         return { state: failed, error: message("noModel", { detail: routed.reason.replace(/^ninguno cumple: /, "") }), errorCode: "noModel" };
