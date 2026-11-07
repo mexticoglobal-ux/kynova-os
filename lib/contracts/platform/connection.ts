@@ -24,6 +24,8 @@ export const CONFIG_FIELDS: Record<ProviderId, readonly ConfigField[]> = {
   email: [...COMMON_FIELDS, { key: "address", label: "Dirección de correo", kind: "text", required: true }, { key: "credential", label: "Credencial", kind: "secretRef", required: true }],
   stripe: [...COMMON_FIELDS, { key: "mode", label: "Modo", kind: "select", required: true, options: ["test", "live"] }, { key: "credential", label: "Credencial", kind: "secretRef", required: true }],
   paypal: [...COMMON_FIELDS, { key: "mode", label: "Modo", kind: "select", required: true, options: ["sandbox", "live"] }, { key: "credential", label: "Credencial", kind: "secretRef", required: true }],
+  bankTransfer: [...COMMON_FIELDS, { key: "accountAlias", label: "Alias de la cuenta receptora", kind: "text", required: true }, { key: "reconciliation", label: "Conciliación", kind: "select", required: true, options: ["manual", "asistida"] }],
+  crypto: [...COMMON_FIELDS],
   makapay: [...COMMON_FIELDS],
   makawallet: [...COMMON_FIELDS],
   sinpe: [...COMMON_FIELDS, { key: "reconciliation", label: "Conciliación", kind: "select", required: true, options: ["manual", "asistida"] }],
@@ -96,11 +98,10 @@ export type Connection = {
   audit: readonly ConnectionAudit[];
 };
 
-export const MAX_LOG = 200;
-
 export const newConnection = (provider: ProviderId): Connection => ({ provider, status: "notConnected", enabled: false, config: {}, permissions: defaultPermissions(provider), logs: [], errors: [], audit: [] });
 
-const keep = <T,>(items: readonly T[], item: T): readonly T[] => [...items, item].slice(-MAX_LOG);
+// Logs, errors and the audit trail are never trimmed; limits belong to the view (display.ts).
+const keep = <T,>(items: readonly T[], item: T): readonly T[] => [...items, item];
 
 export type ConnectionEvent =
   | { type: "configure"; actor: string; at: string; config: ConfigValues }

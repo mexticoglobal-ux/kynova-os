@@ -6,7 +6,7 @@ export type IntegrationCategory = (typeof INTEGRATION_CATEGORIES)[number];
 
 export const PROVIDER_IDS = [
   "webChat", "whatsapp", "facebook", "instagram", "email",
-  "stripe", "paypal", "makapay", "makawallet", "sinpe",
+  "stripe", "paypal", "makapay", "makawallet", "sinpe", "bankTransfer", "crypto",
   "googleCalendar",
 ] as const;
 export type ProviderId = (typeof PROVIDER_IDS)[number];
@@ -90,9 +90,18 @@ export const PROVIDER_MANIFESTS: Record<ProviderId, ProviderManifest> = {
     webhook: "pending", sandbox: false, toVerify: ["Documentación técnica", "Si implica saldos, transferencias y retiros además de cobros", "Modelo de liquidación"],
   },
   sinpe: {
-    id: "sinpe", label: "SINPE", category: "payment", authKinds: ["undefined"], capabilities: ["receivePayments", "reconcile"],
+    id: "sinpe", label: "SINPE", category: "payment", authKinds: ["none"], capabilities: ["receivePayments", "reconcile"],
+    webhook: "none", sandbox: false,
+    toVerify: ["Modo manual o asistido: la empresa importa el extracto o la notificación del banco, sin acceso a una API", "Una pasarela o agregador con API sería un proveedor aparte", "Asignación asistida de cada pago, siempre confirmada por una persona"],
+  },
+  bankTransfer: {
+    id: "bankTransfer", label: "Transferencia bancaria", category: "payment", authKinds: ["none"], capabilities: ["receivePayments", "reconcile"],
+    webhook: "none", sandbox: true, toVerify: ["Datos de la cuenta receptora por empresa", "Formato del extracto (CSV u otro) o importación manual", "Referencia única por cobro para conciliar"],
+  },
+  crypto: {
+    id: "crypto", label: "Criptomonedas (reservado)", category: "payment", authKinds: ["undefined"], capabilities: ["receivePayments"],
     webhook: "pending", sandbox: false,
-    toVerify: ["No es una pasarela con webhooks estándar: conciliación por notificación o extracto del banco, o mediante un agregador con API", "Asignación manual o asistida de cada pago"],
+    toVerify: ["Redes y activos soportados (BTC, USDC…)", "Custodia propia o procesador", "Confirmaciones y reorganizaciones de la red", "Tratamiento legal y fiscal", "Cantidades por encima de 2^53 (p. ej. wei) necesitan otro tipo numérico"],
   },
   googleCalendar: {
     id: "googleCalendar", label: "Google Calendar", category: "calendar", authKinds: ["oauth2"], capabilities: ["readCalendar", "writeCalendar"],

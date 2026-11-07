@@ -6,7 +6,7 @@ export type Money = { amountMinor: number; currency: string };
 export const isMoney = (value: unknown): value is Money =>
   typeof value === "object" && value !== null &&
   Number.isSafeInteger((value as Money).amountMinor) && (value as Money).amountMinor >= 0 &&
-  typeof (value as Money).currency === "string" && /^[A-Z]{3}$/.test((value as Money).currency);
+  typeof (value as Money).currency === "string" && /^[A-Z]{3,5}$/.test((value as Money).currency);
 
 export function addMoney(a: Money, b: Money): Money {
   if (a.currency !== b.currency) throw new Error("currency mismatch");
