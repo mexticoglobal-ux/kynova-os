@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { PROVIDER_IDS } from "./integrations";
 import {
   CONFIG_FIELDS,
-  MAX_LOG,
   activationBlockers,
   defaultPermissions,
   newConnection,
@@ -103,12 +102,14 @@ describe("logs and audit", () => {
     expect(JSON.stringify([connection.audit, connection.logs])).not.toContain("secret:stripe-main");
   });
 
-  it("attributes failures to the system and caps its history", () => {
+  it("attributes failures to the system and never drops an entry", () => {
     let connection = newConnection("stripe");
-    for (let index = 0; index < MAX_LOG + 20; index += 1) connection = apply(connection, { type: "fail", at, kind: "network", message: `n${index}` });
-    expect(connection.logs).toHaveLength(MAX_LOG);
-    expect(connection.errors).toHaveLength(MAX_LOG);
+    for (let index = 0; index < 500; index += 1) connection = apply(connection, { type: "fail", at, kind: "network", message: `n${index}` });
+    expect(connection.logs).toHaveLength(500);
+    expect(connection.errors).toHaveLength(500);
+    expect(connection.audit).toHaveLength(500);
     expect(connection.audit.at(-1)?.actor).toBe("system");
-    expect(connection.errors.at(-1)?.message).toBe(`n${MAX_LOG + 19}`);
+    expect(connection.errors[0].message).toBe("n0");
+    expect(connection.errors.at(-1)?.message).toBe("n499");
   });
 });

@@ -3,6 +3,7 @@
 import { useRef, useState, type ReactNode } from "react";
 import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { hiddenNote, latest } from "@/lib/contracts/platform/display";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Inbox } from "lucide-react";
@@ -459,7 +460,7 @@ export function WebhooksTab({ state, dispatch, now }: TabProps) {
   const [signature, setSignature] = useState<"valid" | "invalid" | "missing">("valid");
   const [paymentRef, setPaymentRef] = useState("");
   const [eventId, setEventId] = useState("evt_sim_a");
-  const recent = state.audit.filter((entry) => entry.action.startsWith("webhook")).slice(-8).reverse();
+  const { shown: recent, hidden: recentHidden } = latest(state.audit.filter((entry) => entry.action.startsWith("webhook")), 8);
 
   const send = () => dispatch({ type: "webhook", envelope: { provider, eventId, type, paymentRef, signature, receivedAt: now() } });
   return (
@@ -487,6 +488,7 @@ export function WebhooksTab({ state, dispatch, now }: TabProps) {
       <Card className="space-y-2 p-5">
         <h2 className="font-semibold">Recibidos</h2>
         {recent.length === 0 ? <p className="text-xs text-ink-muted">Ninguno todavía.</p> : <ul className="space-y-1 text-xs text-ink-muted">{recent.map((entry, index) => <li key={`${entry.at}-${index}`}>{entry.action} · {entry.detail}</li>)}</ul>}
+        {hiddenNote(recentHidden) && <p className="text-xs text-ink-muted">{hiddenNote(recentHidden)}</p>}
       </Card>
     </div>
   );
@@ -501,12 +503,16 @@ export function ActivityTab({ state }: TabProps) {
   ];
   return (
     <div className="grid gap-4 lg:grid-cols-3">
-      {feeds.map((feed) => (
-        <Card key={feed.title} className="space-y-2 p-5">
-          <h2 className="font-semibold">{feed.title}</h2>
-          {feed.rows.length === 0 ? <p className="text-xs text-ink-muted">{feed.empty}</p> : <ul className="max-h-80 space-y-1 overflow-auto text-xs text-ink-muted">{feed.rows.slice(-40).reverse().map((row, index) => <li key={`${row}-${index}`}>{row}</li>)}</ul>}
-        </Card>
-      ))}
+      {feeds.map((feed) => {
+        const { shown, hidden } = latest(feed.rows);
+        return (
+          <Card key={feed.title} className="space-y-2 p-5">
+            <h2 className="font-semibold">{feed.title} ({feed.rows.length})</h2>
+            {feed.rows.length === 0 ? <p className="text-xs text-ink-muted">{feed.empty}</p> : <ul className="max-h-80 space-y-1 overflow-auto text-xs text-ink-muted">{shown.map((row, index) => <li key={`${row}-${index}`}>{row}</li>)}</ul>}
+            {hiddenNote(hidden) && <p className="text-xs text-ink-muted">{hiddenNote(hidden)}</p>}
+          </Card>
+        );
+      })}
     </div>
   );
 }

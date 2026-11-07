@@ -98,11 +98,10 @@ export type Connection = {
   audit: readonly ConnectionAudit[];
 };
 
-export const MAX_LOG = 200;
-
 export const newConnection = (provider: ProviderId): Connection => ({ provider, status: "notConnected", enabled: false, config: {}, permissions: defaultPermissions(provider), logs: [], errors: [], audit: [] });
 
-const keep = <T,>(items: readonly T[], item: T): readonly T[] => [...items, item].slice(-MAX_LOG);
+// Logs, errors and the audit trail are never trimmed; limits belong to the view (display.ts).
+const keep = <T,>(items: readonly T[], item: T): readonly T[] => [...items, item];
 
 export type ConnectionEvent =
   | { type: "configure"; actor: string; at: string; config: ConfigValues }

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { DISPLAY_LIMIT, hiddenNote, latest } from "@/lib/contracts/platform/display";
 import { Card } from "@/components/ui/Card";
 import { CONFIG_FIELDS, activationBlockers, grantsAllowed, type Connection, type ConnectionEvent, type ErrorKind, type Grant } from "@/lib/contracts/platform/connection";
 import { PROVIDER_MANIFESTS } from "@/lib/contracts/platform/integrations";
@@ -90,6 +91,7 @@ export function ConnectionPanel({ connection, message, send }: { connection: Con
 }
 
 function Feed({ title, empty, items }: { title: string; empty: string; items: { key: string; text: string; at: string }[] }) {
+  const { shown, hidden } = latest(items, DISPLAY_LIMIT);
   return (
     <section className="space-y-2">
       <h3 className="text-sm font-semibold">{title}</h3>
@@ -97,9 +99,10 @@ function Feed({ title, empty, items }: { title: string; empty: string; items: { 
         <p className="text-xs text-ink-muted">{empty}</p>
       ) : (
         <ul className="max-h-48 space-y-1 overflow-auto text-xs text-ink-muted">
-          {items.slice(-20).reverse().map((item, index) => <li key={`${item.key}-${index}`}>{item.text}</li>)}
+          {shown.map((item, index) => <li key={`${item.key}-${index}`}>{item.text}</li>)}
         </ul>
       )}
+      {hiddenNote(hidden) && <p className="text-xs text-ink-muted">{hiddenNote(hidden)}</p>}
     </section>
   );
 }
