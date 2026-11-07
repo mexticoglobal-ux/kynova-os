@@ -24,6 +24,7 @@
 | `automation-center.ts` (+ `-messages`, `-demo`) | Centro de Automatizaciones v1: seis disparadores, seis acciones de nivel 1, estados, ejecuciones y resultados (§12) |
 | `studio-center.ts` (+ `-messages`, `-demo`) | AI Studio v1: prompts y agentes IA versionados, Playground por KOE, plantillas y acuerdos de compartir (§13) |
 | `koe-ledger.ts`, `koe-insights.ts`, `insights-center.ts` (+ `-messages`, `-demo`) | Insights: el registro de KOE, el único motor de cifras y lo que una empresa puede hacer con ellas: correcciones y reportes (§14) |
+| `koe-crm.ts`, `crm-center.ts`, `crm-audit.ts` (+ `-messages`, `-demo`) | CRM inteligente: el único motor de inteligencia comercial de KOE y los registros que lo hacen duradero (§15) |
 | `automations.ts` | Plantillas y validación anteriores (se conservan): disparador, condiciones, acciones | Validación, acciones externas por aprobación, aviso de bucle, modo de prueba por defecto |
 
 ## 3. Modelos de datos (futuros; ninguno existe aún)
@@ -314,3 +315,27 @@ Dos datos nuevos en cada definición, pensados para las métricas futuras de KOE
 **Preparado para el futuro, no implementado** (`FUTURE_CAPABILITIES`): Forecast, Predicciones, Análisis IA, Benchmark, Machine Learning y Recomendaciones. Cada uno será un Worker de KOE que lea este mismo registro, para que las cifras sigan teniendo una sola fuente; hoy ninguno existe.
 
 **Pendiente al conectar:** que KOE emita su flujo real de eventos y cada módulo reporte sus hechos; tablas con RLS por empresa; tiempos y costos reales; la tarifa por hora y los minutos por proceso configurables por empresa; generación real de archivos y tareas programadas; y las capacidades futuras.
+
+## 15. NEX CRM Intelligence v1
+
+`/platform/crm`. Un CRM que se siente como tener a un vendedor trabajando 24/7: KOE analiza y recomienda, NEX prepara, y una persona decide. Todo es simulación local: sin APIs, sin modelos reales, sin migraciones, sin dependencias nuevas y sin llamadas externas.
+
+**Toda la inteligencia viene de KOE, y hay un solo motor** (`koe-crm.ts`): puntaje del prospecto y de la oportunidad, probabilidad de cierre, nivel de riesgo y sus motivos, valor y tiempo esperados, siguiente mejor acción y su motivo, los mensajes del asistente, el panel comercial, el pipeline y el Cliente 360. Las pantallas solo dan formato y ningún otro módulo repite estas reglas (una prueba verifica que las reglas viven en un solo archivo y que las pantallas no calculan). Las reglas están declaradas para poder explicar cada número: base por etapa, puntaje del prospecto con su Business Audit y sus contactos de los últimos 30 días, y una resta por el tiempo sin contacto; el riesgo suma puntos por días sin contacto, días en la etapa por encima de lo normal, puntaje bajo y tareas vencidas.
+
+**Cada análisis pasa por KOE y queda registrado** (`crm-center.ts`): KOE elige el Worker (Asistente comercial, el único con nivel de datos personal) y el enrutador elige el modelo; el análisis guarda ese Worker, el modelo y su motivo, y el costo estimado. Los análisis **se añaden, nunca se reescriben**: el historial muestra cómo cambió el puntaje (con el valor anterior). Sin Worker o sin modelo disponible, KOE rechaza el análisis y no inventa uno; un cambio hecho por una persona se conserva y queda anotado como «análisis pendiente».
+
+**Qué ofrece (7 pestañas):** *Dashboard* (prospectos nuevos y activos, oportunidades, clientes, ventas estimadas, conversión, próximas acciones, reuniones y actividad reciente) · *Pipeline* tipo Kanban (Prospecto, Calificado, Reunión, Propuesta, Negociación, Ganado, Perdido; cada tarjeta con puntaje de lead y de oportunidad, siguiente acción, valor, tiempo en la etapa, riesgo y responsable) · *Oportunidad* (probabilidad, riesgo, valor esperado, tiempo esperado, siguiente mejor acción, el porqué, el Worker y el modelo de KOE y el historial de análisis) · *Línea de tiempo* (correos, WhatsApp, llamadas, notas, reuniones, automatizaciones, Workers, Business Audit y NEX, en orden cronológico) · *Tareas* inteligentes · *Cliente 360* (empresa, contactos, pipeline y lo que KOE conecta: productos, Academia, Marketplace, automatizaciones, Workers, pagos y referidos) · *Asistente de ventas* («Este prospecto tiene alta probabilidad», «Recomiendo llamar hoy», «Han pasado 5 días», «Existe riesgo de perder la oportunidad», «Este cliente puede comprar otro servicio»).
+
+**Business Audit integrado.** Cada resultado (lo reporta la plataforma, nadie lo escribe) se **añade** al prospecto, y KOE actualiza el puntaje de oportunidad, las recomendaciones (reusa el motor de `lib/assessment.ts`, sin duplicarlo), la prioridad y el riesgo. El audit anterior se conserva; una prueba lo verifica.
+
+**Constitución de NEX**
+- **Nivel 1, prepara:** crear un prospecto, actualizar el análisis y proponer tareas con su borrador (correo, WhatsApp, reunión, propuesta, seguimiento, llamada). Son propuestas: **no existe ningún evento que envíe o ejecute algo.**
+- **Nivel 2, con autorización vigente:** mover una etapa automáticamente, de a una hacia adelante y solo hasta Negociación, cuando una persona concedió la autorización (con límite por día y vencimiento) **y** las reglas de KOE lo recomiendan (puntaje mínimo por etapa y contacto reciente). Nunca hacia atrás, y sin autorización o agotada, se rechaza.
+- **Nivel 3, siempre una persona:** ganar o perder un negocio (perder exige un motivo), convertir un prospecto en cliente (solo si está ganado, una vez), aceptar, completar o descartar una tarea, registrar un contacto, agendar una reunión, editar los datos de un prospecto y conceder o revocar autorizaciones. **NEX nunca cierra una venta, nunca convierte un cliente y nunca elimina información.**
+- **Nada se elimina ni se sobrescribe:** no existe ningún evento para ello. Las etapas, contactos, audits, análisis y la línea de tiempo solo crecen; al editar un prospecto, los valores anteriores quedan en la auditoría. Las automatizaciones y los Workers reportan lo que hicieron a través de la plataforma (`timeline.record`, `customer.link`), no una persona ni NEX. Un pago en el Cliente 360 es solo un total: no hay ningún campo para datos bancarios.
+
+**Multiempresa.** Todo lleva `tenant_id`: las vistas, el motor y cada evento se limitan a una empresa; una prueba comprueba que el trabajo de otra empresa no cambia ni una cifra y que cada cambio sobre algo ajeno se rechaza.
+
+**Preparado para el futuro, no implementado** (`FUTURE_CRM`): predicción de ventas, forecast comercial, detección de abandono, Cross Selling, Up Selling, renovaciones y Churn Prediction. Cada uno será un Worker de KOE sobre los mismos registros. El mensaje «puede comprar otro servicio» es solo una regla sencilla (un cliente con pagos al día y a lo más un servicio), no un modelo de venta cruzada.
+
+**Pendiente al conectar:** tablas con RLS por empresa; que los contactos, las automatizaciones, los Workers y los pagos lleguen por el flujo real de eventos de KOE; el Business Audit real; los umbrales y los tiempos típicos por etapa configurables por empresa (hoy son supuestos declarados); y las capacidades futuras.

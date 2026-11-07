@@ -1,7 +1,7 @@
-import { BarChart3, BookOpen, Blocks, CreditCard, Gift, Plug, Sparkles, Store, UserCog, Workflow, type LucideIcon } from "lucide-react";
+import { BarChart3, BookOpen, Blocks, CreditCard, Gift, Handshake, Plug, Sparkles, Store, UserCog, Workflow, type LucideIcon } from "lucide-react";
 
 // Base screens of the platform modules. Everything here is a preview of what will be connected: nothing is live.
-export type PlatformSectionKey = "integrations" | "payments" | "referrals" | "store" | "academy" | "workers" | "automations" | "studio" | "insights";
+export type PlatformSectionKey = "integrations" | "payments" | "referrals" | "store" | "academy" | "workers" | "automations" | "studio" | "insights" | "crm";
 
 export const PLATFORM_SECTIONS: ReadonlyArray<{ key: PlatformSectionKey; href: string; icon: LucideIcon; title: string; summary: string }> = [
   { key: "integrations", href: "/platform/integrations", icon: Plug, title: "Centro de Integraciones", summary: "Canales, pagos y calendario de la empresa, con el estado de cada conexión." },
@@ -13,6 +13,7 @@ export const PLATFORM_SECTIONS: ReadonlyArray<{ key: PlatformSectionKey; href: s
   { key: "automations", href: "/platform/automations", icon: Workflow, title: "Centro de Automatizaciones", summary: "Disparador, condiciones y acciones; todo nace en modo de prueba." },
   { key: "studio", href: "/platform/studio", icon: Sparkles, title: "AI Studio", summary: "Prompts, agentes IA, versiones y pruebas. Todo pasa por KOE; NEX deja borradores y publicar lo aprueba una persona." },
   { key: "insights", href: "/platform/insights", icon: BarChart3, title: "Insights", summary: "Inteligencia empresarial: ROI, productividad, IA, clientes y KOE, con cifras de una sola fuente de verdad." },
+  { key: "crm", href: "/platform/crm", icon: Handshake, title: "CRM inteligente", summary: "Pipeline, oportunidades, tareas propuestas por NEX y Cliente 360. KOE recomienda; una persona decide y cierra." },
 ];
 
 export const PLATFORM_HUB = { icon: Blocks, title: "Plataforma", summary: "Base de lo que se conectará después de validar el Backend Core. Hoy es solo arquitectura y vistas: no hay conexiones reales." };
