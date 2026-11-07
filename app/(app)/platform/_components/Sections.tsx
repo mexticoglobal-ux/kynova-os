@@ -5,7 +5,6 @@ import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ACTION_LEVELS, WORKER_TEMPLATES } from "@/lib/contracts/platform/workers";
 import { AUTOMATION_TEMPLATES, validateAutomation } from "@/lib/contracts/platform/automations";
-import { LISTING_KINDS } from "@/lib/contracts/platform/marketplace";
 
 const LEVEL_TONE: Record<1 | 2 | 3, BadgeTone> = { 1: "success", 2: "warning", 3: "danger" };
 const LEVEL_LABEL = { 1: "Nivel 1 · observa y prepara", 2: "Nivel 2 · autorizado", 3: "Nivel 3 · siempre confirma" } as const;
@@ -15,25 +14,6 @@ const Soon = ({ children }: { children: string }) => (
     {children}
   </Button>
 );
-
-export function StoreSection() {
-  return (
-    <div className="space-y-4">
-      <Card className="space-y-3 p-5">
-        <h2 className="font-semibold">Qué se podrá publicar</h2>
-        <div className="flex flex-wrap gap-1.5">
-          {LISTING_KINDS.map((kind) => (
-            <Badge key={kind}>{kind}</Badge>
-          ))}
-        </div>
-        <p className="text-sm text-ink-muted">Toda publicación declara sus permisos y pasa por revisión. Lo que no declara, se niega.</p>
-      </Card>
-      <EmptyState icon={Plug} title="La tienda aún está vacía">
-        Las publicaciones llegarán cuando existan integraciones y trabajadores listos para instalar.
-      </EmptyState>
-    </div>
-  );
-}
 
 export function AcademySection() {
   return (
