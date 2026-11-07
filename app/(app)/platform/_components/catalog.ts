@@ -1,7 +1,7 @@
-import { BookOpen, Blocks, CreditCard, Gift, Plug, Store, UserCog, Workflow, type LucideIcon } from "lucide-react";
+import { BookOpen, Blocks, CreditCard, Gift, Plug, Sparkles, Store, UserCog, Workflow, type LucideIcon } from "lucide-react";
 
 // Base screens of the platform modules. Everything here is a preview of what will be connected: nothing is live.
-export type PlatformSectionKey = "integrations" | "payments" | "referrals" | "store" | "academy" | "workers" | "automations";
+export type PlatformSectionKey = "integrations" | "payments" | "referrals" | "store" | "academy" | "workers" | "automations" | "studio";
 
 export const PLATFORM_SECTIONS: ReadonlyArray<{ key: PlatformSectionKey; href: string; icon: LucideIcon; title: string; summary: string }> = [
   { key: "integrations", href: "/platform/integrations", icon: Plug, title: "Centro de Integraciones", summary: "Canales, pagos y calendario de la empresa, con el estado de cada conexión." },
@@ -11,6 +11,7 @@ export const PLATFORM_SECTIONS: ReadonlyArray<{ key: PlatformSectionKey; href: s
   { key: "academy", href: "/platform/academy", icon: BookOpen, title: "Academia", summary: "Cursos de su empresa y oficiales, exámenes, certificados, venta en el Marketplace y NEX como tutor." },
   { key: "workers", href: "/platform/workers", icon: UserCog, title: "NEX Workers", summary: "Trabajadores especializados que colaboran bajo KOE: autonomía por la Constitución, herramientas, memoria, auditoría y varios modelos de IA." },
   { key: "automations", href: "/platform/automations", icon: Workflow, title: "Centro de Automatizaciones", summary: "Disparador, condiciones y acciones; todo nace en modo de prueba." },
+  { key: "studio", href: "/platform/studio", icon: Sparkles, title: "AI Studio", summary: "Prompts, agentes IA, versiones y pruebas. Todo pasa por KOE; NEX deja borradores y publicar lo aprueba una persona." },
 ];
 
 export const PLATFORM_HUB = { icon: Blocks, title: "Plataforma", summary: "Base de lo que se conectará después de validar el Backend Core. Hoy es solo arquitectura y vistas: no hay conexiones reales." };

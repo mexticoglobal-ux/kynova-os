@@ -35,6 +35,11 @@ export const ACTION_LEVELS = {
   "academy.certificate": 3,
   "calendar.write": 3,
   "contact.erase": 3,
+  "studio.draft": 1,
+  "studio.test": 1,
+  "studio.assign": 2,
+  "studio.publish": 3,
+  "studio.share": 3,
 } as const;
 export type WorkerAction = keyof typeof ACTION_LEVELS;
 
