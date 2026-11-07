@@ -214,3 +214,14 @@ NEX Workers no son agentes aislados: son especialistas que colaboran bajo **KOE*
 **Multiempresa.** El catálogo de definiciones es global, pero las instancias, ejecuciones, memoria, autorizaciones y aprobaciones son de cada empresa; una empresa no ve, pausa, aprueba ni cancela lo de otra, y los Workers a medida de una empresa no se pueden activar en otra.
 
 **Pendiente al conectar:** tablas con RLS por empresa; adaptadores reales de herramientas (cada uno detrás de su contrato) y de modelos (AI Gateway, con evals); costos y presupuestos reales por ejecución; ejecución asíncrona y reanudación (colas, reintentos, tiempos de espera); evaluación de la calidad de cada Worker antes de activarlo; sandbox para Workers de terceros del Marketplace; y la definición legal de la responsabilidad por lo que un Worker prepara y una persona aprueba.
+
+### 11.1 Centro de Workers: instalación y configuración por empresa
+
+Complementa el punto anterior sin cambiar lo aprobado. En `/platform/workers`, pestaña **Workers**:
+
+- **Instalados en su empresa / Disponibles para instalar / En preparación y retirados.** Un Worker se instala por empresa (instancia); el mismo Worker puede estar instalado en una y disponible en otra.
+- **Tres estados por empresa:** **Activo**; **En pausa** (temporal: se reanuda cuando se quiera); **Deshabilitado** (apagado: no se inicia nada, se cancelan sus ejecuciones vivas y lo que delegaron, se rechazan sus aprobaciones pendientes y queda así hasta que una persona lo habilita). Pausar solo sale de activo y reanudar solo sale de pausa; un Worker deshabilitado no se reactiva por pausa ni por reanudar. Retirar un Worker no convierte una instancia deshabilitada en pausada.
+- **Qué modelos puede usar cada Worker** (`modelAvailability`): se evalúa cada modelo del registro contra lo que el Worker necesita y el dato más sensible que puede manejar, con la política de datos como regla dura; se muestra cuáles puede usar y por qué no los otros. La salud del modelo no cuenta aquí (cambia por minuto); sí la desactivación. **No se conecta ninguna API.**
+- **Qué herramientas puede usar,** con su nivel de autonomía de la Constitución, y si actúan fuera de la plataforma o mueven dinero (ya existía; se conserva).
+- **Configuración por empresa** (`instance.configure`): puede **bajar** el máximo de ejecuciones por día (nunca superar el de la definición) y **excluir proveedores de modelos** para ese Worker; las exclusiones de la empresa se suman a la política del Worker, nunca la ensanchan. Solo la decide una persona de esa empresa; NEX no puede cambiar el estado ni la configuración.
+

@@ -127,6 +127,22 @@ export function rejections(candidate: ModelManifest, task: TaskProfile, policy: 
   return reasons;
 }
 
+export type ModelAvailability = { model: ModelManifest; usable: boolean; reasons: string[] };
+
+/**
+ * Which models a Worker may use at all, judged against the most demanding task it is allowed to do (its capabilities, its
+ * highest data clearance, tools). Health is left out on purpose: it changes by the minute, eligibility does not.
+ * The company's own excluded providers add to the Worker's policy.
+ */
+export function modelAvailability(models: readonly ModelManifest[], definition: Pick<WorkerDefinition, "routing" | "dataClearance">, excludedByCompany: readonly string[] = []): ModelAvailability[] {
+  const policy: RoutingPolicy = { ...definition.routing.policy, deniedProviders: [...(definition.routing.policy.deniedProviders ?? []), ...excludedByCompany] };
+  const task: TaskProfile = { needs: definition.routing.needs, dataClearance: definition.dataClearance, contextTokens: 2_000, needsTools: true };
+  return models.map((model) => {
+    const reasons = rejections(model, task, policy, true);
+    return { model, usable: reasons.length === 0, reasons };
+  });
+}
+
 const HEALTH_RANK: Record<Health, number> = { healthy: 0, degraded: 1, down: 2 };
 
 /**
