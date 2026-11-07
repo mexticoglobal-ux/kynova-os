@@ -16,25 +16,6 @@ const Soon = ({ children }: { children: string }) => (
   </Button>
 );
 
-export function ReferralsSection() {
-  return (
-    <div className="space-y-4">
-      <Card className="space-y-2 p-5">
-        <h2 className="font-semibold">Cómo funcionará</h2>
-        <ul className="list-disc space-y-1 pl-5 text-sm text-ink-muted">
-          <li>El último contacto dentro de la ventana de atribución recibe el crédito.</li>
-          <li>La recompensa se calcula en unidades enteras y nunca supera la regla.</li>
-          <li>Autorreferidos, mismo correo o ventas reembolsadas quedan retenidos para revisión.</li>
-        </ul>
-      </Card>
-      <EmptyState icon={Plug} title="Aún no hay programa de referidos">
-        Cree uno cuando el módulo de Pagos esté conectado.
-      </EmptyState>
-      <Soon>Crear programa</Soon>
-    </div>
-  );
-}
-
 export function StoreSection() {
   return (
     <div className="space-y-4">

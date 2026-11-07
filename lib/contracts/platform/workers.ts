@@ -19,6 +19,8 @@ export const ACTION_LEVELS = {
   "customer.create": 3,
   "payment.createLink": 3,
   "payment.refund": 3,
+  "referral.approveCommission": 3,
+  "referral.payout": 3,
   "calendar.write": 3,
   "contact.erase": 3,
 } as const;
