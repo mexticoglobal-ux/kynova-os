@@ -30,7 +30,7 @@ describe("AutomationsCenter", () => {
     expect(hot.getByText(/Nuevo prospecto → Crear tarea · Notificación interna · Preparar correo \(sin enviarlo\)/)).toBeTruthy();
     expect(within(card("Revisión manual")).getByText("Modo de prueba")).toBeTruthy();
     expect(within(card("Cobro recibido")).getByText("Pausada")).toBeTruthy();
-    expect(within(card("Preparar la reunión")).getByText("Borrador")).toBeTruthy();
+    expect(within(card("Preparar la reunión")).getByText("Configuración pendiente")).toBeTruthy();
     expect(within(card("Preparar la reunión")).getByText(/creada por NEX \(IA\)/)).toBeTruthy();
   });
 
@@ -157,5 +157,57 @@ describe("AutomationsCenter", () => {
     press(within(card("Revisión manual")), "Ejecutar ahora");
     tab("Resultados");
     expect(screen.getAllByText("Revisar caja").length).toBeGreaterThan(0);
+  });
+});
+
+describe("AutomationsCenter and KOE", () => {
+  it("shows each automation's Worker, priority and estimated cost per run, and that no model is called by the automation", () => {
+    render(<AutomationsCenter />);
+    loadSample();
+    const hot = within(card("Prospecto caliente"));
+    expect(hot.getByText("Automatizador")).toBeTruthy();
+    expect(hot.getByText("Prioridad Normal")).toBeTruthy();
+    expect(hot.getByText("Costo est. US$ 0.0005 por ejecución")).toBeTruthy();
+    expect(screen.getByText(/la automatización nunca llama a un modelo/)).toBeTruthy();
+    expect(screen.getByText("US$ 0.0020")).toBeTruthy(); // four live runs at US$ 0.0005
+    expect(screen.getByText(/no una factura/)).toBeTruthy();
+  });
+
+  it("leaves an automation without a Worker in 'Configuración pendiente', with its buttons disabled, until one is assigned", () => {
+    render(<AutomationsCenter />);
+    loadSample();
+    const pending = within(card("Preparar la reunión"));
+    expect(pending.getByText(/Sin Worker asignado/)).toBeTruthy();
+    expect((pending.getByRole("button", { name: "Activar" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((pending.getByRole("button", { name: "Probar con datos de ejemplo" }) as HTMLButtonElement).disabled).toBe(true);
+    press(pending, "Editar");
+    expect(screen.getByText(/Sin Worker la automatización queda en «Configuración pendiente»/)).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Worker"), { target: { value: "automator" } });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
+    tab("Automatizaciones");
+    const assigned = within(card("Preparar la reunión"));
+    expect(assigned.getByText("Borrador")).toBeTruthy();
+    expect(assigned.getByText("Prioridad Normal")).toBeTruthy();
+    expect((assigned.getByRole("button", { name: "Activar" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("warns in the builder when the chosen Worker lacks a tool the automation needs", () => {
+    render(<AutomationsCenter />);
+    tab("Crear y editar");
+    expect(screen.getByText(/Necesita las herramientas: task\.create/)).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Worker"), { target: { value: "reporter" } });
+    expect(screen.getByLabelText("Pendientes del formulario").textContent).toContain("no tiene la herramienta «task.create»");
+    fireEvent.change(screen.getByLabelText("Worker"), { target: { value: "" } });
+    expect(screen.getByText(/Sin Worker la automatización queda en/)).toBeTruthy();
+  });
+
+  it("shows on each run the Worker, priority, cost and the model KOE chose, without calling it", () => {
+    render(<AutomationsCenter />);
+    loadSample();
+    tab("Resultados");
+    const run = within(screen.getAllByLabelText(/^Ejecución /).find((item) => item.textContent?.includes("Bienvenida al cliente nuevo")) as HTMLElement);
+    expect(run.getByText("Worker: Automatizador")).toBeTruthy();
+    expect(run.getByText("Costo est. US$ 0.0005")).toBeTruthy();
+    expect(run.getByText(/Modelo elegido por KOE: Rápido A \(proveedor-a\); no se llamó/)).toBeTruthy();
   });
 });

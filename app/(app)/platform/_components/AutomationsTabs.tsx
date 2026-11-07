@@ -5,19 +5,39 @@ import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import {
-  ACTIONS, ACTION_PARAMS, CONDITION_OPS, MAX_ACTIONS, MAX_CONDITIONS, ROLES, TRIGGERS, actionLevel, automationsOf, fieldsOf, outputsOf, runsOf, validateAutomation,
+  ACTIONS, ACTION_PARAMS, CONDITION_OPS, DEFAULT_KOE_ENV, MAX_ACTIONS, MAX_CONDITIONS, ROLES, TRIGGERS, actionLevel, automationStats, automationsOf, fieldsOf, needOf, outputsOf, runsOf, validateAutomation, workerIssues,
   type ActionKind, type ActionSpec, type Automation, type AutomationInput, type Condition, type OutputStatus, type RunStatus, type TriggerKind,
 } from "@/lib/contracts/platform/automation-center";
 import { SAMPLE_PAYLOADS, blankInput } from "@/lib/contracts/platform/automation-demo";
 import { fieldLabel, label } from "@/lib/contracts/platform/automation-messages";
 import { hiddenNote, latest } from "@/lib/contracts/platform/display";
+import { PLATFORM_OWNER, formatCostMicros } from "@/lib/contracts/platform/koe-registry";
+import { label as koeLabel } from "@/lib/contracts/platform/koe-messages";
+import { PRIORITY_TONE } from "./WorkersTabs";
 import type { AutomationsTabProps } from "./AutomationsCenter";
 
-const STATUS_TONE: Record<Automation["status"], BadgeTone> = { draft: "neutral", active: "success", paused: "warning" };
+const STATUS_TONE: Record<Automation["status"], BadgeTone> = { setupPending: "warning", draft: "neutral", active: "success", paused: "warning" };
 const RUN_TONE: Record<RunStatus, BadgeTone> = { completed: "success", testLogged: "primary", skipped: "warning", failed: "danger" };
 const OUTPUT_TONE: Record<OutputStatus, BadgeTone> = { open: "accent", done: "success", dismissed: "neutral" };
 const time = (iso: string) => iso.slice(0, 16).replace("T", " ");
 const inputClass = "w-full rounded-xl border border-line bg-raised px-3 py-1.5 text-sm text-ink";
+
+const workerOf = (id: string | undefined) => DEFAULT_KOE_ENV.workers.find((item) => item.id === id);
+
+/** The Worker that carries an automation out: who, how urgent, and the estimated cost of one run. Nothing here calls a model. */
+function WorkerLine({ workerId, tenantId }: { workerId?: string; tenantId: string }) {
+  const worker = workerOf(workerId);
+  if (!workerId || !worker) return <p className="text-sm text-warning">Sin Worker asignado: asigne uno en «{label("tabs", "build")}» para poder activarla.</p>;
+  const issue = workerIssues({ name: "x", description: "", trigger: "manual", conditions: [], actions: [], workerId }, DEFAULT_KOE_ENV, tenantId)[0];
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 text-sm text-ink-soft">
+      <span>Worker: <strong>{worker.name}</strong></span>
+      <Badge tone={PRIORITY_TONE[worker.priority]}>Prioridad {koeLabel("priority", worker.priority)}</Badge>
+      <Badge tone="neutral">Costo est. {formatCostMicros(worker.costEstimate.perRunMicros)} por ejecución</Badge>
+      {issue && <span className="text-xs text-warning">{issue}</span>}
+    </div>
+  );
+}
 
 const summaryOf = (input: AutomationInput) => `${label("trigger", input.trigger)} → ${input.actions.map((item) => label("action", item.kind)).join(" · ")}`;
 
@@ -25,7 +45,10 @@ const summaryOf = (input: AutomationInput) => `${label("trigger", input.trigger)
 export function ListTab({ state, send, persona, edit }: AutomationsTabProps) {
   const mine = automationsOf(state, persona.tenantId);
   if (mine.length === 0) return <p className="text-sm text-ink-muted">Todavía no hay automatizaciones. Cree una en «{label("tabs", "build")}» o cargue los datos de ejemplo.</p>;
+  const stats = automationStats(state, persona.tenantId);
   return (
+    <div className="space-y-3">
+    <p className="text-sm text-ink-muted">Cada automatización la ejecuta un Worker de KOE y KOE elige el modelo; la automatización nunca llama a un modelo. Costo estimado de las ejecuciones en vivo: <strong>{formatCostMicros(stats.estimatedCostMicros)}</strong> (es una estimación, no una factura).</p>
     <ul className="grid gap-4 lg:grid-cols-2">
       {mine.map((item) => (
         <Card as="li" key={item.id} aria-label={`Automatización ${item.name}`} className="space-y-3 p-5">
@@ -40,14 +63,15 @@ export function ListTab({ state, send, persona, edit }: AutomationsTabProps) {
             </div>
           </div>
           <p className="text-sm text-ink-soft">{summaryOf(item)}</p>
+          <WorkerLine workerId={item.workerId} tenantId={item.tenantId} />
           <p className="text-xs text-ink-muted">
             {item.conditions.length === 0 ? "Sin condiciones" : `${item.conditions.length} condición(es)`} · Versión {item.version} · {item.runCount} ejecución(es){item.lastRunAt ? ` · última ${time(item.lastRunAt)}` : ""} · creada por {item.createdBy.startsWith("worker:") ? "NEX (IA)" : item.createdBy}
           </p>
           <div className="flex flex-wrap gap-2">
             {item.status === "active"
               ? <Button size="sm" variant="secondary" onClick={() => send({ type: "automation.pause", automationId: item.id })}>Pausar</Button>
-              : <Button size="sm" onClick={() => send({ type: "automation.activate", automationId: item.id })}>{item.status === "paused" ? "Reanudar" : "Activar"}</Button>}
-            <Button size="sm" variant="secondary" onClick={() => send({ type: "automation.test", automationId: item.id, payload: SAMPLE_PAYLOADS[item.trigger] })}>Probar con datos de ejemplo</Button>
+              : <Button size="sm" disabled={item.status === "setupPending"} title={item.status === "setupPending" ? "Asigne un Worker antes de activarla" : undefined} onClick={() => send({ type: "automation.activate", automationId: item.id })}>{item.status === "paused" ? "Reanudar" : "Activar"}</Button>}
+            <Button size="sm" variant="secondary" disabled={item.status === "setupPending"} title={item.status === "setupPending" ? "Asigne un Worker antes de probarla" : undefined} onClick={() => send({ type: "automation.test", automationId: item.id, payload: SAMPLE_PAYLOADS[item.trigger] })}>Probar con datos de ejemplo</Button>
             {item.trigger === "manual" && item.status === "active" && <ManualRun item={item} send={send} />}
             <Button size="sm" variant="ghost" onClick={() => edit(item.id)}>Editar</Button>
             <Button size="sm" variant="ghost" onClick={() => send({ type: "automation.duplicate", automationId: item.id })}>Duplicar</Button>
@@ -57,6 +81,7 @@ export function ListTab({ state, send, persona, edit }: AutomationsTabProps) {
         </Card>
       ))}
     </ul>
+    </div>
   );
 }
 
@@ -79,9 +104,12 @@ const emptyParams = (kind: ActionKind): Record<string, string> => Object.fromEnt
 export function BuilderTab({ state, send, persona, editingId, edit }: AutomationsTabProps) {
   const current = editingId ? state.automations.find((item) => item.id === editingId && item.tenantId === persona.tenantId) : undefined;
   const [input, setInput] = useState<AutomationInput>(current
-    ? { name: current.name, description: current.description, trigger: current.trigger, conditions: current.conditions, actions: current.actions }
+    ? { name: current.name, description: current.description, trigger: current.trigger, conditions: current.conditions, actions: current.actions, workerId: current.workerId }
     : blankInput({ name: "", trigger: "newProspect", actions: [{ kind: "createTask", params: emptyParams("createTask") }] }));
-  const issues = validateAutomation(input);
+  const issues = validateAutomation(input, DEFAULT_KOE_ENV, persona.tenantId);
+  const need = needOf(input);
+  const chosen = workerOf(input.workerId);
+  const offered = DEFAULT_KOE_ENV.workers.filter((item) => item.status === "active" && (item.ownerTenantId === PLATFORM_OWNER || item.ownerTenantId === persona.tenantId));
   const fields = fieldsOf(input.trigger);
   const setCondition = (index: number, patch: Partial<Condition>) => setInput({ ...input, conditions: input.conditions.map((item, at) => (at === index ? { ...item, ...patch } : item)) });
   const setAction = (index: number, action: ActionSpec) => setInput({ ...input, actions: input.actions.map((item, at) => (at === index ? action : item)) });
@@ -103,6 +131,20 @@ export function BuilderTab({ state, send, persona, editingId, edit }: Automation
           </select>
         </label>
       </div>
+
+      <section className="space-y-2">
+        <h3 className="text-sm font-semibold">Worker que la ejecuta</h3>
+        <label className="block space-y-1 text-sm text-ink-muted">Worker
+          <select aria-label="Worker" className={inputClass} value={input.workerId ?? ""} onChange={(event) => setInput({ ...input, workerId: event.target.value || undefined })}>
+            <option value="">Sin Worker (queda en «Configuración pendiente»)</option>
+            {offered.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+          </select>
+        </label>
+        {chosen
+          ? <WorkerLine workerId={chosen.id} tenantId={persona.tenantId} />
+          : <p className="text-sm text-warning">Sin Worker la automatización queda en «Configuración pendiente» y no se puede activar.</p>}
+        <p className="text-xs text-ink-muted">Necesita las herramientas: {need.tools.join(", ") || "ninguna todavía"}. KOE elige el modelo según lo que el Worker necesita; la automatización no llama a ninguno.</p>
+      </section>
 
       <section className="space-y-2">
         <h3 className="text-sm font-semibold">Condiciones <span className="font-normal text-ink-muted">(todas deben cumplirse; sin condiciones corre siempre)</span></h3>
@@ -235,6 +277,14 @@ export function ResultsTab({ state, send, persona }: AutomationsTabProps) {
                 <span className="font-medium">{run.automationName}</span>
                 <span className="text-xs text-ink-muted">{time(run.at)} · {label("trigger", run.trigger)}</span>
               </div>
+              {run.workerName && (
+                <p className="flex flex-wrap items-center gap-1.5 text-xs text-ink-muted">
+                  <span>Worker: {run.workerName}</span>
+                  {run.priority && <Badge tone={PRIORITY_TONE[run.priority]}>Prioridad {koeLabel("priority", run.priority)}</Badge>}
+                  <Badge tone="neutral">Costo est. {formatCostMicros(run.estimatedCostMicros)}</Badge>
+                  {run.model && <span>Modelo elegido por KOE: {run.model.label} ({run.model.provider}); no se llamó</span>}
+                </p>
+              )}
               {run.reason && <p className="text-xs text-ink-muted">{run.reason}</p>}
               <ul className="space-y-0.5 text-sm text-ink-soft">
                 {run.results.map((result) => (

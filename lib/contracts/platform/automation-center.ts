@@ -10,12 +10,18 @@
 //   deletes, resolves a result or stops anything: a person does.
 // - New automations start in test mode: they log what they would have done and create nothing until a person turns it off.
 // - Contact data (email, phone) only flows into drafts, never into task titles, reminders or internal notices.
+// - Every automation is carried out by a KOE Worker, never by a model directly: the Worker's tools, data clearance, priority and
+//   estimated cost apply, and KOE's router picks the model (automation-koe.ts). Without a usable Worker it is "setupPending".
 // - By construction nothing an automation creates can fire another one, and an event is processed once. A per-hour limit stops a flood.
 
 import { isPerson, isWorker } from "./actors";
 import { addDays } from "./billing";
 import { message, type ErrorCode } from "./automation-messages";
+import { DEFAULT_KOE_ENV, failed, planExecution, type KoeEnv, type ModelChoice, type Need } from "./automation-koe";
+import { PRIORITY_RANK, type Priority } from "./koe-registry";
 import { levelForAction, type AutonomyLevel } from "./workers";
+
+export { DEFAULT_KOE_ENV, type KoeEnv } from "./automation-koe";
 
 // ---------------------------------------------------------------- the closed sets
 export const TRIGGERS = ["newProspect", "newClient", "paymentReceived", "meetingCreated", "formSubmitted", "manual"] as const;
@@ -63,8 +69,16 @@ export const MAX_CONDITIONS = 6;
 export const MAX_RUNS_PER_HOUR = 60;
 
 // ---------------------------------------------------------------- records
-export type AutomationStatus = "draft" | "active" | "paused";
-export type AutomationInput = { name: string; description: string; trigger: TriggerKind; conditions: readonly Condition[]; actions: readonly ActionSpec[] };
+export type AutomationStatus = "setupPending" | "draft" | "active" | "paused";
+/** Where an automation came from, when it was made from a template of the future Automations Library (not built yet). */
+export type TemplateRef = { templateId: string; templateVersion: number };
+export type AutomationInput = { name: string; description: string; trigger: TriggerKind; conditions: readonly Condition[]; actions: readonly ActionSpec[]; workerId?: string; source?: TemplateRef };
+
+/** Shape of a future library template: an automation without a company or a Worker. Only the model exists; there is no catalog yet. */
+export type AutomationTemplate = Omit<AutomationInput, "workerId" | "source"> & { id: string; version: number };
+export const inputFromTemplate = (template: AutomationTemplate, workerId?: string): AutomationInput => ({
+  name: template.name, description: template.description, trigger: template.trigger, conditions: template.conditions, actions: template.actions, workerId, source: { templateId: template.id, templateVersion: template.version },
+});
 export type Automation = AutomationInput & {
   id: string; tenantId: string; status: AutomationStatus; testMode: boolean; version: number;
   createdBy: string; createdAt: string; updatedAt: string; lastRunAt?: string; runCount: number;
@@ -75,6 +89,9 @@ export type RunStatus = "completed" | "testLogged" | "skipped" | "failed";
 export type AutomationRun = {
   id: string; tenantId: string; automationId: string; automationName: string; trigger: TriggerKind; eventId?: string; at: string; firedBy: string;
   status: RunStatus; reason?: string; mode: "live" | "test"; payload: Readonly<Record<string, string>>; results: readonly ActionResult[];
+  // what KOE decided, copied when the run starts: the Worker, its priority and estimated cost, and the model KOE's router chose.
+  // The model is only recorded: nothing calls it. Empty when the run was skipped because there was no usable Worker or model.
+  workerId?: string; workerName?: string; priority?: Priority; estimatedCostMicros: number; model?: ModelChoice; modelReason?: string;
 };
 
 export type OutputKind = "task" | "reminder" | "notification" | "emailDraft" | "whatsappDraft" | "pendingEvent";
@@ -125,7 +142,23 @@ const SINGLE_PLACEHOLDER = /^\{\{\s*[a-zA-Z_]+\s*\}\}$/;
 
 // ---------------------------------------------------------------- validation
 /** What is wrong with an automation. Empty when it can be activated. */
-export function validateAutomation(input: AutomationInput): string[] {
+export function needOf(input: Pick<AutomationInput, "actions">): Need {
+  const known = input.actions.filter((action) => ACTIONS.includes(action.kind));
+  const drafts = known.some((action) => action.kind === "prepareEmail" || action.kind === "prepareWhatsapp");
+  return { tools: [...new Set(known.map((action) => ACTION_TOOL[action.kind]))], clearance: drafts ? "personal" : "business" };
+}
+
+/** Why the assigned Worker cannot carry this automation out. Empty when there is none assigned (that is "setupPending", not an error). */
+export function workerIssues(input: AutomationInput, env: KoeEnv = DEFAULT_KOE_ENV, tenantId?: string): string[] {
+  if (!input.workerId) return [];
+  const plan = planExecution(env, tenantId, input.workerId, needOf(input));
+  return failed(plan) ? [`Worker: ${plan.problem}`] : [];
+}
+
+/** Whether a usable Worker is assigned: the difference between "draft" and "setupPending". */
+export const isConfigured = (input: AutomationInput, env: KoeEnv = DEFAULT_KOE_ENV, tenantId?: string): boolean => Boolean(input.workerId) && workerIssues(input, env, tenantId).length === 0;
+
+export function validateAutomation(input: AutomationInput, env: KoeEnv = DEFAULT_KOE_ENV, tenantId?: string): string[] {
   const issues: string[] = [];
   if (input.name.trim() === "" || input.name.length > 80) issues.push("nombre (1 a 80 caracteres)");
   if (input.description.length > 300) issues.push("descripción (hasta 300 caracteres)");
@@ -166,6 +199,7 @@ export function validateAutomation(input: AutomationInput): string[] {
       }
     }
   });
+  issues.push(...workerIssues(input, env, tenantId));
   return [...new Set(issues)];
 }
 
@@ -221,13 +255,28 @@ const note = (state: AutomationState, event: { at: string; actor: string; tenant
 const addHours = (iso: string, hours: number) => new Date(Date.parse(iso) + hours * 3_600_000).toISOString();
 
 /** Runs the actions of one automation against one event. In test mode it records what it would do and creates nothing. */
-function execute(start: AutomationState, automation: Automation, payload: Readonly<Record<string, string>>, ctx: { at: string; actor: string; eventId?: string; mode: "live" | "test" }): AutomationState {
+type Ctx = { at: string; actor: string; eventId?: string; mode: "live" | "test" };
+
+/** A run that did nothing, with the reason: over the hourly limit, or no usable Worker or model. Never counts as an execution. */
+function skip(start: AutomationState, automation: Automation, payload: Readonly<Record<string, string>>, ctx: Ctx, reason: string): AutomationState {
+  const created = nextId(start, "ar");
+  const run: AutomationRun = {
+    id: created.id, tenantId: automation.tenantId, automationId: automation.id, automationName: automation.name, trigger: automation.trigger, eventId: ctx.eventId, at: ctx.at, firedBy: ctx.actor,
+    status: "skipped", reason, mode: ctx.mode, payload, results: [], estimatedCostMicros: 0,
+  };
+  return note({ ...created.state, runs: append(created.state.runs, run) }, { at: ctx.at, actor: ctx.actor, tenantId: automation.tenantId }, "automation.skipped", `${automation.id} · ${reason}`, "warn");
+}
+
+function execute(start: AutomationState, automation: Automation, payload: Readonly<Record<string, string>>, ctx: Ctx, env: KoeEnv): AutomationState {
+  // KOE first: the Worker that carries this out and the model its router picks. The model is recorded, never called.
+  const plan = automation.workerId ? planExecution(env, automation.tenantId, automation.workerId, needOf(automation)) : { problem: "no tiene un Worker asignado" };
+  if (failed(plan)) return skip(start, automation, payload, ctx, `Configuración pendiente: ${plan.problem}`);
   let state = start;
   const created = nextId(state, "ar");
   state = created.state;
   const runId = created.id;
   const results: ActionResult[] = [];
-  let failed = false;
+  let hadErrors = false;
 
   automation.actions.forEach((action, index) => {
     const rendered: Record<string, string> = {};
@@ -244,7 +293,7 @@ function execute(start: AutomationState, automation: Automation, payload: Readon
     }
     const level = actionLevel(action.kind);
     if (problems.length) {
-      failed = true;
+      hadErrors = true;
       results.push({ index, kind: action.kind, level, rendered, error: [...new Set(problems)].join("; ") });
       return;
     }
@@ -267,22 +316,25 @@ function execute(start: AutomationState, automation: Automation, payload: Readon
     results.push({ index, kind: action.kind, level, rendered, outputId: output.id });
   });
 
-  const status: RunStatus = ctx.mode === "test" ? "testLogged" : failed ? "failed" : "completed";
+  const status: RunStatus = ctx.mode === "test" ? "testLogged" : hadErrors ? "failed" : "completed";
   const run: AutomationRun = {
     id: runId, tenantId: automation.tenantId, automationId: automation.id, automationName: automation.name, trigger: automation.trigger, eventId: ctx.eventId, at: ctx.at, firedBy: ctx.actor,
-    status, reason: failed ? "alguna acción no pudo prepararse" : undefined, mode: ctx.mode, payload, results,
+    status, reason: hadErrors ? "alguna acción no pudo prepararse" : undefined, mode: ctx.mode, payload, results,
+    workerId: plan.worker.id, workerName: plan.worker.name, priority: plan.priority, estimatedCostMicros: plan.estimatedCostMicros, model: plan.model, modelReason: plan.modelReason,
   };
   state = { ...state, runs: append(state.runs, run) };
   if (ctx.mode === "live") state = { ...state, automations: replace(state.automations, { ...automation, lastRunAt: ctx.at, runCount: automation.runCount + 1 }) };
-  return note(state, { at: ctx.at, actor: ctx.actor, tenantId: automation.tenantId }, ctx.mode === "test" ? "automation.test" : "automation.run", `${automation.id} · ${status}${failed ? " · con errores" : ""}`, failed ? "warn" : "info");
+  return note(state, { at: ctx.at, actor: ctx.actor, tenantId: automation.tenantId }, ctx.mode === "test" ? "automation.test" : "automation.run", `${automation.id} · ${status} · ${plan.worker.name}${hadErrors ? " · con errores" : ""}`, hadErrors ? "warn" : "info");
 }
 
 // ---------------------------------------------------------------- the reducer
-export function reduceAutomations(state: AutomationState, event: AutomationEvent): AutomationResult {
+export function reduceAutomations(state: AutomationState, event: AutomationEvent, env: KoeEnv = DEFAULT_KOE_ENV): AutomationResult {
   const person = isPerson(event.actor);
   const refuse = (code: ErrorCode, params?: Record<string, string | number>): AutomationResult => ({ state, error: message(code, params), errorCode: code });
   const needPerson = (): AutomationResult | null => (person ? null : refuse("personRequired"));
   const stopped = state.pausedTenants.includes(event.tenantId);
+  const configured = (input: AutomationInput) => isConfigured(input, env, event.tenantId);
+  const sanitizeSource = (source: AutomationInput["source"]): TemplateRef | undefined => (source && typeof source.templateId === "string" && source.templateId.length > 0 && source.templateId.length <= 60 && Number.isInteger(source.templateVersion) && source.templateVersion > 0 ? { templateId: source.templateId, templateVersion: source.templateVersion } : undefined);
   const find = (id: string): { automation?: Automation; failure?: AutomationResult } => {
     const automation = state.automations.find((item) => item.id === id);
     if (!automation) return { failure: refuse("notFound") };
@@ -295,17 +347,20 @@ export function reduceAutomations(state: AutomationState, event: AutomationEvent
     case "automation.create": {
       if (!person && !isWorker(event.actor)) return refuse("personRequired");
       const created = nextId(state, "au");
-      const automation: Automation = { ...event.input, id: created.id, tenantId: event.tenantId, status: "draft", testMode: true, version: 1, createdBy: event.actor, createdAt: event.at, updatedAt: event.at, runCount: 0 };
+      const automation: Automation = { ...event.input, source: sanitizeSource(event.input.source), id: created.id, tenantId: event.tenantId, status: configured(event.input) ? "draft" : "setupPending", testMode: true, version: 1, createdBy: event.actor, createdAt: event.at, updatedAt: event.at, runCount: 0 };
       return { state: note({ ...created.state, automations: append(created.state.automations, automation) }, event, "automation.create", `${automation.id} · ${automation.name}`) };
     }
 
     case "automation.edit": {
       const { automation, failure } = find(event.automationId);
       if (!automation) return failure as AutomationResult;
-      if (!person) return automation.status === "draft" && isWorker(event.actor) ? { state: note({ ...state, automations: replace(state.automations, { ...automation, ...event.input, version: automation.version + 1, updatedAt: event.at }) }, event, "automation.edit", automation.id) } : refuse(isWorker(event.actor) ? "notEditableByAi" : "personRequired");
-      // a live automation is paused while it is being changed, so it never runs half-edited; a person turns it back on
-      const status: AutomationStatus = automation.status === "active" ? "paused" : automation.status;
-      const edited: Automation = { ...automation, ...event.input, status, version: automation.version + 1, updatedAt: event.at };
+      const draftLike = automation.status === "draft" || automation.status === "setupPending";
+      if (!person) return draftLike && isWorker(event.actor) ? { state: note({ ...state, automations: replace(state.automations, { ...automation, ...event.input, workerId: event.input.workerId, source: automation.source, status: configured(event.input) ? "draft" : "setupPending", version: automation.version + 1, updatedAt: event.at }) }, event, "automation.edit", automation.id) } : refuse(isWorker(event.actor) ? "notEditableByAi" : "personRequired");
+      // a live automation is paused while it is being changed, so it never runs half-edited; a person turns it back on.
+      // Without a usable Worker it goes back to "setupPending"; once one is assigned it leaves that state.
+      const ready = configured(event.input);
+      const status: AutomationStatus = !ready ? "setupPending" : automation.status === "active" ? "paused" : automation.status === "setupPending" ? "draft" : automation.status;
+      const edited: Automation = { ...automation, ...event.input, workerId: event.input.workerId, source: automation.source, status, version: automation.version + 1, updatedAt: event.at };
       return { state: note({ ...state, automations: replace(state.automations, edited) }, event, "automation.edit", `${automation.id} · v${edited.version}${automation.status === "active" ? " · pausada para editar" : ""}`) };
     }
 
@@ -314,7 +369,7 @@ export function reduceAutomations(state: AutomationState, event: AutomationEvent
       const { automation, failure } = find(event.automationId);
       if (!automation) return failure as AutomationResult;
       const created = nextId(state, "au");
-      const copy: Automation = { ...automation, id: created.id, name: `${automation.name} (copia)`.slice(0, 80), status: "draft", testMode: true, version: 1, createdBy: event.actor, createdAt: event.at, updatedAt: event.at, lastRunAt: undefined, runCount: 0 };
+      const copy: Automation = { ...automation, id: created.id, name: `${automation.name} (copia)`.slice(0, 80), status: configured(automation) ? "draft" : "setupPending", testMode: true, version: 1, createdBy: event.actor, createdAt: event.at, updatedAt: event.at, lastRunAt: undefined, runCount: 0 };
       return { state: note({ ...created.state, automations: append(created.state.automations, copy) }, event, "automation.duplicate", `${automation.id} → ${copy.id}`) };
     }
 
@@ -324,7 +379,8 @@ export function reduceAutomations(state: AutomationState, event: AutomationEvent
       const { automation, failure } = find(event.automationId);
       if (!automation) return failure as AutomationResult;
       if (automation.status === "active") return refuse("invalidTransition", { from: "activa", to: "activa" });
-      const issues = validateAutomation(automation);
+      if (automation.status === "setupPending" || !automation.workerId) return refuse("workerRequired");
+      const issues = validateAutomation(automation, env, event.tenantId);
       if (issues.length) return refuse("invalid", { detail: issues[0] });
       return { state: note({ ...state, automations: replace(state.automations, { ...automation, status: "active", updatedAt: event.at }) }, event, "automation.activate", `${automation.id}${automation.testMode ? " · en modo de prueba" : ""}`) };
     }
@@ -334,7 +390,7 @@ export function reduceAutomations(state: AutomationState, event: AutomationEvent
       if (denied) return denied;
       const { automation, failure } = find(event.automationId);
       if (!automation) return failure as AutomationResult;
-      if (automation.status !== "active") return refuse("invalidTransition", { from: automation.status === "draft" ? "en borrador" : "pausada", to: "pausada" });
+      if (automation.status !== "active") return refuse("invalidTransition", { from: automation.status === "draft" ? "en borrador" : automation.status === "paused" ? "pausada" : "pendiente de configuración", to: "pausada" });
       return { state: note({ ...state, automations: replace(state.automations, { ...automation, status: "paused", updatedAt: event.at }) }, event, "automation.pause", automation.id, "warn") };
     }
 
@@ -354,7 +410,8 @@ export function reduceAutomations(state: AutomationState, event: AutomationEvent
       const { automation, failure } = find(event.automationId);
       if (!automation) return failure as AutomationResult;
       if (!event.testMode) {
-        const issues = validateAutomation(automation);
+        if (automation.status === "setupPending" || !automation.workerId) return refuse("workerRequired");
+        const issues = validateAutomation(automation, env, event.tenantId);
         if (issues.length) return refuse("invalid", { detail: issues[0] });
       }
       return { state: note({ ...state, automations: replace(state.automations, { ...automation, testMode: event.testMode, updatedAt: event.at }) }, event, "automation.setTestMode", `${automation.id} · ${event.testMode ? "prueba" : "en vivo"}`, event.testMode ? "info" : "warn") };
@@ -373,9 +430,10 @@ export function reduceAutomations(state: AutomationState, event: AutomationEvent
       if (denied) return denied;
       const { automation, failure } = find(event.automationId);
       if (!automation) return failure as AutomationResult;
-      const issues = validateAutomation(automation);
+      if (automation.status === "setupPending" || !automation.workerId) return refuse("workerRequired");
+      const issues = validateAutomation(automation, env, event.tenantId);
       if (issues.length) return refuse("invalid", { detail: issues[0] });
-      return { state: execute(state, automation, event.payload, { at: event.at, actor: event.actor, mode: "test" }) }; // never creates anything, whatever its status
+      return { state: execute(state, automation, event.payload, { at: event.at, actor: event.actor, mode: "test" }, env) }; // never creates anything, whatever its status
     }
 
     case "automation.runManual": {
@@ -386,7 +444,7 @@ export function reduceAutomations(state: AutomationState, event: AutomationEvent
       if (!automation) return failure as AutomationResult;
       if (automation.trigger !== "manual") return refuse("notManual");
       if (automation.status !== "active") return refuse("notActive");
-      return { state: execute(state, automation, event.payload, { at: event.at, actor: event.actor, mode: automation.testMode ? "test" : "live" }) };
+      return { state: execute(state, automation, event.payload, { at: event.at, actor: event.actor, mode: automation.testMode ? "test" : "live" }, env) };
     }
 
     case "trigger.fire": {
@@ -404,18 +462,18 @@ export function reduceAutomations(state: AutomationState, event: AutomationEvent
       const dedup = event.eventId ? `${event.tenantId}|${event.eventId}` : null;
       if (dedup && state.seenEvents.includes(dedup)) return { state: note(state, event, "trigger.duplicate", event.eventId) }; // an event is processed once
       let next: AutomationState = dedup ? { ...state, seenEvents: append(state.seenEvents, dedup) } : state;
-      const candidates = next.automations.filter((item) => item.tenantId === event.tenantId && item.status === "active" && item.trigger === event.kind);
+      // KOE decides the order: a Critical Worker's automation runs before a Low one's; ties keep creation order
+      const rank = (item: Automation) => { const plan = item.workerId ? planExecution(env, item.tenantId, item.workerId, needOf(item)) : null; return plan && !failed(plan) ? PRIORITY_RANK[plan.priority] : -1; };
+      const candidates = next.automations.filter((item) => item.tenantId === event.tenantId && item.status === "active" && item.trigger === event.kind).map((item, index) => ({ item, index, rank: rank(item) })).sort((a, b) => b.rank - a.rank || a.index - b.index).map((entry) => entry.item);
       let ran = 0;
       for (const automation of candidates) {
         if (!matches(automation.conditions, event.payload)) continue;
         const recent = next.runs.filter((run) => run.automationId === automation.id && run.status !== "skipped" && Date.parse(event.at) - Date.parse(run.at) < 3_600_000).length;
         if (recent >= MAX_RUNS_PER_HOUR) {
-          const skipped = nextId(next, "ar");
-          const run: AutomationRun = { id: skipped.id, tenantId: automation.tenantId, automationId: automation.id, automationName: automation.name, trigger: automation.trigger, eventId: event.eventId, at: event.at, firedBy: event.actor, status: "skipped", reason: `límite de ${MAX_RUNS_PER_HOUR} ejecuciones por hora`, mode: automation.testMode ? "test" : "live", payload: event.payload, results: [] };
-          next = note({ ...skipped.state, runs: append(skipped.state.runs, run) }, event, "automation.skipped", `${automation.id} · límite por hora`, "warn");
+          next = skip(next, automation, event.payload, { at: event.at, actor: event.actor, eventId: event.eventId, mode: automation.testMode ? "test" : "live" }, `límite de ${MAX_RUNS_PER_HOUR} ejecuciones por hora`);
           continue;
         }
-        next = execute(next, automation, event.payload, { at: event.at, actor: event.actor, eventId: event.eventId, mode: automation.testMode ? "test" : "live" });
+        next = execute(next, automation, event.payload, { at: event.at, actor: event.actor, eventId: event.eventId, mode: automation.testMode ? "test" : "live" }, env);
         ran += 1;
       }
       return { state: note(next, event, "trigger.fire", `${event.kind} · ${candidates.length} activas · ${ran} ejecutadas`) };
@@ -433,11 +491,11 @@ export function reduceAutomations(state: AutomationState, event: AutomationEvent
   }
 }
 
-export function applyAllAutomations(state: AutomationState, events: readonly AutomationEvent[]): { state: AutomationState; errors: string[] } {
+export function applyAllAutomations(state: AutomationState, events: readonly AutomationEvent[], env: KoeEnv = DEFAULT_KOE_ENV): { state: AutomationState; errors: string[] } {
   const errors: string[] = [];
   let current = state;
   for (const event of events) {
-    const result = reduceAutomations(current, event);
+    const result = reduceAutomations(current, event, env);
     if (result.error) errors.push(`${event.type}: ${result.error}`);
     current = result.state;
   }
@@ -451,6 +509,7 @@ export const outputsOf = (state: AutomationState, tenantId: string) => state.out
 
 export type AutomationStats = {
   automations: Record<AutomationStatus, number>;
+  estimatedCostMicros: number; // the Workers estimated cost of the live runs: an estimate for comparing, not an invoice
   live: number; // active and not in test mode
   runs: Record<RunStatus, number>;
   openOutputs: Record<OutputKind, number>;
@@ -462,7 +521,8 @@ export function automationStats(state: AutomationState, tenantId: string): Autom
   const open = outputsOf(state, tenantId).filter((item) => item.status === "open");
   const count = <K extends string>(keys: readonly K[], has: (key: K) => number) => Object.fromEntries(keys.map((key) => [key, has(key)])) as Record<K, number>;
   return {
-    automations: count(["draft", "active", "paused"] as const, (status) => mine.filter((item) => item.status === status).length),
+    automations: count(["setupPending", "draft", "active", "paused"] as const, (status) => mine.filter((item) => item.status === status).length),
+    estimatedCostMicros: runs.filter((item) => item.mode === "live").reduce((sum, item) => sum + item.estimatedCostMicros, 0),
     live: mine.filter((item) => item.status === "active" && !item.testMode).length,
     runs: count(["completed", "testLogged", "skipped", "failed"] as const, (status) => runs.filter((item) => item.status === status).length),
     openOutputs: count(["task", "reminder", "notification", "emailDraft", "whatsappDraft", "pendingEvent"] as const, (kind) => open.filter((item) => item.kind === kind).length),

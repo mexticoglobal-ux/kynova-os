@@ -37,6 +37,9 @@ export const BASE_TOOLS: readonly ToolManifest[] = [
   tool("summary.prepare", "Preparar resumen", "Redacta un resumen para una persona.", { reads: ["leads", "customers"], required: ["tema"] }),
   tool("message.draft", "Redactar mensaje", "Prepara un mensaje sin enviarlo.", { reads: ["contacts"], dataAccess: "personal", required: ["contacto", "tema"] }),
   tool("task.create", "Crear tarea", "Crea una tarea interna con fecha.", { writes: ["tasks"], required: ["titulo"] }),
+  tool("reminder.create", "Crear recordatorio", "Crea un recordatorio interno con fecha.", { writes: ["reminders"], required: ["texto"] }),
+  tool("notification.internal", "Avisar al equipo", "Deja un aviso interno; no sale de la plataforma.", { writes: ["notifications"], required: ["texto"] }),
+  tool("event.prepare", "Preparar evento pendiente", "Deja un evento pendiente sin escribir en el calendario.", { writes: ["pendingEvents"], required: ["titulo"] }),
   tool("faq.answer", "Responder pregunta frecuente", "Responde con contenido aprobado.", { reads: ["faq"], required: ["pregunta"] }),
   tool("followup.send", "Enviar seguimiento", "Envía un mensaje de seguimiento al contacto.", { reads: ["contacts"], writes: ["messages"], externalEffect: true, dataAccess: "personal", required: ["contacto", "mensaje"] }),
   tool("message.sendFirst", "Enviar primer contacto", "Envía el primer mensaje a un prospecto.", { reads: ["contacts"], writes: ["messages"], externalEffect: true, dataAccess: "personal", required: ["contacto", "mensaje"] }),
@@ -163,7 +166,7 @@ export function routeModel(models: readonly ModelManifest[], task: TaskProfile, 
 }
 
 // ---------------------------------------------------------------- worker definitions
-export const SPECIALTIES = ["coordination", "sales", "followup", "analysis", "collections", "education", "support", "marketplace", "custom"] as const;
+export const SPECIALTIES = ["coordination", "sales", "followup", "analysis", "collections", "education", "support", "marketplace", "automation", "custom"] as const;
 export type Specialty = (typeof SPECIALTIES)[number];
 export type DefinitionStatus = "draft" | "pendingReview" | "active" | "retired";
 
@@ -265,6 +268,7 @@ const BASE_STARTERS: readonly WorkerDefinition[] = [
   worker("followup", "Seguimiento", "followup", "Que ningún prospecto se enfríe.", ["contact.read", "task.create", "message.draft", "followup.send"], "personal", ["fast"], ["reporter"], ["coordinator", "sales"]),
   worker("reporter", "Analista de reportes", "analysis", "Resume el negocio y señala lo que necesita atención.", ["summary.prepare", "lead.score"], "business", ["reasoning"], [], ["*"], { memory: { maxEntries: 30, maxChars: 8_000, allowPersonal: false, durable: true } }),
   worker("collections", "Cobranza", "collections", "Prepara recordatorios y enlaces de cobro.", ["contact.read", "message.draft", "payment.createLink"], "personal", ["fast"], [], ["coordinator"]),
+  worker("automator", "Automatizador", "automation", "Ejecuta las automatizaciones: prepara tareas, recordatorios, avisos, borradores y eventos pendientes; nunca envía.", ["task.create", "reminder.create", "notification.internal", "message.draft", "event.prepare"], "personal", ["fast"], [], []),
   worker("tutor", "Tutor de cursos", "education", "Responde dudas con el material del curso.", ["academy.tutorAnswer"], "business", ["fast"], [], []),
 ];
 
@@ -276,6 +280,7 @@ const TUNING: Record<string, { priority: Priority; perRunMicros: number }> = {
   reporter: { priority: "low", perRunMicros: 3_000 },
   collections: { priority: "normal", perRunMicros: 600 },
   tutor: { priority: "low", perRunMicros: 400 },
+  automator: { priority: "normal", perRunMicros: 500 },
 };
 export const STARTER_WORKERS: readonly WorkerDefinition[] = BASE_STARTERS.map((definition) => ({ ...definition, priority: TUNING[definition.id].priority, costEstimate: { perRunMicros: TUNING[definition.id].perRunMicros } }));
 

@@ -14,10 +14,10 @@ describe("Workers center: installed, available, status, models and configuration
   it("separates what is installed from what is available, and moves a Worker when it is installed", () => {
     render(<WorkersCenter />);
     expect(screen.getByRole("heading", { name: "Instalados en su empresa (0)" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Disponibles para instalar (6)" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Disponibles para instalar (7)" })).toBeTruthy();
     fireEvent.click(worker("Cobranza").getByRole("button", { name: "Activar en mi empresa" }));
     expect(screen.getByRole("heading", { name: "Instalados en su empresa (1)" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Disponibles para instalar (5)" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Disponibles para instalar (6)" })).toBeTruthy();
     expect(section("Instalados en su empresa").getByLabelText("Worker Cobranza")).toBeTruthy();
     expect(section("Disponibles para instalar").queryByLabelText("Worker Cobranza")).toBeNull();
   });

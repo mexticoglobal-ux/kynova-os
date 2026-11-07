@@ -40,7 +40,7 @@ const prospect = (over: Partial<AutomationInput> = {}) => blankInput({
 describe("the sample loads without a refusal and shows every case", () => {
   it("has live, test-mode, paused and draft automations, and runs in every outcome", () => {
     const state = demoAutomationsOk();
-    expect(automationStats(state, "tenant-nova")).toMatchObject({ automations: { draft: 1, active: 4, paused: 1 }, live: 3, runs: { completed: 3, testLogged: 2, skipped: 0, failed: 1 }, openOutputs: { task: 1, reminder: 1, notification: 3, emailDraft: 2, whatsappDraft: 1, pendingEvent: 0 } });
+    expect(automationStats(state, "tenant-nova")).toMatchObject({ automations: { setupPending: 1, draft: 0, active: 4, paused: 1 }, live: 3, runs: { completed: 3, testLogged: 2, skipped: 0, failed: 1 }, openOutputs: { task: 1, reminder: 1, notification: 3, emailDraft: 2, whatsappDraft: 1, pendingEvent: 0 } });
     expect(state.automations.find((item) => item.name === "Preparar la reunión")?.createdBy).toBe("worker:nex");
     expect(state.runs.find((run) => run.status === "failed")?.results.find((result) => result.error)?.error).toContain("falta «correo»");
     expect(state.runs.filter((run) => run.status === "failed")[0].results.filter((result) => result.outputId)).toHaveLength(2); // the other two actions were still prepared
@@ -420,7 +420,7 @@ describe("one company never sees or changes another's automations", () => {
     expect(runsOf(state, "tenant-vida")).toHaveLength(1);
     expect(outputsOf(state, "tenant-vida")).toHaveLength(1);
     expect(automationStats(state, "tenant-vida").openOutputs.notification).toBe(1);
-    expect(automationStats(state, "tenant-unknown").automations).toEqual({ draft: 0, active: 0, paused: 0 });
+    expect(automationStats(state, "tenant-unknown").automations).toEqual({ setupPending: 0, draft: 0, active: 0, paused: 0 });
   });
 
   it("runs an event only for the company it belongs to", () => {

@@ -58,7 +58,7 @@ const es = {
     toolExists: "Ya existe una herramienta con ese identificador.",
     toolNotFound: "La herramienta no existe.",
   },
-  specialty: { coordination: "Coordinación", sales: "Ventas", followup: "Seguimiento", analysis: "Análisis", collections: "Cobranza", education: "Educación", support: "Atención al cliente", marketplace: "Marketplace", custom: "A medida" },
+  specialty: { coordination: "Coordinación", sales: "Ventas", followup: "Seguimiento", analysis: "Análisis", collections: "Cobranza", education: "Educación", support: "Atención al cliente", marketplace: "Marketplace", automation: "Automatizaciones", custom: "A medida" },
   definitionStatus: { draft: "Borrador", pendingReview: "En revisión", active: "Activo", retired: "Retirado" },
   instanceStatus: { active: "Activo", paused: "En pausa", disabled: "Deshabilitado" },
   runStatus: { running: "En curso", waitingApproval: "Esperando aprobación", completed: "Completada", failed: "Fallida", cancelled: "Cancelada" },
