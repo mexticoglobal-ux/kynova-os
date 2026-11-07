@@ -30,6 +30,7 @@ export const customWorker = (over: Partial<WorkerInput> = {}): WorkerInput => ({
   routing: { needs: ["fast"], policy: {} },
   collaboration: { delegatesTo: [], acceptsFrom: [] },
   limits: { maxRunsPerDay: 50, maxStepsPerRun: 20, maxDelegationDepth: 0 },
+  priority: "normal", costEstimate: { perRunMicros: 1_000 },
   ...over,
 });
 

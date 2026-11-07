@@ -1,6 +1,6 @@
 import { pageMetadata } from "@/lib/seo/metadata";
 import { sectionInfo } from "../_components/catalog";
-import { AutomationsSection } from "../_components/Sections";
+import { AutomationsCenter } from "../_components/AutomationsCenter";
 import { SectionShell } from "../_components/SectionShell";
 
 const info = sectionInfo("automations");
@@ -10,7 +10,7 @@ export const metadata = pageMetadata({ title: info.title, description: info.summ
 export default function Page() {
   return (
     <SectionShell section="automations">
-      <AutomationsSection />
+      <AutomationsCenter />
     </SectionShell>
   );
 }

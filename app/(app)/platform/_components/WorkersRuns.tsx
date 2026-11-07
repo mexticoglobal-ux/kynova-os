@@ -6,10 +6,10 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { canDelegate, childrenOf, definitionOf, effectiveTools, explainRun, instanceFor, instancesOf, pendingApprovals, rootRunsOf, type Run } from "@/lib/contracts/platform/koe-engine";
 import { label } from "@/lib/contracts/platform/koe-messages";
-import { CLEARANCES, type Clearance } from "@/lib/contracts/platform/koe-registry";
+import { CLEARANCES, formatCostMicros, type Clearance } from "@/lib/contracts/platform/koe-registry";
 import { levelForAction } from "@/lib/contracts/platform/workers";
 import type { WorkersTabProps } from "./WorkersCenter";
-import { Empty, Field, LevelBadge, input } from "./WorkersTabs";
+import { Empty, Field, LevelBadge, PRIORITY_TONE, input } from "./WorkersTabs";
 
 const RUN_TONE: Record<Run["status"], BadgeTone> = { running: "primary", waitingApproval: "warning", completed: "success", failed: "danger", cancelled: "neutral" };
 
@@ -46,6 +46,7 @@ export function RunsTab({ state, send, persona }: WorkersTabProps) {
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium">{state.tools[approval.tool]?.manifest.label ?? approval.tool}</span>
                     <LevelBadge level={approval.level} />
+                    <Badge tone={PRIORITY_TONE[run?.priority ?? "normal"]}>Prioridad {label("priority", run?.priority ?? "normal")}</Badge>
                     {approval.financial && <Badge tone="danger">Mueve dinero: lo aprueba otra persona</Badge>}
                   </div>
                   <p className="text-xs text-ink-muted">{definitionOf(state, run?.workerId ?? "")?.name} · «{run?.goal}» · {Object.entries(approval.input).map(([key, value]) => `${key}: ${value}`).join(" · ")}</p>
@@ -66,7 +67,7 @@ export function RunsTab({ state, send, persona }: WorkersTabProps) {
             <Card as="li" key={root.id} className="space-y-3 p-5" aria-label={`Ejecución ${root.id}`}>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="font-medium">{definitionOf(state, root.workerId)?.name} · «{root.goal}»</p>
-                <Badge tone={RUN_TONE[root.status]}>{label("runStatus", root.status)}</Badge>
+                <div className="flex gap-1.5"><Badge tone={PRIORITY_TONE[root.priority]}>Prioridad {label("priority", root.priority)}</Badge><Badge>Est. {formatCostMicros(root.estimatedCostMicros)}</Badge><Badge tone={RUN_TONE[root.status]}>{label("runStatus", root.status)}</Badge></div>
               </div>
               <details open>
                 <summary className="cursor-pointer text-xs text-ink-muted">Trazabilidad ({tree(state, root).length} ejecuciones)</summary>

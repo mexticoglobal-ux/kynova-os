@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { label } from "@/lib/contracts/platform/koe-messages";
 import { autonomyOf, type WorkerInput } from "@/lib/contracts/platform/koe-engine";
-import { CLEARANCES, MODEL_CLASSES, SPECIALTIES, validateTool, validateWorker, type Clearance, type ModelClass, type Specialty, type ToolManifest, type WorkerDefinition } from "@/lib/contracts/platform/koe-registry";
+import { CLEARANCES, MODEL_CLASSES, PRIORITIES, SPECIALTIES, formatCostMicros, validateTool, validateWorker, type Clearance, type ModelClass, type Priority, type Specialty, type ToolManifest, type WorkerDefinition } from "@/lib/contracts/platform/koe-registry";
 import { levelForAction } from "@/lib/contracts/platform/workers";
 import type { WorkersTabProps } from "./WorkersCenter";
 import { Field, LevelBadge, input } from "./WorkersTabs";
@@ -33,6 +33,8 @@ export function BuilderTab({ state, send, persona, admin }: WorkersTabProps) {
   const [steps, setSteps] = useState("20");
   const [depth, setDepth] = useState("0");
   const [kynova, setKynova] = useState(false);
+  const [priority, setPriority] = useState<Priority>("normal");
+  const [cost, setCost] = useState("1000");
 
   const input_: WorkerInput = {
     id: id.trim(), name, specialty, summary, version: "1.0.0", tools, dataClearance: clearance,
@@ -40,6 +42,7 @@ export function BuilderTab({ state, send, persona, admin }: WorkersTabProps) {
     routing: { needs, policy: denied.trim() ? { deniedProviders: csv(denied) } : {} },
     collaboration: { delegatesTo: csv(delegatesTo), acceptsFrom: csv(acceptsFrom) },
     limits: { maxRunsPerDay: Number(runsPerDay), maxStepsPerRun: Number(steps), maxDelegationDepth: Number(depth) },
+    priority, costEstimate: { perRunMicros: Number(cost) },
     origin: kynova ? "kynova" : "tenant",
   };
   const preview: WorkerDefinition = { ...input_, ownerTenantId: persona.tenantId, origin: input_.origin ?? "tenant", status: "draft", createdBy: persona.actor };
@@ -98,6 +101,8 @@ export function BuilderTab({ state, send, persona, admin }: WorkersTabProps) {
           <Field name="Ejecuciones por día"><input aria-label="Ejecuciones por día" className={input} inputMode="numeric" value={runsPerDay} onChange={(event) => setRunsPerDay(event.target.value)} /></Field>
           <Field name="Pasos por ejecución"><input aria-label="Pasos por ejecución" className={input} inputMode="numeric" value={steps} onChange={(event) => setSteps(event.target.value)} /></Field>
           <Field name="Profundidad de delegación"><input aria-label="Profundidad de delegación" className={input} inputMode="numeric" value={depth} onChange={(event) => setDepth(event.target.value)} /></Field>
+          <Field name="Prioridad"><select aria-label="Prioridad del Worker" className={input} value={priority} onChange={(event) => setPriority(event.target.value as Priority)}>{PRIORITIES.map((item) => <option key={item} value={item}>{label("priority", item)}</option>)}</select></Field>
+          <Field name={`Costo estimado por ejecución (millonésimas de dólar) · ${formatCostMicros(Number(cost) || 0)}`}><input aria-label="Costo estimado por ejecución" className={input} inputMode="numeric" value={cost} onChange={(event) => setCost(event.target.value)} /></Field>
         </div>
 
         <div className="space-y-2 rounded-2xl border border-line p-4 text-sm" role="status" aria-label="Revisión del Worker">
