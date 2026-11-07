@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import { Inbox } from "lucide-react";
 import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { hiddenNote, latest } from "@/lib/contracts/platform/display";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { CURRENCY_CODES, formatMinor, isCrypto, parseMajor, type CurrencyCode } from "@/lib/contracts/platform/currency";
@@ -399,12 +400,16 @@ export function ActivityTab({ state }: ReferralTabProps) {
   ];
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      {feeds.map((feed) => (
-        <Card key={feed.title} className="space-y-2 p-5">
-          <h2 className="font-semibold">{feed.title}</h2>
-          {feed.rows.length === 0 ? <p className="text-xs text-ink-muted">{feed.empty}</p> : <ul className="max-h-96 space-y-1 overflow-auto text-xs text-ink-muted">{feed.rows.slice(-60).reverse().map((row, index) => <li key={`${row}-${index}`}>{row}</li>)}</ul>}
-        </Card>
-      ))}
+      {feeds.map((feed) => {
+        const { shown, hidden } = latest(feed.rows);
+        return (
+          <Card key={feed.title} className="space-y-2 p-5">
+            <h2 className="font-semibold">{feed.title} ({feed.rows.length})</h2>
+            {feed.rows.length === 0 ? <p className="text-xs text-ink-muted">{feed.empty}</p> : <ul className="max-h-96 space-y-1 overflow-auto text-xs text-ink-muted">{shown.map((row, index) => <li key={`${row}-${index}`}>{row}</li>)}</ul>}
+            {hiddenNote(hidden) && <p className="text-xs text-ink-muted">{hiddenNote(hidden)}</p>}
+          </Card>
+        );
+      })}
     </div>
   );
 }

@@ -316,6 +316,17 @@ describe("payouts are Level 3: requested by one person, approved by another, rec
   });
 });
 
+describe("nothing is trimmed", () => {
+  it("keeps every audit entry and log line, however many there are", () => {
+    let state = demo();
+    const before = state.audit.length;
+    for (let index = 0; index < 600; index += 1) state = reduceReferrals(state, { tenantId: T, at: day(26), type: "tick" }).state;
+    expect(state.audit).toHaveLength(before + 600);
+    expect(state.logs.length).toBeGreaterThanOrEqual(before + 600);
+    expect(state.audit[0].action).toBe("program.save"); // the first thing that ever happened is still there
+  });
+});
+
 describe("multi-tenant, audit and language", () => {
   it("never lets an event from one company touch another's state", () => {
     const nova = demo(DEMO_TENANTS[0].id);

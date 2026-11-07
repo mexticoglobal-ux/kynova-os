@@ -174,13 +174,12 @@ export function makeCode(tenantId: string, name: string, salt: number): string {
 }
 export const linkFor = (linkBase: string, code: string): string => `${linkBase.replace(/\/$/, "")}/r/${code}`;
 
-// Only logs and the audit trail are bounded. Records (affiliates, referrals, commissions, payouts) are never dropped.
-const cap = <T,>(items: readonly T[], item: T): readonly T[] => [...items, item].slice(-400);
+// Nothing is ever trimmed: records, logs and the audit trail all stay. Limits belong to the view (display.ts).
 const append = <T,>(items: readonly T[], item: T): readonly T[] => [...items, item];
 const note = (state: ReferralState, at: string, actor: string, action: string, detail?: string, level: ReferralLog["level"] = "info"): ReferralState => ({
   ...state,
-  audit: cap(state.audit, { at, actor, action, detail }),
-  logs: cap(state.logs, { at, level, event: detail ? `${action}: ${detail}` : action }),
+  audit: append(state.audit, { at, actor, action, detail }),
+  logs: append(state.logs, { at, level, event: detail ? `${action}: ${detail}` : action }),
 });
 const nextId = (state: ReferralState, prefix: string): { id: string; state: ReferralState } => {
   const sequence = state.sequence + 1;
