@@ -40,6 +40,12 @@ export const ACTION_LEVELS = {
   "studio.assign": 2,
   "studio.publish": 3,
   "studio.share": 3,
+  "insights.draft": 1,
+  "insights.export": 1,
+  "insights.correct": 3,
+  "insights.approve": 3,
+  "insights.share": 3,
+  "insights.schedule": 3,
 } as const;
 export type WorkerAction = keyof typeof ACTION_LEVELS;
 
