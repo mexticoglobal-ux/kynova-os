@@ -21,7 +21,8 @@
 | `marketplace.ts` | Publicaciones, permisos, precio, instalación | Revisión objetiva, ciclo de vida, reparto de ingresos sin perder centavos |
 | `academy.ts` | Cursos, lecciones, progreso | Progreso y condición de certificado |
 | `workers.ts` | Plantillas de trabajador, niveles, autorizaciones | `levelForAction` (desconocido = 3), `decide`, límites diarios |
-| `automations.ts` | Disparador, condiciones, acciones | Validación, acciones externas por aprobación, aviso de bucle, modo de prueba por defecto |
+| `automation-center.ts` (+ `-messages`, `-demo`) | Centro de Automatizaciones v1: seis disparadores, seis acciones de nivel 1, estados, ejecuciones y resultados (§12) |
+| `automations.ts` | Plantillas y validación anteriores (se conservan): disparador, condiciones, acciones | Validación, acciones externas por aprobación, aviso de bucle, modo de prueba por defecto |
 
 ## 3. Modelos de datos (futuros; ninguno existe aún)
 
@@ -225,3 +226,30 @@ Complementa el punto anterior sin cambiar lo aprobado. En `/platform/workers`, p
 - **Qué herramientas puede usar,** con su nivel de autonomía de la Constitución, y si actúan fuera de la plataforma o mueven dinero (ya existía; se conserva).
 - **Configuración por empresa** (`instance.configure`): puede **bajar** el máximo de ejecuciones por día (nunca superar el de la definición) y **excluir proveedores de modelos** para ese Worker; las exclusiones de la empresa se suman a la política del Worker, nunca la ensanchan. Solo la decide una persona de esa empresa; NEX no puede cambiar el estado ni la configuración.
 
+### 11.2 Prioridad y costo estimado de un Worker
+
+Dos datos nuevos en cada definición, pensados para las métricas futuras de KOE. No cambian lo aprobado ni limitan nada.
+
+- **Prioridad:** Baja, Normal, Alta o Crítica. Ordena las aprobaciones pendientes (más prioritarias primero, y a igual prioridad la más antigua). Una ejecución delegada hereda la mayor entre la del Worker que delega y la del Worker delegado: delegar nunca baja la prioridad. La empresa puede **cambiar** la prioridad de su instancia; no cambia la de la definición.
+- **Costo estimado por ejecución** (`costEstimate.perRunMicros`, en millonésimas de dólar; tope de validación US$5 por ejecución). Cada ejecución guarda una **copia** del costo y de la prioridad al iniciar, así que cambiar la definición después no reescribe el historial. `koeMetrics` suma el costo estimado por empresa. **No es una factura ni un presupuesto:** es una estimación para comparar Workers; el costo real llegará con los adaptadores de modelos.
+
+## 12. Centro de Automatizaciones v1
+
+`/platform/automations`. Todo es simulación local: contratos más un único reducer (`reduceAutomations`), sin APIs, sin migraciones y sin dependencias nuevas.
+
+**Qué ofrece.** Crear, editar, duplicar, pausar y eliminar automatizaciones, con tres estados: **Borrador**, **Activa** y **Pausada**. Seis disparadores (nuevo prospecto, nuevo cliente, pago recibido, reunión creada, formulario enviado, manual) y seis acciones: crear tarea, crear recordatorio, notificación interna, **preparar** correo, **preparar** WhatsApp y crear evento pendiente. Condiciones opcionales (igual, distinto, mayor, menor, contiene; todas deben cumplirse) sobre los campos del propio disparador. Plantillas con `{{campo}}` rellenadas con los datos del evento.
+
+**Constitución de NEX.**
+- Las seis acciones son **nivel 1** en el catálogo único de autonomía (`ACTION_LEVELS`): preparan algo dentro de la plataforma y **nada se envía, se escribe fuera ni mueve dinero**. Un borrador de correo o de WhatsApp sigue siendo borrador; «Hecho» significa que una persona lo atendió fuera de la plataforma. Cualquier acción que no esté en el catálogo es nivel 3.
+- Toda automatización **nace en modo de prueba**: activarla no crea nada; solo registra lo que habría hecho. Pasar a «en vivo» es una decisión explícita de una persona.
+- **NEX solo puede dejar borradores:** crear y duplicar (siempre como borrador en modo de prueba) y editar sus propios borradores. Activar, pausar, eliminar, pasar a en vivo, probar, ejecutar, detener o resolver resultados exige una persona.
+- Correo y teléfono del evento solo pueden ir en borradores de correo o de WhatsApp; nunca en tareas, recordatorios, avisos o eventos. Los marcadores deben existir en el disparador. Los valores del evento se tratan como datos: no se vuelven a expandir y se les quitan los caracteres de control.
+- Editar una automatización activa la **pausa** y sube su versión; eliminar exige pausarla antes. Lo que ya hizo (ejecuciones y resultados) se conserva.
+
+**Seguridad operativa.** Un evento con el mismo identificador se procesa una sola vez por empresa; como máximo 60 ejecuciones por automatización por hora (el exceso queda registrado como «omitida»); lo que una automatización crea nunca dispara otra (sin bucles); un interruptor detiene todas las automatizaciones de la empresa. Una empresa no ve ni cambia las de otra. **Nada se recorta:** ejecuciones, resultados, auditoría y registros se conservan completos; el límite de 40 solo afecta a lo que se muestra.
+
+**Pestañas:** Automatizaciones (lista y acciones), Crear y editar (con validación en vivo), Simular eventos (datos de ejemplo e identificador), Resultados (lo preparado y las ejecuciones) y Actividad.
+
+**Textos y multilenguaje.** Todos los textos salen de `automation-messages.ts` por código; solo existe el español, y otro idioma es un diccionario nuevo.
+
+**Pendiente al conectar:** tablas con RLS por empresa; que la plataforma emita los eventos reales (hoy se simulan); un destino real para tareas, recordatorios y notificaciones; envío de los borradores solo mediante aprobación y el nivel que decida la Constitución; condiciones más ricas y esperas entre acciones; y plantillas oficiales de automatización en el Marketplace.
