@@ -25,6 +25,7 @@
 | `studio-center.ts` (+ `-messages`, `-demo`) | AI Studio v1: prompts y agentes IA versionados, Playground por KOE, plantillas y acuerdos de compartir (§13) |
 | `koe-ledger.ts`, `koe-insights.ts`, `insights-center.ts` (+ `-messages`, `-demo`) | Insights: el registro de KOE, el único motor de cifras y lo que una empresa puede hacer con ellas: correcciones y reportes (§14) |
 | `koe-crm.ts`, `crm-center.ts`, `crm-audit.ts` (+ `-messages`, `-demo`) | CRM inteligente: el único motor de inteligencia comercial de KOE y los registros que lo hacen duradero (§15) |
+| `koe-comms.ts`, `comms-center.ts` (+ `-messages`, `-demo`) | Centro de Comunicaciones: el único motor de entendimiento y enrutamiento de conversaciones de KOE y los registros que lo hacen duradero (§16) |
 | `automations.ts` | Plantillas y validación anteriores (se conservan): disparador, condiciones, acciones | Validación, acciones externas por aprobación, aviso de bucle, modo de prueba por defecto |
 
 ## 3. Modelos de datos (futuros; ninguno existe aún)
@@ -339,3 +340,33 @@ Dos datos nuevos en cada definición, pensados para las métricas futuras de KOE
 **Preparado para el futuro, no implementado** (`FUTURE_CRM`): predicción de ventas, forecast comercial, detección de abandono, Cross Selling, Up Selling, renovaciones y Churn Prediction. Cada uno será un Worker de KOE sobre los mismos registros. El mensaje «puede comprar otro servicio» es solo una regla sencilla (un cliente con pagos al día y a lo más un servicio), no un modelo de venta cruzada.
 
 **Pendiente al conectar:** tablas con RLS por empresa; que los contactos, las automatizaciones, los Workers y los pagos lleguen por el flujo real de eventos de KOE; el Business Audit real; los umbrales y los tiempos típicos por etapa configurables por empresa (hoy son supuestos declarados); y las capacidades futuras.
+
+## 16. Communications Hub v1
+
+`/platform/comms`. Una sola bandeja para todos los canales de una empresa. Todo es simulación local: **no se envía ningún mensaje**, no se conecta ningún proveedor, no hay APIs, ni modelos reales, ni migraciones, ni dependencias nuevas. Toda comunicación pasa por KOE y ninguna pantalla ni Worker habla directo con un proveedor.
+
+**Toda la inteligencia viene de KOE, y hay un solo motor** (`koe-comms.ts`): urgencia, sentimiento (simulado), intención, categoría, probabilidad de venta y de soporte, tiempo de espera, próxima mejor acción y su motivo; el **enrutamiento** (qué Worker la atiende, qué especialidad necesita, qué prioridad tiene y qué modelo elige el enrutador de KOE); el borrador de la respuesta; la bandeja, la línea de tiempo omnicanal y el contexto del cliente. Las pantallas solo dan formato (una prueba verifica que el vocabulario y las reglas viven en un solo archivo y que las pantallas ni calculan ni enrutan). Las reglas son declaradas y explicables: léxico cerrado en español para la intención y el sentimiento, puntos de urgencia por tiempo de espera, palabras urgentes, sentimiento, intención y canal (un chat web espera rapidez), y una probabilidad de venta que sube si el CRM tiene un negocio abierto.
+
+**Qué ofrece (6 pestañas):**
+- **Bandeja:** Email, WhatsApp, Facebook Messenger, Instagram Direct, Chat Web y Formularios Web en una sola lista, agrupada por conversación (SMS está declarado como arquitectura futura y se rechaza). Filtros por canal, estado, responsable (o sin responsable), etiqueta y texto sin distinguir acentos; lo que espera respuesta va primero, lo más urgente primero.
+- **Conversación (Conversation Center):** cliente, empresa, canal, estado, responsable, prioridad, tiempo de espera, última actividad, etiquetas e historial completo; notas internas; contexto del cliente.
+- **Línea de tiempo omnicanal:** una sola línea con los correos, WhatsApp, Messenger, Instagram, chat, notas, Workers, automatizaciones, Business Audit y CRM, de todas las conversaciones del mismo cliente, en orden.
+- **Borradores (Draft Center):** NEX prepara correo, WhatsApp, Messenger, Instagram, respuesta de chat y respuesta de formulario, cada uno con la forma de su canal. **Nunca se envían.**
+- **Asignaciones:** asignar, cambiar de responsable, marcar pendiente, resolver, archivar y reabrir, siempre con historial.
+- **Inteligencia:** la lectura de KOE de la conversación y su decisión de enrutamiento (Worker, especialidad, prioridad, modelo y motivo, costo estimado), con el historial de decisiones.
+
+**Enrutamiento inteligente.** Cada mensaje nuevo se enruta por KOE: la categoría fija la especialidad (ventas, seguimiento, cobros); el Worker elegido debe poder redactar mensajes con datos personales; la prioridad sale de la urgencia; el modelo lo elige el enrutador de KOE. La decisión se **guarda con su motivo y se añade, nunca se reescribe**. Si KOE no tiene Worker o modelo en ese momento, **el mensaje no se pierde** (queda anotado «enrutamiento pendiente») y clasificar se rechaza.
+
+**Constitución de NEX**
+- **Nivel 1, prepara:** clasificar, etiquetar, enrutar por KOE, preparar borradores y mejorar sus propios borradores (cada cambio es una revisión nueva).
+- **Nivel 2, con autorización vigente:** reasignar una conversación, solo a una persona y dentro de una autorización con límite por día y vencimiento que una persona concedió.
+- **Nivel 3, siempre una persona:** **no existe ningún evento que envíe un mensaje ni que elimine algo** (una prueba lo verifica). Resolver, archivar, marcar un borrador como listo (listo = una persona puede enviarlo ella misma, fuera de la plataforma), descartarlo, vincular con el CRM, escribir notas y registrar una respuesta enviada son siempre de una persona. Una conversación **nunca se cierra sola**: si el cliente escribe de nuevo, se reabre y queda anotado. Los mensajes de los clientes **solo llegan por la plataforma**, no los escribe una persona ni NEX.
+- **Notas internas:** solo una persona las agrega, quedan auditadas, son internas y **nunca** las ve el cliente ni las lee un borrador (una prueba lo verifica).
+
+**Contexto del cliente sin duplicar.** Desde una conversación se abren el pipeline, el Business Audit y el Customer 360 (pagos, productos, Academia, Marketplace, referidos, Workers y automatizaciones) consultando al módulo de CRM de KOE en el momento; **no se copia nada**: la conversación solo guarda una referencia al prospecto o cliente (una prueba comprueba que el contexto es idéntico a lo que dice el CRM y que no hay datos de pagos ni de productos en las conversaciones). Un pago es solo un total.
+
+**Multiempresa.** Todo lleva `tenant_id`: la bandeja, las estadísticas, el enrutamiento y cada evento se limitan a una empresa; una prueba comprueba que las conversaciones de otra empresa no cambian ni una cifra y que cada cambio sobre algo ajeno se rechaza.
+
+**Preparado para el futuro, no implementado** (`FUTURE_CONNECTORS`): WhatsApp Business API, Meta Messenger, Instagram Graph, Gmail, Microsoft 365, Twilio, telefonía y video llamadas. Cada uno será un conector que pasa por KOE, nunca directo a un proveedor; hoy ninguno existe y SMS no recibe conversaciones.
+
+**Pendiente al conectar:** tablas con RLS por empresa; los conectores reales detrás de KOE (con consentimiento, ventanas de mensajería, plantillas aprobadas y retención); la lectura real de buzones; el análisis de sentimiento real con evals (hoy es una estimación simulada); los tiempos de respuesta objetivo por canal y por empresa; y el envío de los borradores, que será una acción de Nivel 3 con aprobación de una persona.
