@@ -7,9 +7,9 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { hiddenNote, latest } from "@/lib/contracts/platform/display";
-import { autonomyOf, definitionOf, delegationGraph, instanceFor, instanceUsage, memoryOf } from "@/lib/contracts/platform/koe-engine";
+import { autonomyOf, definitionOf, delegationGraph, effectivePriority, instanceFor, instanceUsage, koeMetrics, memoryOf } from "@/lib/contracts/platform/koe-engine";
 import { label } from "@/lib/contracts/platform/koe-messages";
-import { CLEARANCES, MODEL_CLASSES, modelAvailability, routeModel, validateModel, type Clearance, type ModelClass, type ModelManifest, type WorkerDefinition } from "@/lib/contracts/platform/koe-registry";
+import { CLEARANCES, MODEL_CLASSES, PRIORITIES, formatCostMicros, modelAvailability, routeModel, validateModel, type Clearance, type ModelClass, type ModelManifest, type Priority, type WorkerDefinition } from "@/lib/contracts/platform/koe-registry";
 import { levelForAction, type AutonomyLevel } from "@/lib/contracts/platform/workers";
 import type { WorkersTabProps } from "./WorkersCenter";
 
@@ -48,6 +48,7 @@ export function ToolChips({ state, tools }: { state: WorkersTabProps["state"]; t
 
 // ---------------------------------------------------------------- Workers: installed, available, status, models, configuration
 const INSTANCE_TONE = { active: "success", paused: "warning", disabled: "danger" } as const;
+export const PRIORITY_TONE = { low: "neutral", normal: "primary", high: "warning", critical: "danger" } as const;
 
 export function WorkersTab({ state, send, persona, admin }: WorkersTabProps) {
   const [reason, setReason] = useState("");
@@ -57,6 +58,7 @@ export function WorkersTab({ state, send, persona, admin }: WorkersTabProps) {
   const available = visible.filter((definition) => !hasInstance(definition) && definition.status === "active");
   const preparing = visible.filter((definition) => !hasInstance(definition) && definition.status !== "active");
   const edges = delegationGraph(state, persona.tenantId);
+  const metrics = koeMetrics(state, persona.tenantId);
 
   const section = (title: string, items: WorkerDefinition[], empty: string) => (
     <section className="space-y-3" aria-label={title}>
@@ -75,6 +77,11 @@ export function WorkersTab({ state, send, persona, admin }: WorkersTabProps) {
         <h2 className="font-semibold">Motivo</h2>
         <input aria-label="Motivo" className={input} placeholder="Obligatorio para rechazar un Worker" value={reason} onChange={(event) => setReason(event.target.value)} />
         <p className="text-xs text-ink-muted">Un Worker nuevo es solo datos: especialidad, herramientas, memoria, modelos y colaboración. Lo envía una persona y lo aprueba otra distinta.</p>
+      </Card>
+      <Card className="space-y-1 p-5" aria-label="Métricas de KOE">
+        <h2 className="font-semibold">Costo estimado de sus ejecuciones</h2>
+        <p className="text-xl font-semibold">{formatCostMicros(metrics.estimatedCostMicros)}</p>
+        <p className="text-xs text-ink-muted">{metrics.runs} ejecuciones · {metrics.steps} pasos · {metrics.tokens.toLocaleString("es-CR")} tokens simulados. Es una estimación para futuras métricas de KOE: no es una factura ni limita nada.</p>
       </Card>
       {section("Instalados en su empresa", installed, "Todavía no instaló ningún Worker: elija uno de los disponibles.")}
       {section("Disponibles para instalar", available, "No hay más Workers disponibles para su empresa.")}
@@ -96,6 +103,7 @@ function WorkerCard({ definition, state, send, persona, admin, reason }: { defin
   const [limits, setLimits] = useState<Record<string, string>>({});
   const [runs, setRuns] = useState(String(instance?.maxRunsPerDay ?? definition.limits.maxRunsPerDay));
   const [excluded, setExcluded] = useState((instance?.deniedProviders ?? []).join(", "));
+  const [priority, setPriority] = useState<Priority>(effectivePriority(definition, instance));
   const names = (ids: readonly string[]) => (ids.length === 0 ? "nadie" : ids.map((id) => (id === "*" ? "cualquiera" : definitionOf(state, id)?.name ?? id)).join(", "));
   const summary = autonomyOf(definition, state.tools);
   const usage = instance ? instanceUsage(state, instance, new Date().toISOString()) : null;
@@ -114,6 +122,7 @@ function WorkerCard({ definition, state, send, persona, admin, reason }: { defin
           <Badge>{label("origin", definition.origin)}</Badge>
           <Badge tone={STATUS_TONE[definition.status]}>{label("definitionStatus", definition.status)}</Badge>
           {instance && <Badge tone={INSTANCE_TONE[instance.status]}>{label("instanceStatus", instance.status)}</Badge>}
+          <Badge tone={PRIORITY_TONE[effectivePriority(definition, instance)]}>Prioridad {label("priority", effectivePriority(definition, instance))}</Badge>
         </div>
       </div>
       <p className="text-sm text-ink-muted">{definition.summary}</p>
@@ -125,6 +134,7 @@ function WorkerCard({ definition, state, send, persona, admin, reason }: { defin
         <li>Modelos que necesita: {definition.routing.needs.map((need) => label("modelClass", need)).join(", ")}</li>
         <li>Delega en: {names(definition.collaboration.delegatesTo)} · Recibe de: {names(definition.collaboration.acceptsFrom)}</li>
         <li>Límites: {definition.limits.maxRunsPerDay} ejecuciones al día · {definition.limits.maxStepsPerRun} pasos · delegación hasta {definition.limits.maxDelegationDepth}</li>
+        <li>Costo estimado por ejecución: {formatCostMicros(definition.costEstimate.perRunMicros)} (estimado)</li>
       </ul>
 
       <div className="space-y-1 rounded-2xl border border-line p-3 text-xs" aria-label={`Modelos de ${definition.name}`}>
@@ -156,12 +166,13 @@ function WorkerCard({ definition, state, send, persona, admin, reason }: { defin
           <p className="text-xs text-ink-muted">{instance.status === "active" ? "Activo en su empresa" : "Instalado en su empresa"} · {usage.runsToday} de {Math.min(instance.maxRunsPerDay, definition.limits.maxRunsPerDay)} ejecuciones hoy · {label("instanceStatus", instance.status)}</p>
           <div className="space-y-2">
             <h3 className="text-xs font-semibold">Configuración de su empresa</h3>
-            <div className="grid gap-2 sm:grid-cols-3">
+            <div className="grid gap-2 sm:grid-cols-4">
+              <select aria-label={`Prioridad de ${definition.id}`} className={input} value={priority} onChange={(event) => setPriority(event.target.value as Priority)}>{PRIORITIES.map((item) => <option key={item} value={item}>{label("priority", item)}</option>)}</select>
               <input aria-label={`Máximo de ejecuciones de ${definition.id}`} className={input} inputMode="numeric" value={runs} onChange={(event) => setRuns(event.target.value)} />
               <input aria-label={`Proveedores excluidos de ${definition.id}`} className={input} placeholder="proveedores excluidos (comas)" value={excluded} onChange={(event) => setExcluded(event.target.value)} />
-              <Button size="sm" variant="secondary" onClick={() => send({ type: "instance.configure", instanceId: instance.id, maxRunsPerDay: Number(runs), deniedProviders: excluded.split(",").map((value) => value.trim()).filter(Boolean) })}>Guardar configuración</Button>
+              <Button size="sm" variant="secondary" onClick={() => send({ type: "instance.configure", instanceId: instance.id, maxRunsPerDay: Number(runs), deniedProviders: excluded.split(",").map((value) => value.trim()).filter(Boolean), priority })}>Guardar configuración</Button>
             </div>
-            <p className="text-xs text-ink-muted">Su empresa puede bajar el límite diario y excluir proveedores de modelos; nunca ampliar lo que la definición del Worker permite.</p>
+            <p className="text-xs text-ink-muted">Su empresa puede bajar el límite diario, excluir proveedores de modelos y cambiar la prioridad (ordena lo que espera; no cambia lo que el Worker puede hacer); nunca ampliar lo que la definición permite.</p>
           </div>
           {level2.map((action) => (
             <div key={action} className="grid gap-2 sm:grid-cols-3">

@@ -167,6 +167,16 @@ export const SPECIALTIES = ["coordination", "sales", "followup", "analysis", "co
 export type Specialty = (typeof SPECIALTIES)[number];
 export type DefinitionStatus = "draft" | "pendingReview" | "active" | "retired";
 
+// Priority orders the work that is waiting (approvals, runs). It never changes what a Worker may do: autonomy comes from the catalog.
+export const PRIORITIES = ["low", "normal", "high", "critical"] as const;
+export type Priority = (typeof PRIORITIES)[number];
+export const PRIORITY_RANK: Record<Priority, number> = { low: 0, normal: 1, high: 2, critical: 3 };
+export const higherPriority = (a: Priority, b: Priority): Priority => (PRIORITY_RANK[a] >= PRIORITY_RANK[b] ? a : b);
+
+// Estimated cost of one run, in millionths of a dollar. An estimate for future KOE metrics, never a bill and never a budget.
+export const MAX_RUN_COST_MICROS = 5_000_000;
+export const formatCostMicros = (micros: number): string => `US$ ${(micros / 1_000_000).toFixed(4)}`;
+
 export type WorkerDefinition = {
   id: string;
   ownerTenantId: string; // "platform" for KYNOVA's own Workers
@@ -181,6 +191,8 @@ export type WorkerDefinition = {
   routing: { needs: readonly ModelClass[]; policy: RoutingPolicy };
   collaboration: { delegatesTo: readonly string[]; acceptsFrom: readonly string[] }; // Worker ids; "*" accepts from any
   limits: { maxRunsPerDay: number; maxStepsPerRun: number; maxDelegationDepth: number };
+  priority: Priority;
+  costEstimate: { perRunMicros: number };
   status: DefinitionStatus;
   createdBy: string;
   submittedBy?: string;
@@ -213,6 +225,8 @@ export function validateWorker(definition: WorkerDefinition, tools: Record<strin
   if (collaboration.delegatesTo.includes(definition.id) || collaboration.acceptsFrom.includes(definition.id)) issues.push("un Worker no colabora consigo mismo");
   if (collaboration.delegatesTo.length > 0 && limits.maxDelegationDepth === 0) issues.push("delega pero su profundidad de delegación es 0");
   if (routing.needs.length === 0 || routing.needs.some((need) => !MODEL_CLASSES.includes(need))) issues.push("capacidades de modelo que necesita");
+  if (!PRIORITIES.includes(definition.priority)) issues.push("prioridad (baja, normal, alta o crítica)");
+  if (!Number.isSafeInteger(definition.costEstimate.perRunMicros) || definition.costEstimate.perRunMicros < 0 || definition.costEstimate.perRunMicros > MAX_RUN_COST_MICROS) issues.push(`costo estimado por ejecución (0 a ${MAX_RUN_COST_MICROS} millonésimas de dólar)`);
   return issues;
 }
 
@@ -240,11 +254,12 @@ const worker = (id: string, name: string, specialty: Specialty, summary: string,
   routing: { needs, policy: {} },
   collaboration: { delegatesTo, acceptsFrom },
   limits: { maxRunsPerDay: 100, maxStepsPerRun: 25, maxDelegationDepth: delegatesTo.length ? 2 : 0 },
+  priority: "normal", costEstimate: { perRunMicros: 1_000 },
   status: "active", createdBy: "kynova", ...over,
 });
 
 /** KYNOVA's own Workers. They ship as data; a company enables them, and builds its own the same way. */
-export const STARTER_WORKERS: readonly WorkerDefinition[] = [
+const BASE_STARTERS: readonly WorkerDefinition[] = [
   worker("coordinator", "Coordinador", "coordination", "Recibe un objetivo, lo divide y delega en los especialistas.", ["summary.prepare", "task.create"], "business", ["reasoning"], ["sales", "followup", "reporter", "collections"], [], { memory: { maxEntries: 40, maxChars: 6_000, allowPersonal: false, durable: true }, limits: { maxRunsPerDay: 100, maxStepsPerRun: 30, maxDelegationDepth: 3 } }),
   worker("sales", "Asistente comercial", "sales", "Atiende prospectos, los califica y prepara el traspaso.", ["contact.read", "lead.score", "summary.prepare", "message.draft", "faq.answer", "message.sendFirst"], "personal", ["fast"], ["followup"], ["coordinator"]),
   worker("followup", "Seguimiento", "followup", "Que ningún prospecto se enfríe.", ["contact.read", "task.create", "message.draft", "followup.send"], "personal", ["fast"], ["reporter"], ["coordinator", "sales"]),
@@ -252,6 +267,17 @@ export const STARTER_WORKERS: readonly WorkerDefinition[] = [
   worker("collections", "Cobranza", "collections", "Prepara recordatorios y enlaces de cobro.", ["contact.read", "message.draft", "payment.createLink"], "personal", ["fast"], [], ["coordinator"]),
   worker("tutor", "Tutor de cursos", "education", "Responde dudas con el material del curso.", ["academy.tutorAnswer"], "business", ["fast"], [], []),
 ];
+
+// Default priority and estimated cost of each of KYNOVA's Workers (a company can override the priority).
+const TUNING: Record<string, { priority: Priority; perRunMicros: number }> = {
+  coordinator: { priority: "high", perRunMicros: 4_000 },
+  sales: { priority: "high", perRunMicros: 900 },
+  followup: { priority: "normal", perRunMicros: 600 },
+  reporter: { priority: "low", perRunMicros: 3_000 },
+  collections: { priority: "normal", perRunMicros: 600 },
+  tutor: { priority: "low", perRunMicros: 400 },
+};
+export const STARTER_WORKERS: readonly WorkerDefinition[] = BASE_STARTERS.map((definition) => ({ ...definition, priority: TUNING[definition.id].priority, costEstimate: { perRunMicros: TUNING[definition.id].perRunMicros } }));
 
 // ---------------------------------------------------------------- working memory
 export const MEMORY_DURABLE_DAYS = 30;

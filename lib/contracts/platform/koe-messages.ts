@@ -68,6 +68,7 @@ const es = {
   clearance: { public: "Público", business: "Del negocio", personal: "Datos personales" },
   modelClass: { reasoning: "Razonamiento", fast: "Rápido", vision: "Visión", code: "Código", longContext: "Contexto largo", embedding: "Embeddings", multilingual: "Multilingüe" },
   health: { healthy: "Sano", degraded: "Degradado", down: "Caído" },
+  priority: { low: "Baja", normal: "Normal", high: "Alta", critical: "Crítica" },
   dataPolicy: { noTraining: "No entrena con sus datos", mayTrain: "Puede entrenar con sus datos", unknown: "Política desconocida" },
   origin: { kynova: "KYNOVA", tenant: "De la empresa" },
   memoryScope: { run: "De la ejecución", durable: "Conservada" },

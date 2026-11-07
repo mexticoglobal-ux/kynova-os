@@ -16,15 +16,15 @@ import { isPerson, isWorker } from "./actors";
 import { addDays } from "./billing";
 import { label, message, type ErrorCode } from "./koe-messages";
 import {
-  BASE_MODELS, BASE_TOOLS, CLEARANCE_RANK, MEMORY_DURABLE_DAYS, PLATFORM_OWNER, STARTER_WORKERS, autonomyOf, covers, looksSecret, routeModel, validateModel, validateTool, validateWorker,
-  type Clearance, type ModelManifest, type TaskProfile, type ToolEntry, type ToolManifest, type WorkerDefinition,
+  BASE_MODELS, BASE_TOOLS, CLEARANCE_RANK, MEMORY_DURABLE_DAYS, PLATFORM_OWNER, PRIORITY_RANK, STARTER_WORKERS, autonomyOf, covers, higherPriority, looksSecret, routeModel, validateModel, validateTool, validateWorker,
+  type Clearance, type ModelManifest, type Priority, type TaskProfile, type ToolEntry, type ToolManifest, type WorkerDefinition,
 } from "./koe-registry";
 import { decide as decideAutonomy, levelForAction, type AutonomyLevel } from "./workers";
 
 // ---------------------------------------------------------------- state
 // "paused" is temporary; "disabled" is switched off (nothing runs, live runs are cancelled) until a person enables it again.
 // The company can also lower the run limit and exclude model providers for this Worker, never beyond what its definition allows.
-export type WorkerInstance = { id: string; tenantId: string; definitionId: string; status: "active" | "paused" | "disabled"; enabledBy: string; enabledAt: string; maxRunsPerDay: number; deniedProviders: readonly string[] };
+export type WorkerInstance = { id: string; tenantId: string; definitionId: string; status: "active" | "paused" | "disabled"; enabledBy: string; enabledAt: string; maxRunsPerDay: number; deniedProviders: readonly string[]; priority?: Priority /* this company's override of the Worker's default priority */ };
 export type StepKind = "tool" | "model" | "delegate" | "memory" | "note" | "result";
 export type Decision = "allowed" | "needsApproval" | "approved" | "rejected" | "refused" | "expired";
 export type RunStep = { id: string; at: string; kind: StepKind; detail: string; tool?: string; level?: AutonomyLevel; decision?: Decision; modelId?: string; routing?: string; childRunId?: string; output?: string; approvalId?: string; tokens?: number };
@@ -34,6 +34,7 @@ export type Run = {
   id: string; tenantId: string; instanceId: string; workerId: string; goal: string; status: RunStatus; startedBy: string; startedAt: string;
   parentRunId?: string; rootRunId: string; depth: number; chain: readonly string[]; grant?: readonly string[];
   steps: readonly RunStep[]; context: readonly ContextItem[]; dataTouched: Clearance; result?: string; finishedAt?: string;
+  priority: Priority; estimatedCostMicros: number; // snapshots taken when the run starts, so later changes never rewrite history
 };
 export type Approval = { id: string; tenantId: string; runId: string; stepId: string; tool: string; input: Readonly<Record<string, string>>; level: AutonomyLevel; financial: boolean; requestedAt: string; status: "pending" | "approved" | "rejected" | "expired"; decidedBy?: string; decidedAt?: string; reason?: string };
 export type MemoryEntry = { id: string; tenantId: string; instanceId: string; runId?: string; scope: "run" | "durable"; key: string; value: string; sensitivity: Clearance; createdAt: string; expiresAt?: string; cleared?: boolean };
@@ -82,7 +83,7 @@ export type KoeEvent =
   | (Base & { type: "worker.enable"; definitionId: string })
   | (Base & { type: "instance.disable"; instanceId: string })
   | (Base & { type: "instance.enable"; instanceId: string })
-  | (Base & { type: "instance.configure"; instanceId: string; maxRunsPerDay: number; deniedProviders: readonly string[] })
+  | (Base & { type: "instance.configure"; instanceId: string; maxRunsPerDay: number; deniedProviders: readonly string[]; priority?: Priority })
   | (Base & { type: "instance.pause"; instanceId: string })
   | (Base & { type: "instance.resume"; instanceId: string })
   | (Base & { type: "tenant.pause"; paused: boolean })
@@ -327,8 +328,9 @@ export function reduceKoe(state: KoeState, event: KoeEvent): KoeResult {
       const known = new Set(state.models.map((model) => model.provider));
       const unknown = event.deniedProviders.find((provider) => !known.has(provider));
       if (unknown) return refuse("configInvalid", { detail: `proveedor desconocido: ${unknown}` });
+      if (event.priority !== undefined && !(event.priority in PRIORITY_RANK)) return refuse("configInvalid", { detail: "prioridad desconocida" });
       const providers = [...new Set(event.deniedProviders)];
-      return { state: note({ ...state, instances: replace(state.instances, { ...instance, maxRunsPerDay: event.maxRunsPerDay, deniedProviders: providers }) }, event, "instance.configure", `${instance.id} · ${event.maxRunsPerDay}/día${providers.length ? ` · sin ${providers.join(", ")}` : ""}`) };
+      return { state: note({ ...state, instances: replace(state.instances, { ...instance, maxRunsPerDay: event.maxRunsPerDay, deniedProviders: providers, priority: event.priority ?? instance.priority }) }, event, "instance.configure", `${instance.id} · ${event.maxRunsPerDay}/día${providers.length ? ` · sin ${providers.join(", ")}` : ""}${event.priority ? ` · prioridad ${event.priority}` : ""}`) };
     }
 
     // ================================================================ kill switches: a person can stop everything at once
@@ -388,7 +390,7 @@ export function reduceKoe(state: KoeState, event: KoeEvent): KoeResult {
       if (event.goal.trim() === "") return refuse("reasonRequired");
       const created = nextId(state, "rn");
       const context = (event.context ?? []).filter((item) => covers(definition.dataClearance, item.sensitivity));
-      const run: Run = { id: created.id, tenantId: event.tenantId, instanceId: instance.id, workerId: definition.id, goal: event.goal.trim(), status: "running", startedBy: event.actor, startedAt: event.at, rootRunId: created.id, depth: 0, chain: [definition.id], steps: [], context, dataTouched: context.reduce<Clearance>((max, item) => higher(max, item.sensitivity), "business") };
+      const run: Run = { id: created.id, tenantId: event.tenantId, instanceId: instance.id, workerId: definition.id, goal: event.goal.trim(), status: "running", startedBy: event.actor, startedAt: event.at, rootRunId: created.id, depth: 0, chain: [definition.id], steps: [], context, dataTouched: context.reduce<Clearance>((max, item) => higher(max, item.sensitivity), "business"), priority: effectivePriority(definition, instance), estimatedCostMicros: definition.costEstimate.perRunMicros };
       return { state: note({ ...created.state, runs: append(created.state.runs, run) }, event, "run.start", `${run.id} · ${definition.id}`, "info", run.id) };
     }
 
@@ -497,6 +499,8 @@ export function reduceKoe(state: KoeState, event: KoeEvent): KoeResult {
         id: created.id, tenantId: run.tenantId, instanceId: targetInstance.id, workerId: target.id, goal: event.goal.trim(), status: "running", startedBy: run.startedBy, startedAt: event.at,
         parentRunId: run.id, rootRunId: run.rootRunId, depth: run.depth + 1, chain: [...run.chain, target.id], grant: event.grant.length ? event.grant : target.tools.filter((id) => levelForAction(id) === 1),
         steps: [], context: bundle, dataTouched: bundle.reduce<Clearance>((max, item) => higher(max, item.sensitivity), "business"),
+        priority: higherPriority(run.priority, effectivePriority(target, targetInstance)), // delegated work is never less urgent than what asked for it
+        estimatedCostMicros: target.costEstimate.perRunMicros,
       };
       const added = addStep(run, { at: event.at, kind: "delegate", detail: `Delega en ${target.name}${withheld ? ` · ${withheld} dato(s) retenido(s) por privacidad` : ""}`, childRunId: child.id }, created.state);
       return { state: note({ ...added.state, runs: append(replace(added.state.runs, added.run), child) }, event, "run.delegate", `${definition.id} → ${target.id} · ${child.id}${withheld ? ` · retenidos ${withheld}` : ""}`, withheld ? "warn" : "info", run.id) };
@@ -653,7 +657,42 @@ export function applyAllKoe(state: KoeState, events: readonly KoeEvent[]): { sta
 // ---------------------------------------------------------------- views
 export const runsOf = (state: KoeState, tenantId: string) => state.runs.filter((run) => run.tenantId === tenantId);
 export const rootRunsOf = (state: KoeState, tenantId: string) => runsOf(state, tenantId).filter((run) => !run.parentRunId);
-export const pendingApprovals = (state: KoeState, tenantId: string) => state.approvals.filter((item) => item.tenantId === tenantId && item.status === "pending");
+/** What waits for a person, most urgent first, then oldest first. Priority orders the queue; it never lowers what needs approval. */
+export const pendingApprovals = (state: KoeState, tenantId: string) => {
+  const rank = (approval: Approval) => PRIORITY_RANK[state.runs.find((run) => run.id === approval.runId)?.priority ?? "normal"];
+  return state.approvals.filter((item) => item.tenantId === tenantId && item.status === "pending").sort((a, b) => rank(b) - rank(a) || Date.parse(a.requestedAt) - Date.parse(b.requestedAt) || a.id.localeCompare(b.id));
+};
+
+export const effectivePriority = (definition: Pick<WorkerDefinition, "priority">, instance?: Pick<WorkerInstance, "priority">): Priority => instance?.priority ?? definition.priority;
+
+export type KoeMetrics = {
+  runs: number;
+  steps: number;
+  tokens: number;
+  estimatedCostMicros: number; // sum of each run's own estimate: an estimate, not a bill
+  byWorker: { workerId: string; name: string; runs: number; estimatedCostMicros: number; priority: Priority }[];
+};
+
+/** Figures for future KOE metrics, from what the runs themselves recorded. Nothing here is billed or enforced. */
+export function koeMetrics(state: KoeState, tenantId: string): KoeMetrics {
+  const runs = state.runs.filter((run) => run.tenantId === tenantId);
+  const byWorker = new Map<string, { runs: number; cost: number }>();
+  for (const run of runs) {
+    const current = byWorker.get(run.workerId) ?? { runs: 0, cost: 0 };
+    byWorker.set(run.workerId, { runs: current.runs + 1, cost: current.cost + run.estimatedCostMicros });
+  }
+  return {
+    runs: runs.length,
+    steps: runs.reduce((sum, run) => sum + run.steps.length, 0),
+    tokens: runs.reduce((sum, run) => sum + run.steps.reduce((inner, step) => inner + (step.tokens ?? 0), 0), 0),
+    estimatedCostMicros: runs.reduce((sum, run) => sum + run.estimatedCostMicros, 0),
+    byWorker: [...byWorker.entries()].map(([workerId, value]) => {
+      const definition = definitionOf(state, workerId);
+      const instance = instanceFor(state, tenantId, workerId);
+      return { workerId, name: definition?.name ?? workerId, runs: value.runs, estimatedCostMicros: value.cost, priority: definition ? effectivePriority(definition, instance) : "normal" };
+    }).sort((a, b) => b.estimatedCostMicros - a.estimatedCostMicros || a.name.localeCompare(b.name)),
+  };
+}
 export const memoryOf = (state: KoeState, tenantId: string) => state.memory.filter((item) => item.tenantId === tenantId);
 export const instancesOf = (state: KoeState, tenantId: string) => state.instances.filter((item) => item.tenantId === tenantId);
 
