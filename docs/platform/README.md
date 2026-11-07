@@ -22,6 +22,7 @@
 | `academy.ts` | Cursos, lecciones, progreso | Progreso y condición de certificado |
 | `workers.ts` | Plantillas de trabajador, niveles, autorizaciones | `levelForAction` (desconocido = 3), `decide`, límites diarios |
 | `automation-center.ts` (+ `-messages`, `-demo`) | Centro de Automatizaciones v1: seis disparadores, seis acciones de nivel 1, estados, ejecuciones y resultados (§12) |
+| `studio-center.ts` (+ `-messages`, `-demo`) | AI Studio v1: prompts y agentes IA versionados, Playground por KOE, plantillas y acuerdos de compartir (§13) |
 | `automations.ts` | Plantillas y validación anteriores (se conservan): disparador, condiciones, acciones | Validación, acciones externas por aprobación, aviso de bucle, modo de prueba por defecto |
 
 ## 3. Modelos de datos (futuros; ninguno existe aún)
@@ -262,3 +263,31 @@ Dos datos nuevos en cada definición, pensados para las métricas futuras de KOE
 **Textos y multilenguaje.** Todos los textos salen de `automation-messages.ts` por código; solo existe el español, y otro idioma es un diccionario nuevo.
 
 **Pendiente al conectar:** tablas con RLS por empresa; que la plataforma emita los eventos reales (hoy se simulan); un destino real para tareas, recordatorios y notificaciones; envío de los borradores solo mediante aprobación y el nivel que decida la Constitución; condiciones más ricas y esperas entre acciones; y plantillas oficiales de automatización en el Marketplace.
+
+## 13. AI Studio v1
+
+`/platform/studio`. Es donde una empresa **crea, prueba y administra** la inteligencia de KYNOVA. Todo es simulación local: contratos más un único reducer (`reduceStudio`), sin APIs, sin modelos reales, sin migraciones y sin dependencias nuevas. **Studio solo guarda configuraciones y pruebas;** no llama a ningún proveedor ni conoce sus nombres (la interfaz solo muestra la etiqueta del modelo).
+
+**Arquitectura: todo pasa por KOE.** Una prueba no elige modelo. KOE elige el **Worker** (`chooseWorker`: entre los que pueden ejecutar un prompt con ese nivel de datos; prefiere la especialidad de la categoría, luego mayor prioridad y menor costo; si el agente tiene Workers asignados, solo entre ellos) y el **Worker decide el modelo** con el enrutador de KOE (`planExecution`: capacidades, nivel de datos, política y salud). Cada prueba guarda: Worker y motivo, modelo y motivo, **costo estimado** (costo del Worker por ejecución más los tokens al costo del modelo), **tiempo estimado** y tokens. Son estimaciones, no mediciones ni una factura. Una prueba sin Worker o sin modelo disponible se **rechaza** y no deja registro. Una prueba nunca llama a un modelo; una prueba automática verifica que los módulos de Studio no importan `lib/ai`, no usan la red ni nombran proveedores.
+
+**Qué ofrece**
+- **Panel:** conteos por estado, versiones, pendientes de aprobación (con aprobar y rechazar), pruebas y costo estimado, plantillas y acuerdos, y la autorización de Nivel 2.
+- **Biblioteca de Prompts y de Agentes IA:** búsqueda por nombre o etiqueta, filtro por categoría (ventas, atención, marketing, educación, operaciones, análisis, otra), estado (Borrador, En revisión, Publicado, Archivado), origen (propio, copia, plantilla) y todas las versiones de cada elemento.
+- **Constructor:** crear, editar, duplicar y versionar. **Variables dinámicas** `{{nombre}}`: se declaran exactamente las que usa el texto (con descripción y ejemplo), los nombres son estrictos, los valores se tratan como datos (no se vuelven a expandir y se les quitan los caracteres de control) y el texto no puede contener secretos. Categorías y etiquetas validadas. El **agente** se compone de prompt principal, Workers (hasta 5), automatizaciones y cursos de la Academia de su empresa (hasta 10 de cada uno), **memoria** (ninguna, de sesión o duradera; la duradera no admite datos personales), **personalidad** (tono, idioma, estilo) y **límites** (ejecuciones por día, pasos y costo máximo por ejecución; las pruebas los respetan).
+- **Playground:** probar una versión con datos de entrada, elegir un Worker o dejar que KOE elija, **comparar dos versiones** (ambas por el mismo Worker, todo o nada) con diferencia de texto, costo y tiempo, e **historial de pruebas** completo.
+- **Historial:** pruebas y registro de actividad de la empresa.
+
+**Constitución de NEX**
+- **Nivel 1 prepara:** crear, guardar una versión nueva, duplicar y enviar a revisión (`studio.draft`); probar (`studio.test`, lo inicia una persona porque gasta costo estimado).
+- **Nivel 2 con autorización:** cambiar a qué está conectado un agente (Workers, automatizaciones, cursos) exige una **autorización vigente** que una persona concedió (`studio.assign`, con límite diario y vencimiento opcionales). Con ella, NEX y el equipo pueden hacerlo; sin ella o agotada, se rechaza. Duplicar un agente conectado también la usa.
+- **Nivel 3 siempre una persona:** publicar o rechazar una versión (`studio.publish`) y compartir entre empresas (`studio.share`). **NEX nunca publica;** una versión que NEX envía queda «pendiente de aprobación» hasta que una persona la apruebe. Un agente solo se publica si su prompt principal tiene una versión publicada. Archivar, crear plantillas y revocar también son de una persona.
+- **Las versiones nunca se sobrescriben:** cada guardado es una versión nueva; el contenido de una versión no cambia jamás (solo su estado, y cada cambio queda en el registro). Una versión publicada pasa a «Reemplazada» cuando otra se publica, pero se conserva. **Nada se recorta:** versiones, pruebas, registro y actividad se guardan completos; el límite de 40 solo afecta a lo que se muestra.
+- **Aislamiento por empresa:** una empresa no ve ni cambia lo de otra.
+
+**Preparado para el Marketplace y para compartir (solo el modelo)**
+- `PromptTemplate` y `AgentTemplate` con `author`, `company`, `source` (origen y referencia), `version` y la versión de origen. Una plantilla de agente **no lleva** las conexiones (prompt, Workers, automatizaciones, cursos) porque son de cada empresa; al crear un borrador desde ella se elige el prompt principal. `toMarketplaceDraft` muestra cómo sería un borrador de publicación (agente IA o recurso digital): **no crea ningún listado;** publicar en el Marketplace es Nivel 3 y no se construye aquí. No existe el Marketplace de prompts.
+- **Compartir entre empresas:** `share.propose` (una persona o NEX), `share.approve` (una persona de la empresa dueña) y `share.revoke`. Un acuerdo aprobado **es solo un registro:** todavía no se copia nada y la otra empresa no ve nada.
+
+**Integraciones.** *Workers y KOE:* cada prueba y cada agente usan Workers del registro de KOE. *Automatizaciones:* un agente puede referenciar automatizaciones de su empresa (por id); referenciarlas no le da poder para ejecutarlas (las automatizaciones solo preparan, Nivel 1, y las ejecuta una persona o un evento). *Academia:* un agente puede referenciar cursos de su empresa; actuar como tutor sigue siendo Nivel 2 en la Academia. *Marketplace:* plantillas listas, sin listado.
+
+**Pendiente al conectar:** tablas con RLS por empresa; el registro real de Workers y modelos de KOE (hoy el de ejemplo); tokens y costos reales; la lectura de las automatizaciones y cursos reales en lugar de referencias de ejemplo; la importación de lo compartido por otra empresa; el Marketplace de prompts; evals de calidad antes de publicar un prompt; y revisión legal del uso compartido entre empresas.
