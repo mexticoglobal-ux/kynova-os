@@ -4,6 +4,7 @@ import { convertMinor, formatMinor, isCrypto, parseMajor, sumByCurrency, totalIn
 import { PROVIDER_MANIFESTS } from "./integrations";
 import { METHOD_CURRENCIES, PAYMENT_METHODS, applyAll, newPaymentsState, reducePayments, suggestMatches, summarize, type PaymentsEvent } from "./ledger";
 import { DEMO_RATES, demoEvents } from "./payments-demo";
+import { DISPLAY_LIMIT, hiddenNote, latest } from "./display";
 
 const at = "2026-11-02T10:00:00.000Z";
 const actor = "u1";
@@ -278,5 +279,56 @@ describe("financial dashboard", () => {
     const summary = summarize(state, "USD", DEMO_RATES, new Date(at));
     expect(summary.collected.EUR).toBe(3_000);
     expect(summary.refunded).toEqual({ EUR: 1_500 });
+  });
+});
+
+describe("history is never trimmed: limits belong to the view", () => {
+  const manyPayments = (count: number) => {
+    const events: PaymentsEvent[] = Array.from({ length: count }, (_, index) => ({ type: "payment.create", actor, at, method: "bankTransfer", amount: { amountMinor: 1_000 + index, currency: "USD" }, reference: `R-${index}` }));
+    return applyAll(demo(), events);
+  };
+
+  it("keeps every payment, log and audit entry well past the old limit of 300", () => {
+    const result = manyPayments(350);
+    expect(result.errors).toEqual([]);
+    expect(result.state.payments).toHaveLength(5 + 350);
+    expect(result.state.payments[0].id).toBe("pay_0001"); // the oldest is still there
+    expect(result.state.audit.length).toBeGreaterThan(350);
+    expect(result.state.logs.length).toBeGreaterThan(350);
+  });
+
+  it("keeps invoices, subscriptions and statement lines too", () => {
+    let state = demo();
+    const events: PaymentsEvent[] = [];
+    for (let index = 0; index < 320; index += 1) {
+      events.push({ type: "invoice.create", actor, at, customerId: `c${index}`, currency: "USD", lines: [{ description: "x", quantity: 1, unitMinor: 100 }], taxBps: 0 });
+      events.push({ type: "subscription.create", actor, at, draft: { customerId: `c${index}`, planName: "P", amount: { amountMinor: 100, currency: "USD" }, interval: "month", startedAt: at } });
+      events.push({ type: "statement.import", actor, at, method: "bankTransfer", lines: [{ method: "bankTransfer", amount: { amountMinor: 100 + index, currency: "USD" }, receivedAt: at }] });
+    }
+    const result = applyAll(state, events);
+    state = result.state;
+    expect(result.errors).toEqual([]);
+    expect(state.invoices).toHaveLength(321);
+    expect(state.subscriptions).toHaveLength(321);
+    expect(state.statement).toHaveLength(322);
+  });
+
+  it("still ignores a replayed webhook after hundreds of later events (idempotency is not forgotten)", () => {
+    const base = manyPayments(350).state;
+    const replay = reducePayments(base, { type: "webhook", envelope: { provider: "stripe", eventId: "evt_demo_1", type: "payment.succeeded", paymentRef: "pay_0001", signature: "valid", receivedAt: at } }).state;
+    expect(replay.audit.at(-1)?.action).toBe("webhook.duplicate");
+    expect(replay.payments).toEqual(base.payments);
+  });
+
+  it("limits only what the view shows, and says how much is hidden", () => {
+    const items = Array.from({ length: 100 }, (_, index) => index);
+    const { shown, hidden } = latest(items);
+    expect(shown).toHaveLength(DISPLAY_LIMIT);
+    expect(shown[0]).toBe(99);
+    expect(hidden).toBe(100 - DISPLAY_LIMIT);
+    expect(items).toHaveLength(100);
+    expect(hiddenNote(0)).toBeNull();
+    expect(hiddenNote(60)).toContain("60");
+    expect(latest([1, 2, 3]).hidden).toBe(0);
   });
 });

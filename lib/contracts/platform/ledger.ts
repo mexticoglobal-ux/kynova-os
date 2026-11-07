@@ -78,8 +78,6 @@ export type PaymentsState = {
   sequence: number;
 };
 
-export const MAX_HISTORY = 300;
-
 export const newPaymentsState = (): PaymentsState => ({
   connections: Object.fromEntries(PAYMENT_METHODS.map((method) => [method, newConnection(method)])) as Record<PaymentMethodId, Connection>,
   payments: [], subscriptions: [], invoices: [], statement: [], seenWebhooks: [], logs: [], errors: [], audit: [], sequence: 0,
@@ -105,20 +103,21 @@ export type PaymentsEvent =
 export type StoreResult = { state: PaymentsState; error?: string };
 
 // ---------------------------------------------------------------- helpers
-const cap = <T,>(items: readonly T[], item: T): readonly T[] => [...items, item].slice(-MAX_HISTORY);
+// Records, logs and the audit trail are never trimmed. Any limit belongs to the view (display.ts).
+const append = <T,>(items: readonly T[], item: T): readonly T[] => [...items, item];
 const label = (method: PaymentMethodId) => PROVIDER_MANIFESTS[method].label;
 const refundedMinor = (payment: PaymentRecord) => payment.refunds.filter((refund) => refund.status === "completed").reduce((sum, refund) => sum + refund.amount.amountMinor, 0);
 const reservedMinor = (payment: PaymentRecord) => payment.refunds.filter((refund) => refund.status !== "rejected").reduce((sum, refund) => sum + refund.amount.amountMinor, 0);
 
 const note = (state: PaymentsState, at: string, actor: string, action: string, detail?: string, level: ConnectionLog["level"] = "info"): PaymentsState => ({
   ...state,
-  audit: cap(state.audit, { at, actor, action, detail }),
-  logs: cap(state.logs, { at, level, event: detail ? `${action}: ${detail}` : action }),
+  audit: append(state.audit, { at, actor, action, detail }),
+  logs: append(state.logs, { at, level, event: detail ? `${action}: ${detail}` : action }),
 });
 const problem = (state: PaymentsState, at: string, kind: ErrorKind, message: string): PaymentsState => ({
   ...state,
-  errors: cap(state.errors, { at, kind, message, retryable: kind === "provider" || kind === "network" || kind === "rateLimit" }),
-  logs: cap(state.logs, { at, level: "error", event: message }),
+  errors: append(state.errors, { at, kind, message, retryable: kind === "provider" || kind === "network" || kind === "rateLimit" }),
+  logs: append(state.logs, { at, level: "error", event: message }),
 });
 const nextId = (state: PaymentsState, prefix: string): { id: string; state: PaymentsState } => {
   const sequence = state.sequence + 1;
@@ -178,7 +177,7 @@ export function reducePayments(state: PaymentsState, event: PaymentsEvent): Stor
       if (event.subscriptionId && !state.subscriptions.some((sub) => sub.id === event.subscriptionId)) return refuse("La suscripción no existe.");
       const { id, state: sequenced } = nextId(state, "pay");
       const payment: PaymentRecord = { id, method: event.method, amount: event.amount, status: "pending", customerId: event.customerId, reference: event.reference ?? id.toUpperCase(), invoiceId: event.invoiceId, subscriptionId: event.subscriptionId, createdAt: event.at, refunds: [] };
-      return { state: note({ ...sequenced, payments: cap(sequenced.payments, payment) }, event.at, event.actor, "payment.create", `${id} · ${label(event.method)}`) };
+      return { state: note({ ...sequenced, payments: append(sequenced.payments, payment) }, event.at, event.actor, "payment.create", `${id} · ${label(event.method)}`) };
     }
 
     case "payment.paid": {
@@ -235,7 +234,7 @@ export function reducePayments(state: PaymentsState, event: PaymentsEvent): Stor
       if (!isLive(state.connections[envelope.provider])) return { state: problem(state, at, "config", `Webhook de ${manifest.label} recibido con el método inactivo`) };
       const dedupKey = `${envelope.provider}:${envelope.eventId}`;
       if (state.seenWebhooks.includes(dedupKey)) return { state: note(state, at, "system", "webhook.duplicate", envelope.eventId) }; // idempotent
-      const seen = { ...state, seenWebhooks: cap(state.seenWebhooks, dedupKey) };
+      const seen = { ...state, seenWebhooks: append(state.seenWebhooks, dedupKey) };
       const payment = seen.payments.find((item) => item.method === envelope.provider && (item.id === envelope.paymentRef || item.providerRef === envelope.paymentRef));
       if (!payment) return { state: problem(seen, at, "provider", `Webhook ${envelope.eventId}: pago desconocido (${envelope.paymentRef})`) };
       const target: PaymentStatus = { "payment.succeeded": "succeeded", "payment.failed": "failed", "payment.disputed": "disputed", "payment.refunded": "refunded" }[envelope.type] as PaymentStatus;
@@ -263,7 +262,7 @@ export function reducePayments(state: PaymentsState, event: PaymentsEvent): Stor
         const duplicate = next.statement.some((item) => item.method === event.method && item.amount.amountMinor === line.amount.amountMinor && item.amount.currency === line.amount.currency && item.receivedAt === line.receivedAt && (item.reference ?? "") === (line.reference ?? ""));
         if (duplicate) continue; // importing the same statement twice changes nothing
         const { id, state: sequenced } = nextId(next, "line");
-        next = { ...sequenced, statement: cap(sequenced.statement, { ...line, id, status: "open" }) };
+        next = { ...sequenced, statement: append(sequenced.statement, { ...line, id, status: "open" }) };
         added += 1;
       }
       return { state: note(next, event.at, event.actor, "statement.import", `${added} de ${event.lines.length} líneas nuevas`) };
@@ -293,7 +292,7 @@ export function reducePayments(state: PaymentsState, event: PaymentsEvent): Stor
       const result = createSubscription(id, event.draft);
       if (!result.subscription) return refuse(result.error ?? "Suscripción inválida.");
       if (!isCurrency(result.subscription.amount.currency)) return refuse("Moneda no soportada.");
-      return { state: note({ ...sequenced, subscriptions: cap(sequenced.subscriptions, result.subscription) }, event.at, event.actor, "subscription.create", id) };
+      return { state: note({ ...sequenced, subscriptions: append(sequenced.subscriptions, result.subscription) }, event.at, event.actor, "subscription.create", id) };
     }
 
     case "subscription.event": {
@@ -309,7 +308,7 @@ export function reducePayments(state: PaymentsState, event: PaymentsEvent): Stor
       if (issues.length) return refuse(issues[0]);
       const { id, state: sequenced } = nextId(state, "inv");
       const invoice: Invoice = { id, number: nextInvoiceNumber(sequenced.invoices.map((item) => item.number)), customerId: event.customerId, currency: event.currency, lines: event.lines, taxBps: event.taxBps, status: "draft", createdAt: event.at };
-      return { state: note({ ...sequenced, invoices: cap(sequenced.invoices, invoice) }, event.at, event.actor, "invoice.create", invoice.number) };
+      return { state: note({ ...sequenced, invoices: append(sequenced.invoices, invoice) }, event.at, event.actor, "invoice.create", invoice.number) };
     }
 
     case "invoice.event": {
