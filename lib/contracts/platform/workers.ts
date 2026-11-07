@@ -46,6 +46,11 @@ export const ACTION_LEVELS = {
   "insights.approve": 3,
   "insights.share": 3,
   "insights.schedule": 3,
+  "crm.draft": 1,
+  "crm.task": 1,
+  "crm.stage.auto": 2,
+  "crm.close": 3,
+  "crm.convert": 3,
 } as const;
 export type WorkerAction = keyof typeof ACTION_LEVELS;
 
