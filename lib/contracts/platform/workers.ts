@@ -56,6 +56,11 @@ export const ACTION_LEVELS = {
   "comms.assign.auto": 2,
   "comms.send": 3,
   "comms.close": 3,
+  "org.draft": 1,
+  "org.move.auto": 2,
+  "org.admin": 3,
+  "org.permissions": 3,
+  "org.owner": 3,
 } as const;
 export type WorkerAction = keyof typeof ACTION_LEVELS;
 
