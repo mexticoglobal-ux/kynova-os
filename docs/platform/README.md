@@ -26,6 +26,7 @@
 | `koe-ledger.ts`, `koe-insights.ts`, `insights-center.ts` (+ `-messages`, `-demo`) | Insights: el registro de KOE, el único motor de cifras y lo que una empresa puede hacer con ellas: correcciones y reportes (§14) |
 | `koe-crm.ts`, `crm-center.ts`, `crm-audit.ts` (+ `-messages`, `-demo`) | CRM inteligente: el único motor de inteligencia comercial de KOE y los registros que lo hacen duradero (§15) |
 | `koe-comms.ts`, `comms-center.ts` (+ `-messages`, `-demo`) | Centro de Comunicaciones: el único motor de entendimiento y enrutamiento de conversaciones de KOE y los registros que lo hacen duradero (§16) |
+| `koe-org.ts`, `org-center.ts` (+ `-messages`, `-demo`) | Organización e identidad: la estructura de la empresa, roles y permisos, y el único motor de fuerza de trabajo y recomendaciones de KOE (§17) |
 | `automations.ts` | Plantillas y validación anteriores (se conservan): disparador, condiciones, acciones | Validación, acciones externas por aprobación, aviso de bucle, modo de prueba por defecto |
 
 ## 3. Modelos de datos (futuros; ninguno existe aún)
@@ -370,3 +371,34 @@ Dos datos nuevos en cada definición, pensados para las métricas futuras de KOE
 **Preparado para el futuro, no implementado** (`FUTURE_CONNECTORS`): WhatsApp Business API, Meta Messenger, Instagram Graph, Gmail, Microsoft 365, Twilio, telefonía y video llamadas. Cada uno será un conector que pasa por KOE, nunca directo a un proveedor; hoy ninguno existe y SMS no recibe conversaciones.
 
 **Pendiente al conectar:** tablas con RLS por empresa; los conectores reales detrás de KOE (con consentimiento, ventanas de mensajería, plantillas aprobadas y retención); la lectura real de buzones; el análisis de sentimiento real con evals (hoy es una estimación simulada); los tiempos de respuesta objetivo por canal y por empresa; y el envío de los borradores, que será una acción de Nivel 3 con aprobación de una persona.
+
+## 17. Organization & Identity Center v1
+
+`/platform/org`. La estructura completa de una empresa, no solo sus usuarios: sucursales, departamentos, equipos, personas y Workers IA, roles, permisos e invitaciones, más la identidad de cada persona. Todo es simulación local: sin APIs, sin migraciones, sin dependencias nuevas, sin llamadas externas y sin ningún directorio ni proveedor de identidad.
+
+**Qué ofrece (9 vistas)**
+- **Panel:** empresa, sucursales, departamentos, equipos, usuarios (por estado), Workers IA (en equipos y sin equipo), roles, invitaciones y el estado general; las **recomendaciones de KOE**, las **propuestas de NEX**, la autorización de Nivel 2 y la **auditoría**.
+- **Organigrama:** empresa → sucursales → departamentos → equipos → personas y Workers IA. **Un Worker pertenece al equipo igual que una persona.**
+- **Usuarios:** invitaciones, estado (Pendiente, Activo, Suspendido, Deshabilitado), último acceso, idioma y zona horaria.
+- **Equipos:** personas, Workers, especialidad, objetivos y responsable; mover integrantes con historial.
+- **Roles:** Administrador, Gerente, Supervisor, Ventas, Marketing, Finanzas, RRHH, Soporte y Solo lectura, más roles personalizados. **Cada empresa tiene su propia copia: los roles nunca se comparten.**
+- **Permisos:** una matriz rol × módulo (CRM, Academy, Marketplace, Workers, Insights, Pagos, Comunicaciones, AI Studio, Automatizaciones, Integraciones y Developer Center) con cuatro niveles (sin acceso, lectura, escritura, administración). Un permiso solo vale dentro de su empresa, para una cuenta activa.
+- **Sucursales:** cada una con sus departamentos, equipos, personas, Workers y su configuración (idioma, zona horaria, moneda y horario); se desactivan, nunca se eliminan.
+- **Identidad:** perfil, idioma, zona horaria, notificaciones, seguridad, sesiones y dispositivos. **Es arquitectura:** se registra la preferencia de verificación en dos pasos y las sesiones que reporta la plataforma, pero no hay ninguna verificación ni proveedor reales. Cada persona cambia sus propias preferencias y su seguridad (ni un administrador lo hace por ella); un administrador sí puede corregir un perfil o cerrar una sesión.
+- **Fuerza de trabajo:** personas y Workers IA en una sola vista con estado, especialidad, equipo, sucursal, carga, disponibilidad y costo estimado.
+
+**KOE es la única fuente de la inteligencia, y hay un solo motor** (`koe-org.ts`): el organigrama, la fuerza de trabajo, el panel, la matriz de permisos y **todas las recomendaciones** (equipo sobrecargado, Worker infrautilizado, Worker sin equipo, usuario sin actividad, departamento con cuello de botella). Las pantallas solo dan formato (una prueba verifica que las reglas viven en un solo archivo). Los datos salen de los registros de KOE: las ejecuciones y los Workers instalados, y lo que cada persona tiene abierto en el CRM y en el Centro de Comunicaciones. Los **supuestos son declarados**: una persona atiende 12 elementos abiertos; un equipo con más carga que capacidad está sobrecargado; un Worker con menos del 3 % de su límite diario en 7 días está infrautilizado; 14 días sin acceso es inactividad; y el costo de una persona es un supuesto por rol (el de un Worker es la suma de sus ejecuciones de 30 días). Todo es estimado, no una nómina. Cada análisis que se pide **guarda el Worker, el modelo y su motivo, y el costo estimado**, y se añade, nunca se reescribe.
+
+**Autoridad.** Quién puede hacer qué sale del rol de la propia persona: el propietario y los administradores todo; un gerente lo del día a día (invitar con roles no críticos, crear equipos, mover integrantes, suspender no críticos); el resto, solo leer. **Siempre debe quedar un administrador activo**, el propietario no se cambia por esta vía (solo él transfiere la propiedad a otro administrador activo) y nadie cambia su propio estado.
+
+**Constitución de NEX**
+- **Nivel 1, prepara:** propuestas de invitación, de equipo y de cambio (mover de equipo, cambio de rol). **Una persona las aprueba, y al aprobarlas se aplican como esa persona**, con las mismas comprobaciones. NEX nunca aplica nada directamente.
+- **Nivel 2, con autorización vigente:** mover a una persona entre equipos, de una administradora o administrador con límite por día y vencimiento; solo a una persona activa con un rol no crítico, nunca al propietario ni a un administrador, y nunca a un Worker (los mueve una persona).
+- **Nivel 3, siempre una persona con el rol adecuado:** **NEX nunca crea administradores** (ni siquiera como propuesta), **nunca elimina usuarios** (no existe el evento: una persona se suspende o se deshabilita), **nunca cambia permisos críticos** (administrar pagos, integraciones, el Developer Center o los Workers) **ni cambia al propietario**.
+- **Auditoría que nunca se borra:** invitaciones, cambios de rol, de permisos, de equipos, de sucursales y de Workers, con quién, qué y cuándo (los valores anteriores quedan en el detalle). El historial de equipos es una lista de asignaciones que solo crece.
+
+**Multiempresa.** Cada empresa está totalmente aislada: sus personas, Workers, roles, equipos y configuraciones nunca se comparten. Un mismo identificador en otra empresa es otra persona; una persona de una empresa no tiene autoridad en otra; los cambios sobre algo ajeno se rechazan, y el trabajo de otra empresa no cambia ni una cifra (todo probado).
+
+**Preparado para el futuro, no implementado** (`FUTURE_IDENTITY`): SSO, Azure AD, Google Workspace, Microsoft Entra, LDAP, SCIM, Okta y Auth0. Cada uno será un conector de identidad que pasa por KOE, nunca directo a un proveedor, con aprobación humana para los roles críticos; hoy ninguno existe.
+
+**Pendiente al conectar:** tablas con RLS por empresa; autenticación real, verificación en dos pasos y sesiones; los conectores de identidad detrás de KOE; los límites de capacidad y los costos por rol configurables por empresa; la lectura real del trabajo abierto de cada persona desde los demás módulos; y la aplicación de los permisos en cada módulo (hoy `canUser` es el contrato que cada uno consultará).
