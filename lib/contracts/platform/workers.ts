@@ -26,6 +26,10 @@ export const ACTION_LEVELS = {
   "marketplace.revenueShare": 3,
   "marketplace.settlement": 3,
   "marketplace.draftListing": 1,
+  "academy.draftCourse": 1,
+  "academy.tutorAnswer": 2,
+  "academy.publishOfficial": 3,
+  "academy.certificate": 3,
   "calendar.write": 3,
   "contact.erase": 3,
 } as const;

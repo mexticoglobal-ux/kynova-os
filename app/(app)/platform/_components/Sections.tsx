@@ -1,8 +1,6 @@
-import { Plug } from "lucide-react";
 import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { EmptyState } from "@/components/ui/EmptyState";
 import { ACTION_LEVELS, WORKER_TEMPLATES } from "@/lib/contracts/platform/workers";
 import { AUTOMATION_TEMPLATES, validateAutomation } from "@/lib/contracts/platform/automations";
 
@@ -14,17 +12,6 @@ const Soon = ({ children }: { children: string }) => (
     {children}
   </Button>
 );
-
-export function AcademySection() {
-  return (
-    <div className="space-y-4">
-      <EmptyState icon={Plug} title="Aún no hay cursos">
-        Los cursos tendrán lecciones, una prueba opcional y certificado al completar lo obligatorio.
-      </EmptyState>
-      <Soon>Crear curso</Soon>
-    </div>
-  );
-}
 
 export function WorkersSection() {
   return (
