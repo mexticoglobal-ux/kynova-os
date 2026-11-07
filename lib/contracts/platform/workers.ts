@@ -21,6 +21,11 @@ export const ACTION_LEVELS = {
   "payment.refund": 3,
   "referral.approveCommission": 3,
   "referral.payout": 3,
+  "marketplace.publish": 3,
+  "marketplace.purchase": 3,
+  "marketplace.revenueShare": 3,
+  "marketplace.settlement": 3,
+  "marketplace.draftListing": 1,
   "calendar.write": 3,
   "contact.erase": 3,
 } as const;

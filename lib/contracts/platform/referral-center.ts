@@ -4,6 +4,7 @@
 // Decoupled from any payment gateway on purpose: a payout is only a request that people approve, and "paid" is recorded
 // with an external reference someone supplies. Nothing here moves money. Paying a commission is always Level 3.
 
+import { isPerson } from "./actors";
 import { addDays } from "./billing";
 import { isCurrency, isCrypto, type CurrencyCode } from "./currency";
 import { isMoney, type Money } from "./payments";
@@ -102,8 +103,7 @@ export const newReferralState = (tenantId: string): ReferralState => ({ tenantId
 /** Paying a commission is financial: Level 3, a person decides every time (Constitution, ADR-0009). */
 export const PAYOUT_LEVEL = 3 as const;
 
-/** NEX, other workers and the system never decide approvals or payouts. */
-export const isPerson = (actor: string): boolean => actor.trim() !== "" && !actor.startsWith("worker:") && actor !== "system";
+export { isPerson };
 
 // ---------------------------------------------------------------- events
 type Base = { tenantId: string; at: string };

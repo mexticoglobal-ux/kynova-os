@@ -7,7 +7,7 @@ export const PLATFORM_SECTIONS: ReadonlyArray<{ key: PlatformSectionKey; href: s
   { key: "integrations", href: "/platform/integrations", icon: Plug, title: "Centro de Integraciones", summary: "Canales, pagos y calendario de la empresa, con el estado de cada conexión." },
   { key: "payments", href: "/platform/payments", icon: CreditCard, title: "Pagos", summary: "Enlaces de cobro, estados y conciliación. Cada cobro lo aprueba una persona." },
   { key: "referrals", href: "/platform/referrals", icon: Gift, title: "Referidos", summary: "Programa, atribución y recompensas con revisión antes de pagar." },
-  { key: "store", href: "/platform/store", icon: Store, title: "Tienda", summary: "Integraciones, trabajadores y plantillas publicados con revisión." },
+  { key: "store", href: "/platform/store", icon: Store, title: "Marketplace", summary: "Productos, servicios, cursos, agentes IA, automatizaciones y apps; toda publicación se aprueba antes de salir." },
   { key: "academy", href: "/platform/academy", icon: BookOpen, title: "Academia", summary: "Cursos, progreso y certificados para el equipo." },
   { key: "workers", href: "/platform/workers", icon: UserCog, title: "Trabajadores de NEX", summary: "Roles que NEX ejerce bajo un acuerdo de trabajo, con su nivel de autonomía a la vista." },
   { key: "automations", href: "/platform/automations", icon: Workflow, title: "Centro de Automatizaciones", summary: "Disparador, condiciones y acciones; todo nace en modo de prueba." },
