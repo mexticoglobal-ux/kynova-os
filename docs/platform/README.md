@@ -29,6 +29,7 @@
 | `koe-org.ts`, `org-center.ts` (+ `-messages`, `-demo`) | Organización e identidad: la estructura de la empresa, roles y permisos, y el único motor de fuerza de trabajo y recomendaciones de KOE (§17) |
 | `koe-billing.ts`, `billing-center.ts`, `billing-catalog.ts` (+ `-messages`, `-demo`) | Facturación y suscripciones: planes, add-ons, licencias, facturas y el único motor financiero de KOE: límites, consumo de IA, forecast y ROI (§18) |
 | `koe-dev.ts`, `dev-center.ts`, `dev-catalog.ts` (+ `-messages`, `-demo`) | Plataforma para desarrolladores: apps, API Keys, webhooks, sandbox, explorador y el único motor de KOE para límites, consumo, respuestas simuladas y recomendaciones (§19) |
+| `components/ui/*`, `config/brand.ts`, `lib/theme.ts`, `lib/nav-memory.ts`, `public/sw.js` | Design System V2: dos temas NOVA, componentes compartidos, marca, navegación con favoritos y búsqueda rápida, y PWA (§20) |
 | `automations.ts` | Plantillas y validación anteriores (se conservan): disparador, condiciones, acciones | Validación, acciones externas por aprobación, aviso de bucle, modo de prueba por defecto |
 
 ## 3. Modelos de datos (futuros; ninguno existe aún)
@@ -472,3 +473,32 @@ Dos datos nuevos en cada definición, pensados para las métricas futuras de KOE
 **Preparado para el futuro, no implementado** (`FUTURE_PLATFORM`): GraphQL, gRPC, OpenAPI, AsyncAPI, CLI, Terraform, GitHub Apps y una extensión de VS Code. Cada uno pasará por KOE, nunca directo; hoy ninguno existe.
 
 **Pendiente al conectar:** tablas con RLS por empresa; un almacén de credenciales con hash real y rotación; una puerta de enlace real con OAuth, límites y firma de webhooks; los SDK; que el consumo salga de las peticiones reales; que quién construye salga de la organización (hoy lo nombra el propietario); y la publicación real en el Marketplace con su revisión.
+
+## 20. Premium Experience v2
+
+Una mejora de experiencia, no de negocio: **no hay módulos nuevos, ni APIs, ni migraciones, ni dependencias, y no cambia ninguna regla de negocio, KOE, NEX, reducer ni contrato.** Solo cambia cómo se ve, cómo se navega, cómo carga y cómo se instala la plataforma, y con una auditoría que impide que vuelva la duplicación.
+
+**Design System V2: un solo sistema visual**
+- **Dos temas, NOVA Dark y NOVA Light**, con exactamente los mismos componentes: cada tema declara los mismos tokens de color (`app/globals.css`) y solo cambia `data-theme`. NOVA Dark es la identidad (azul petróleo, grafito y dorado); NOVA Light es papel cálido. Se elimina el tema `dark` intermedio y `premium` pasa a llamarse NOVA Dark. El tema elegido se recuerda en el dispositivo y se aplica **antes del primer pintado** (sin parpadeo); cambia con el botón del encabezado.
+- **Componentes compartidos** (`components/ui/`): `Tabs` (barra segmentada, con flechas, Inicio y Fin, y que se desliza en el móvil), `Table` (una tabla con nombre que se desplaza dentro de su caja), `Stat` (la cifra de todo dashboard: etiqueta discreta, número grande, nota), `Dialog` (modal que atrapa el foco, se cierra con Escape y devuelve el foco), `ProductMark` (el ícono y el nombre de cada producto), campos compactos (`INPUT`, `INPUT_FULL`) y esqueletos (`Skeleton`, `SkeletonKpis`, `SkeletonTable`, `SkeletonPage`). Los botones, tarjetas e insignias se actualizan en su sitio.
+- **Se eliminó lo duplicado:** 12 copias de la clase de los campos, 15 barras de pestañas con su marcado y su manejo de teclado propio (incluida la del estudio de creadores), 6 envolturas de tabla, la tarjeta de cifras (`Kpi` y `KpiCard` comparten ahora la jerarquía de `Stat`), la variable `--glow-a` (era idéntica a `--primary`), un tema entero (`dark`) y el color del navegador escrito en dos sitios.
+
+**Marca.** Una sola fuente (`config/brand.ts`) para KYNOVA, NEX, KOE, Academy, Marketplace, CRM, Workers, Developer Platform, Billing, Organization, Communications, Insights y AI Studio: nombre, qué es, ícono y un tono que sale de los colores del sistema (se ve bien en los dos temas). Cada pantalla de la plataforma lleva la marca de su producto.
+
+**Dashboards.** Más aire (`space-y-8`, `gap-5`), una jerarquía única (etiqueta pequeña en mayúsculas, número grande, nota) y encabezados de sección más claros en el panel, en NEX y en todas las pantallas de módulo.
+
+**Navegación.** Barra lateral **colapsable** (solo íconos, se recuerda), **favoritos** (estrella por pantalla, hasta 8), **recientes** (las últimas 5 pantallas abiertas) y **búsqueda rápida** con Ctrl o Cmd + K: encuentra cualquier módulo o pantalla de la plataforma sin importar acentos ni mayúsculas, se mueve con las flechas y se abre con Enter. Todo se guarda solo en el dispositivo y solo acepta rutas del propio sitio. La búsqueda se descarga solo cuando alguien la abre.
+
+**Responsive.** Escritorio, portátil, tableta y móvil: las pestañas se deslizan, las tablas se desplazan dentro de su caja en lugar de romper la página, la barra lateral pasa a ser un cajón en el móvil, la búsqueda ocupa el ancho disponible y la app instalada respeta las zonas seguras (muesca e indicador de inicio).
+
+**Animaciones.** Muy suaves y definidas en un solo lugar (`tailwind.config.ts`): entrada de página, entrada de diálogos, brillo de los esqueletos y un ligero levantamiento de las tarjetas. **Todas se desactivan** para quien prefiere menos movimiento.
+
+**Rendimiento.** Pantallas de carga con esqueletos para toda la aplicación y para la plataforma (cada centro es un paquete grande que llega por partes), descarga diferida de la búsqueda rápida y división de código por ruta de Next.js.
+
+**PWA.** Manifiesto completo (identificador, ícono normal y enmascarable, accesos directos a Panel, NEX y Plataforma, colores de la pantalla de bienvenida), **service worker** (`public/sw.js`), página sin conexión (`/offline`), botón de instalar (solo cuando el navegador lo ofrece), aviso cuando se pierde y vuelve la conexión, y pantalla de bienvenida al abrir la app instalada. **El service worker solo guarda archivos estáticos** (scripts, estilos, fuentes e íconos): nunca una página, una respuesta de la API ni nada de una sesión; las páginas siempre van a la red y solo si falla aparece la página sin conexión. Se prueba en un entorno simulado.
+
+**Accesibilidad.** Enlace «Saltar al contenido» y marca principal enfocable, un solo anillo de foco visible en los dos temas, pestañas con teclado y tabulación correcta, diálogos con foco atrapado, devuelto y cierre con Escape, anuncios de conexión y de carga con regiones activas, y la comprobación de contraste AA de todos los pares de color en ambos temas.
+
+**Auditoría** (`app/design-system-audit.test.ts`). Falla si reaparece: una clase de campo copiada, una barra de pestañas fuera de `Tabs`, una tabla ancha fuera de `Table`, un componente definido dos veces, un color escrito a mano (hexadecimal, `rgb()` o la paleta por defecto de Tailwind), una variable declarada dos veces en un tema o sin usar, un tema distinto de los dos NOVA, una animación repetida, o un control sin anillo de foco.
+
+**Pendiente:** revisar las pantallas en dispositivos reales (esta entrega se verificó con pruebas automáticas y el build, no con capturas); íconos PNG de 192 y 512 píxeles para instaladores que no aceptan SVG; modo sin conexión con datos (hoy solo lo estático y la página sin conexión, a propósito); y traducir los textos nuevos del shell a los demás idiomas (hoy español e inglés).

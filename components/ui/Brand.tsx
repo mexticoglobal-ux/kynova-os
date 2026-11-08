@@ -4,7 +4,10 @@ import clsx from "clsx";
 export function Brand({ name, className }: { name: string; className?: string }) {
   return (
     <span className={clsx("inline-flex items-center gap-2 font-semibold tracking-tight", className)}>
-      <span aria-hidden className="h-2.5 w-2.5 rotate-45 rounded-[3px] bg-accent" />
+      <span aria-hidden className="relative inline-flex h-5 w-5 items-center justify-center">
+        <span className="absolute inset-0 rounded-full border border-primary-soft/50" />
+        <span className="h-2 w-2 rotate-45 rounded-[2px] bg-accent" />
+      </span>
       {name}
     </span>
   );

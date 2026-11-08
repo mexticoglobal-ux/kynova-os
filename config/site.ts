@@ -1,9 +1,11 @@
+import { DEFAULT_THEME, THEME_COLOR } from "@/lib/theme";
+
 export const site = {
   name: "KYNOVA",
   product: "KYNOVA OS",
   ai: "NEX",
   url: "https://kynova.ai",
-  themeColor: "#0F161A",
+  themeColor: THEME_COLOR[DEFAULT_THEME],
 };
 
 export const MODULE_KEYS = [

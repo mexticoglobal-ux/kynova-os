@@ -13,12 +13,12 @@ import {
 import { DEMO_TENANTS } from "@/lib/contracts/platform/studio-demo";
 import { label } from "@/lib/contracts/platform/studio-messages";
 import type { StudioTabProps } from "./StudioCenter";
+import { INPUT_FULL } from "@/components/ui/form";
 
 const STATUS_TONE: Record<AssetStatus, BadgeTone> = { draft: "neutral", inReview: "warning", published: "success", archived: "neutral" };
 const VERSION_TONE: Record<VersionState, BadgeTone> = { draft: "neutral", pendingApproval: "warning", published: "success", rejected: "danger", superseded: "neutral" };
 const time = (iso: string) => iso.slice(0, 16).replace("T", " ");
 const who = (actor: string) => (actor.startsWith("worker:") ? "NEX (IA)" : actor);
-const inputClass = "w-full rounded-xl border border-line bg-raised px-3 py-1.5 text-sm text-ink";
 
 /** What KOE decided for a test: the Worker and why, the model and why, the estimated cost and time. Nothing was called. */
 export function KoePanel({ run }: { run: TestRun }) {
@@ -217,14 +217,14 @@ export function TemplatesTab({ state, send, persona, env, tenantName }: StudioTa
         {published.length === 0 ? <p className="text-sm text-ink-muted">Publique una versión para poder crear una plantilla.</p> : (
           <div className="flex flex-wrap items-end gap-2">
             <label className="space-y-1 text-sm text-ink-muted">Versión publicada
-              <select aria-label="Versión publicada" className={inputClass} value={pick || `${published[0].asset.id}:${published[0].version.number}`} onChange={(event) => setPick(event.target.value)}>
+              <select aria-label="Versión publicada" className={INPUT_FULL} value={pick || `${published[0].asset.id}:${published[0].version.number}`} onChange={(event) => setPick(event.target.value)}>
                 {published.map(({ asset, version }) => <option key={`${asset.id}:${version.number}`} value={`${asset.id}:${version.number}`}>{asset.name} v{version.number}</option>)}
               </select>
             </label>
             <Button size="sm" disabled={!choice} onClick={() => choice && send({ type: "template.create", assetId: choice.asset.id, versionNumber: choice.version.number })}>Crear plantilla</Button>
             <Button size="sm" variant="secondary" disabled={!choice} onClick={() => choice && send({ type: "share.propose", assetId: choice.asset.id, versionNumber: choice.version.number, toTenantId: target })}>Proponer compartir</Button>
             <label className="space-y-1 text-sm text-ink-muted">Empresa destinataria
-              <select aria-label="Empresa destinataria" className={inputClass} value={target} onChange={(event) => setTarget(event.target.value)}>
+              <select aria-label="Empresa destinataria" className={INPUT_FULL} value={target} onChange={(event) => setTarget(event.target.value)}>
                 {DEMO_TENANTS.filter((tenant) => tenant.id !== persona.tenantId).map((tenant) => <option key={tenant.id} value={tenant.id}>{tenant.name}</option>)}
               </select>
             </label>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { Tabs } from "@/components/ui/Tabs";
 import { Button } from "@/components/ui/Button";
 import { isAdmin, newAcademyState, reduceAcademy, type AcademyEvent, type AcademyState } from "@/lib/contracts/platform/academy-center";
 import { DEMO_ADMINS, DEMO_PERSONAS, DEMO_TENANTS, demoAcademyState } from "@/lib/contracts/platform/academy-demo";
@@ -60,13 +61,7 @@ export function AcademyCenter() {
         </div>
       </div>
 
-      <div role="tablist" aria-label="Academy" className="flex flex-wrap gap-1.5">
-        {TAB_KEYS.map((key) => (
-          <button key={key} role="tab" type="button" aria-selected={tab === key} onClick={() => { setTab(key); setMessage(null); }} className={tab === key ? "btn btn-sm btn-primary" : "btn btn-sm btn-ghost"}>
-            {label("tabs", key)}
-          </button>
-        ))}
-      </div>
+      <Tabs label="Academy" items={TAB_KEYS.map((key) => ({ key, label: label("tabs", key) }))} value={tab} onChange={(key) => { setTab(key); setMessage(null); }} />
 
       {message && <p role="alert" className="rounded-xl bg-danger/15 px-3 py-2 text-sm text-danger-soft">{message}</p>}
 

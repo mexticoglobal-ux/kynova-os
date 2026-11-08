@@ -36,7 +36,7 @@ export function ModuleView({ moduleKey, children }: { moduleKey: ModuleKey; chil
   const ModuleIcon = NAV_ICONS[moduleKey];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <PageHeader
         icon={ModuleIcon}
         eyebrow={m.common.demoData}
@@ -55,7 +55,7 @@ export function ModuleView({ moduleKey, children }: { moduleKey: ModuleKey; chil
 
       {children}
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
         {data.kpis.map((kpi, index) => (
           <div key={copy.kpis[index]} className="animate-fade-up" style={stagger(index + 1)}>
             <KpiCard label={copy.kpis[index] ?? ""} kpi={kpi} />
@@ -63,13 +63,13 @@ export function ModuleView({ moduleKey, children }: { moduleKey: ModuleKey; chil
         ))}
       </section>
 
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid gap-5 md:grid-cols-3">
         {copy.cards.map((card, index) => {
           const Icon = INSIGHT_ICONS[data.insightIcons[index] ?? "sparkles"];
           return (
             <article key={card.title} className="card animate-fade-up p-5" style={stagger(index + 5)}>
               <IconBadge icon={Icon} />
-              <h2 className="mt-4 font-medium">{card.title}</h2>
+              <h2 className="mt-4 font-semibold tracking-tight">{card.title}</h2>
               <p className="mt-1 text-sm text-ink-muted">{card.body}</p>
             </article>
           );
@@ -77,7 +77,7 @@ export function ModuleView({ moduleKey, children }: { moduleKey: ModuleKey; chil
       </section>
 
       <section className="card animate-fade-up p-5 sm:p-6" style={stagger(8)}>
-        <h2 className="font-medium">{copy.tableTitle}</h2>
+        <h2 className="font-semibold tracking-tight">{copy.tableTitle}</h2>
         <table className="mt-4 w-full table-fixed text-left text-sm">
           <thead className="text-xs uppercase tracking-wide text-ink-muted">
             <tr>

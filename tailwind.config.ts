@@ -33,6 +33,15 @@ export default {
           from: { opacity: "0", transform: "translateY(12px)" },
           to: { opacity: "1", transform: "none" },
         },
+        "page-in": {
+          from: { opacity: "0", transform: "translateY(6px)" },
+          to: { opacity: "1", transform: "none" },
+        },
+        "pop-in": {
+          from: { opacity: "0", transform: "translateY(6px) scale(0.98)" },
+          to: { opacity: "1", transform: "none" },
+        },
+        shimmer: { to: { transform: "translateX(100%)" } },
         float: {
           "0%, 100%": { transform: "translateY(0)", opacity: "0.2" },
           "50%": { transform: "translateY(-30px)", opacity: "0.7" },
@@ -40,6 +49,9 @@ export default {
       },
       animation: {
         "fade-up": "fade-up 0.4s ease-out both",
+        "page-in": "page-in 0.28s ease-out both",
+        "pop-in": "pop-in 0.18s ease-out both",
+        shimmer: "shimmer 1.6s ease-in-out infinite",
         float: "float 6s ease-in-out infinite",
       },
     },

@@ -6,6 +6,7 @@ import { DEMO_NOW, DEMO_PERSONAS, demoDevOk } from "@/lib/contracts/platform/dev
 import { label } from "@/lib/contracts/platform/dev-messages";
 import { AppsTab, ExplorerTab, LogsTab, SandboxTab, SdkTab } from "./DevBuild";
 import { DashboardTab, KeysTab, WebhooksTab } from "./DevViews";
+import { Tabs } from "@/components/ui/Tabs";
 
 const TAB_KEYS = ["dashboard", "keys", "webhooks", "sandbox", "logs", "apps", "explorer", "sdk"] as const;
 type TabKey = (typeof TAB_KEYS)[number];
@@ -58,13 +59,7 @@ export function DevCenter() {
         </label>
       </div>
 
-      <div role="tablist" aria-label="Plataforma para desarrolladores" className="flex flex-wrap gap-1.5">
-        {TAB_KEYS.map((key) => (
-          <button key={key} role="tab" type="button" aria-selected={tab === key} onClick={() => { setTab(key); setMessage(null); setReveal(null); }} className={tab === key ? "btn btn-sm btn-primary" : "btn btn-sm btn-ghost"}>
-            {label("tabs", key)}
-          </button>
-        ))}
-      </div>
+      <Tabs label="Plataforma para desarrolladores" items={TAB_KEYS.map((key) => ({ key, label: label("tabs", key) }))} value={tab} onChange={(key) => { setTab(key); setMessage(null); setReveal(null); }} />
 
       {message && <p role="alert" className="rounded-xl bg-danger/15 px-3 py-2 text-sm text-danger-soft">{message}</p>}
       {reveal && (

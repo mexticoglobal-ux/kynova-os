@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { applyAll, newPaymentsState, reducePayments, type PaymentsEvent, type PaymentsState } from "@/lib/contracts/platform/ledger";
 import { demoEvents } from "@/lib/contracts/platform/payments-demo";
 import { ActivityTab, InvoicesTab, MethodsTab, OverviewTab, PaymentsTab, ReconciliationTab, RefundsTab, SubscriptionsTab, WebhooksTab } from "./PaymentsTabs";
+import { Tabs } from "@/components/ui/Tabs";
 
 const TABS = [
   { key: "overview", label: "Resumen" },
@@ -68,14 +69,7 @@ export function PaymentsCenter() {
         </div>
       </div>
 
-      <div role="tablist" aria-label="Centro de Pagos" className="flex flex-wrap gap-1.5">
-        {TABS.map((item) => (
-          <button key={item.key} role="tab" type="button" aria-selected={tab === item.key} onClick={() => { setTab(item.key); setMessage(null); }}
-            className={tab === item.key ? "btn btn-sm btn-primary" : "btn btn-sm btn-ghost"}>
-            {item.label}
-          </button>
-        ))}
-      </div>
+      <Tabs label="Centro de Pagos" items={TABS} value={tab} onChange={(key) => { setTab(key); setMessage(null); }} />
 
       {message && <p role="alert" className="rounded-xl bg-danger/15 px-3 py-2 text-sm text-danger-soft">{message}</p>}
 

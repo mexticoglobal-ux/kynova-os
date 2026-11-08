@@ -10,6 +10,7 @@ import { hiddenNote, latest } from "@/lib/contracts/platform/display";
 import { Kpi, Section, money } from "./InsightsCharts";
 import { day, isNex, when, who } from "./BillingViews";
 import type { BillingTabProps } from "./BillingCenter";
+import { Table } from "@/components/ui/Table";
 
 const INVOICE_TONE: Record<InvoiceState, BadgeTone> = { open: "warning", paid: "success", overdue: "danger" };
 
@@ -42,8 +43,7 @@ export function InvoicesTab({ state, asOf, persona, send }: BillingTabProps) {
 
       <Section title="Facturas">
         {invoices.length === 0 && <p className="text-sm text-ink-muted">Todavía no hay facturas.</p>}
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-left" aria-label="Facturas">
+        <Table label="Facturas" minWidth={720}>
             <thead><tr className="text-xs text-ink-muted"><th className="px-2 py-1.5">Factura</th><th className="px-2 py-1.5">Emitida</th><th className="px-2 py-1.5">Periodo</th><th className="px-2 py-1.5">Total</th><th className="px-2 py-1.5">Pendiente</th><th className="px-2 py-1.5">Estado</th><th className="px-2 py-1.5">Pago</th></tr></thead>
             <tbody>
               {[...invoices].reverse().map((invoice) => {
@@ -59,8 +59,7 @@ export function InvoicesTab({ state, asOf, persona, send }: BillingTabProps) {
                 );
               })}
             </tbody>
-          </table>
-        </div>
+          </Table>
       </Section>
 
       <div className="grid gap-6 lg:grid-cols-2">

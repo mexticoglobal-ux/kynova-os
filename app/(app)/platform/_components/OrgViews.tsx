@@ -11,11 +11,11 @@ import { FUTURE_IDENTITY, identityOf, orgDashboard, orgTree, recommendations, wo
 import { formatCostMicros } from "@/lib/contracts/platform/koe-registry";
 import { Kpi, Section, money, num, pct } from "./InsightsCharts";
 import type { OrgTabProps } from "./OrgCenter";
+import { INPUT_FULL } from "@/components/ui/form";
 
 const SEVERITY_TONE: Record<string, BadgeTone> = { low: "neutral", normal: "primary", high: "warning", critical: "danger" };
 const STATUS_TONE: Record<string, BadgeTone> = { pending: "warning", active: "success", suspended: "warning", disabled: "neutral" };
 const AVAILABILITY_TONE: Record<Availability, BadgeTone> = { available: "success", busy: "warning", away: "neutral", paused: "warning", disabled: "neutral" };
-const inputClass = "w-full rounded-xl border border-line bg-raised px-3 py-1.5 text-sm text-ink";
 const when = (iso: string) => iso.slice(0, 16).replace("T", " ");
 const who = (actor: string) => (actor.startsWith("worker:") ? "NEX (IA)" : actor === "system" ? "Plataforma" : actor);
 
@@ -208,14 +208,14 @@ export function IdentityTab({ state, persona, send, sendAsPlatform }: OrgTabProp
     <div className="space-y-5">
       <p className="text-sm text-ink-muted">Perfil, preferencias, idioma, zona horaria, notificaciones, seguridad, sesiones y dispositivos. Todo es arquitectura: no hay un proveedor de identidad conectado, y cada quien cambia sus propias preferencias y seguridad.</p>
       <label className="block max-w-sm space-y-1 text-sm text-ink-muted">Persona
-        <select aria-label="Persona" className={inputClass} value={userId} onChange={(event) => { setUserId(event.target.value); setForm(null); }}>{people.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
+        <select aria-label="Persona" className={INPUT_FULL} value={userId} onChange={(event) => { setUserId(event.target.value); setForm(null); }}>{people.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
       </label>
       <Card className="space-y-3 p-4" aria-label="Perfil">
         <h2 className="font-semibold">Perfil</h2>
         <div className="grid gap-3 sm:grid-cols-3">
-          <label className="space-y-1 text-sm text-ink-muted">Nombre<input aria-label="Nombre del perfil" className={inputClass} value={profile.name} onChange={(event) => setForm({ ...profile, name: event.target.value })} /></label>
-          <label className="space-y-1 text-sm text-ink-muted">Idioma<select aria-label="Idioma" className={inputClass} value={profile.language} onChange={(event) => setForm({ ...profile, language: event.target.value })}>{LANGUAGES.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
-          <label className="space-y-1 text-sm text-ink-muted">Zona horaria<select aria-label="Zona horaria" className={inputClass} value={profile.timezone} onChange={(event) => setForm({ ...profile, timezone: event.target.value })}>{TIMEZONES.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+          <label className="space-y-1 text-sm text-ink-muted">Nombre<input aria-label="Nombre del perfil" className={INPUT_FULL} value={profile.name} onChange={(event) => setForm({ ...profile, name: event.target.value })} /></label>
+          <label className="space-y-1 text-sm text-ink-muted">Idioma<select aria-label="Idioma" className={INPUT_FULL} value={profile.language} onChange={(event) => setForm({ ...profile, language: event.target.value })}>{LANGUAGES.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+          <label className="space-y-1 text-sm text-ink-muted">Zona horaria<select aria-label="Zona horaria" className={INPUT_FULL} value={profile.timezone} onChange={(event) => setForm({ ...profile, timezone: event.target.value })}>{TIMEZONES.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
         </div>
         <p className="text-xs text-ink-muted">{user.email} · rol {identity.role?.name} · estado {label("status", user.status)} · último acceso {user.lastAccessAt ? when(user.lastAccessAt) : "nunca"}</p>
         <Button size="sm" variant="secondary" onClick={() => send({ type: "profile.update", userId: user.id, name: profile.name, language: profile.language as typeof user.language, timezone: profile.timezone as typeof user.timezone })}>Guardar perfil</Button>

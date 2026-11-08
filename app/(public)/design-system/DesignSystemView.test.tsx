@@ -12,11 +12,11 @@ describe("design system page", () => {
         <DesignSystemView />
       </Providers>,
     );
-    expect(screen.getByRole("heading", { level: 1, name: "KYNOVA Premium UI" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Claro" }));
-    expect(document.documentElement.dataset.theme).toBe("light");
-    fireEvent.click(screen.getByRole("button", { name: "Oscuro" }));
-    expect(document.documentElement.dataset.theme).toBe("dark");
+    expect(screen.getByRole("heading", { level: 1, name: "KYNOVA Design System V2" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "NOVA Light" }));
+    expect(document.documentElement.dataset.theme).toBe("nova-light");
+    fireEvent.click(screen.getByRole("button", { name: "NOVA Dark" }));
+    expect(document.documentElement.dataset.theme).toBe("nova-dark");
     expect(window.localStorage.length).toBe(0);
   });
 
@@ -26,7 +26,7 @@ describe("design system page", () => {
         <DesignSystemView />
       </Providers>,
     );
-    for (const title of ["Colores", "Botones", "Tarjetas, badges e iconos", "Campos y opciones", "Gráficos", "Sombras y espaciados"]) {
+    for (const title of ["Colores", "Pestañas, cifras y tablas", "Marcas", "Botones", "Tarjetas, badges e iconos", "Campos y opciones", "Gráficos", "Sombras y espaciados"]) {
       expect(screen.getByRole("heading", { name: title })).toBeInTheDocument();
     }
   });

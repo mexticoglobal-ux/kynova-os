@@ -8,6 +8,7 @@ import { label } from "@/lib/contracts/platform/koe-messages";
 import { ActivityTab, MemoryTab, ModelsTab, WorkersTab } from "./WorkersTabs";
 import { RunsTab } from "./WorkersRuns";
 import { BuilderTab } from "./WorkerBuilder";
+import { Tabs } from "@/components/ui/Tabs";
 
 const TAB_KEYS = ["workers", "runs", "models", "memory", "build", "activity"] as const;
 type TabKey = (typeof TAB_KEYS)[number];
@@ -72,13 +73,7 @@ export function WorkersCenter() {
         {admin && <Button size="sm" variant={state.platformPaused ? "primary" : "ghost"} onClick={() => send({ type: "platform.pause", paused: !state.platformPaused })}>{state.platformPaused ? "Reanudar la plataforma" : "Detener toda la plataforma"}</Button>}
       </div>
 
-      <div role="tablist" aria-label="NEX Workers" className="flex flex-wrap gap-1.5">
-        {TAB_KEYS.map((key) => (
-          <button key={key} role="tab" type="button" aria-selected={tab === key} onClick={() => { setTab(key); setMessage(null); }} className={tab === key ? "btn btn-sm btn-primary" : "btn btn-sm btn-ghost"}>
-            {label("tabs", key)}
-          </button>
-        ))}
-      </div>
+      <Tabs label="NEX Workers" items={TAB_KEYS.map((key) => ({ key, label: label("tabs", key) }))} value={tab} onChange={(key) => { setTab(key); setMessage(null); }} />
 
       {message && <p role="alert" className="rounded-xl bg-danger/15 px-3 py-2 text-sm text-danger-soft">{message}</p>}
 

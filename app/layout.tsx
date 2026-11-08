@@ -4,7 +4,8 @@ import { Inter } from "next/font/google";
 import { site } from "@/config/site";
 import { es } from "@/lib/i18n/messages/es";
 import { Providers } from "@/components/providers/Providers";
-import { DEFAULT_THEME } from "@/lib/theme";
+import { PwaRuntime } from "@/components/pwa/PwaRuntime";
+import { DEFAULT_THEME, THEME_INIT_SCRIPT } from "@/lib/theme";
 
 const inter = Inter({ subsets: ["latin", "latin-ext"], display: "swap", variable: "--font-inter" });
 
@@ -14,6 +15,8 @@ export const metadata: Metadata = {
   description: es.landing.subtitle,
   applicationName: site.product,
   alternates: { canonical: "/" },
+  appleWebApp: { capable: true, title: site.name, statusBarStyle: "black-translucent" },
+  formatDetection: { telephone: false },
   openGraph: {
     title: `${site.product} — ${es.landing.title}`,
     description: es.landing.subtitle,
@@ -28,14 +31,24 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: site.themeColor,
-  colorScheme: "dark",
+  colorScheme: "dark light",
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es-ES" data-theme={DEFAULT_THEME} className={inter.variable}>
+    // The theme chosen on this device is applied before the first paint (see lib/theme.ts), so the attribute can differ from the server's.
+    <html lang="es-ES" data-theme={DEFAULT_THEME} className={inter.variable} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body>
-        <Providers>{children}</Providers>
+        <Providers>
+          {children}
+          <PwaRuntime />
+        </Providers>
       </body>
     </html>
   );

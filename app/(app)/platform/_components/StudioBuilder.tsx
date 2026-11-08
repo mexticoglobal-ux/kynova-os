@@ -12,8 +12,8 @@ import {
 import { label } from "@/lib/contracts/platform/studio-messages";
 import type { BuilderTarget, StudioTabProps } from "./StudioCenter";
 import { KoePanel } from "./StudioTabs";
+import { INPUT_FULL } from "@/components/ui/form";
 
-const inputClass = "w-full rounded-xl border border-line bg-raised px-3 py-1.5 text-sm text-ink";
 const CLEARANCES = ["public", "business", "personal"] as const;
 const parseTags = (text: string) => text.split(",").map((item) => item.trim().toLowerCase()).filter(Boolean);
 
@@ -72,26 +72,26 @@ export function BuilderTab({ state, send, persona, env, target }: StudioTabProps
       <div className="grid gap-3 sm:grid-cols-2">
         {!existing && (
           <label className="space-y-1 text-sm text-ink-muted">Tipo
-            <select aria-label="Tipo" className={inputClass} value={kind} onChange={(event) => setKind(event.target.value as Kind)}>
+            <select aria-label="Tipo" className={INPUT_FULL} value={kind} onChange={(event) => setKind(event.target.value as Kind)}>
               <option value="prompt">{label("kind", "prompt")}</option><option value="agent">{label("kind", "agent")}</option>
             </select>
           </label>
         )}
-        <label className="space-y-1 text-sm text-ink-muted">Nombre<input aria-label="Nombre" className={inputClass} value={name} onChange={(event) => setName(event.target.value)} /></label>
-        <label className="space-y-1 text-sm text-ink-muted">Descripción<input aria-label="Descripción" className={inputClass} value={description} onChange={(event) => setDescription(event.target.value)} /></label>
+        <label className="space-y-1 text-sm text-ink-muted">Nombre<input aria-label="Nombre" className={INPUT_FULL} value={name} onChange={(event) => setName(event.target.value)} /></label>
+        <label className="space-y-1 text-sm text-ink-muted">Descripción<input aria-label="Descripción" className={INPUT_FULL} value={description} onChange={(event) => setDescription(event.target.value)} /></label>
         <label className="space-y-1 text-sm text-ink-muted">Categoría
-          <select aria-label="Categoría" className={inputClass} value={category} onChange={(event) => setCategory(event.target.value as Category)}>{CATEGORIES.map((key) => <option key={key} value={key}>{label("category", key)}</option>)}</select>
+          <select aria-label="Categoría" className={INPUT_FULL} value={category} onChange={(event) => setCategory(event.target.value as Category)}>{CATEGORIES.map((key) => <option key={key} value={key}>{label("category", key)}</option>)}</select>
         </label>
-        <label className="space-y-1 text-sm text-ink-muted">Etiquetas (separadas por comas)<input aria-label="Etiquetas" className={inputClass} value={tags} onChange={(event) => setTags(event.target.value)} /></label>
+        <label className="space-y-1 text-sm text-ink-muted">Etiquetas (separadas por comas)<input aria-label="Etiquetas" className={INPUT_FULL} value={tags} onChange={(event) => setTags(event.target.value)} /></label>
         <label className="space-y-1 text-sm text-ink-muted">Nivel de datos
-          <select aria-label="Nivel de datos" className={inputClass} value={clearance} onChange={(event) => setClearance(event.target.value as Clearance)}>{CLEARANCES.map((key) => <option key={key} value={key}>{label("clearance", key)}</option>)}</select>
+          <select aria-label="Nivel de datos" className={INPUT_FULL} value={clearance} onChange={(event) => setClearance(event.target.value as Clearance)}>{CLEARANCES.map((key) => <option key={key} value={key}>{label("clearance", key)}</option>)}</select>
         </label>
       </div>
 
       {kind === "prompt" ? (
         <section className="space-y-3">
           <label className="block space-y-1 text-sm text-ink-muted">Texto del prompt (use {"{{variable}}"} para datos dinámicos)
-            <textarea aria-label="Texto del prompt" rows={7} className={inputClass} value={body} onChange={(event) => setBody(event.target.value)} />
+            <textarea aria-label="Texto del prompt" rows={7} className={INPUT_FULL} value={body} onChange={(event) => setBody(event.target.value)} />
           </label>
           <p className="text-xs text-ink-muted">{body.length} de {MAX_BODY} caracteres</p>
           <div className="space-y-2" aria-label="Variables">
@@ -100,8 +100,8 @@ export function BuilderTab({ state, send, persona, env, target }: StudioTabProps
             {variables.map((item) => (
               <div key={item.name} className="grid gap-2 sm:grid-cols-3">
                 <Badge tone="primary">{`{{${item.name}}}`}</Badge>
-                <input aria-label={`Descripción de ${item.name}`} placeholder="Qué es" className={inputClass} value={item.description} onChange={(event) => setDescribed({ ...described, [item.name]: { description: event.target.value, example: item.example } })} />
-                <input aria-label={`Ejemplo de ${item.name}`} placeholder="Ejemplo" className={inputClass} value={item.example} onChange={(event) => setDescribed({ ...described, [item.name]: { description: item.description, example: event.target.value } })} />
+                <input aria-label={`Descripción de ${item.name}`} placeholder="Qué es" className={INPUT_FULL} value={item.description} onChange={(event) => setDescribed({ ...described, [item.name]: { description: event.target.value, example: item.example } })} />
+                <input aria-label={`Ejemplo de ${item.name}`} placeholder="Ejemplo" className={INPUT_FULL} value={item.example} onChange={(event) => setDescribed({ ...described, [item.name]: { description: item.description, example: event.target.value } })} />
               </div>
             ))}
           </div>
@@ -109,7 +109,7 @@ export function BuilderTab({ state, send, persona, env, target }: StudioTabProps
       ) : (
         <section className="space-y-4">
           <label className="block space-y-1 text-sm text-ink-muted">Prompt principal
-            <select aria-label="Prompt principal" className={inputClass} value={promptId} onChange={(event) => setPromptId(event.target.value)}>
+            <select aria-label="Prompt principal" className={INPUT_FULL} value={promptId} onChange={(event) => setPromptId(event.target.value)}>
               <option value="">Elija un prompt…</option>{prompts.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
           </label>
@@ -127,25 +127,25 @@ export function BuilderTab({ state, send, persona, env, target }: StudioTabProps
           </fieldset>
           <div className="grid gap-3 sm:grid-cols-3">
             <label className="space-y-1 text-sm text-ink-muted">Memoria
-              <select aria-label="Memoria" className={inputClass} value={memory.mode} onChange={(event) => setMemory({ ...memory, mode: event.target.value as typeof memory.mode })}>{MEMORY_MODES.map((key) => <option key={key} value={key}>{label("memory", key)}</option>)}</select>
+              <select aria-label="Memoria" className={INPUT_FULL} value={memory.mode} onChange={(event) => setMemory({ ...memory, mode: event.target.value as typeof memory.mode })}>{MEMORY_MODES.map((key) => <option key={key} value={key}>{label("memory", key)}</option>)}</select>
             </label>
-            <label className="space-y-1 text-sm text-ink-muted">Entradas de memoria<input type="number" aria-label="Entradas de memoria" className={inputClass} value={memory.maxEntries} onChange={(event) => setMemory({ ...memory, maxEntries: Number(event.target.value) })} /></label>
-            <label className="space-y-1 text-sm text-ink-muted">Caracteres de memoria<input type="number" aria-label="Caracteres de memoria" className={inputClass} value={memory.maxChars} onChange={(event) => setMemory({ ...memory, maxChars: Number(event.target.value) })} /></label>
+            <label className="space-y-1 text-sm text-ink-muted">Entradas de memoria<input type="number" aria-label="Entradas de memoria" className={INPUT_FULL} value={memory.maxEntries} onChange={(event) => setMemory({ ...memory, maxEntries: Number(event.target.value) })} /></label>
+            <label className="space-y-1 text-sm text-ink-muted">Caracteres de memoria<input type="number" aria-label="Caracteres de memoria" className={INPUT_FULL} value={memory.maxChars} onChange={(event) => setMemory({ ...memory, maxChars: Number(event.target.value) })} /></label>
             <label className="space-y-1 text-sm text-ink-muted">Tono
-              <select aria-label="Tono" className={inputClass} value={personality.tone} onChange={(event) => setPersonality({ ...personality, tone: event.target.value as typeof personality.tone })}>{TONES.map((key) => <option key={key} value={key}>{label("tone", key)}</option>)}</select>
+              <select aria-label="Tono" className={INPUT_FULL} value={personality.tone} onChange={(event) => setPersonality({ ...personality, tone: event.target.value as typeof personality.tone })}>{TONES.map((key) => <option key={key} value={key}>{label("tone", key)}</option>)}</select>
             </label>
             <label className="space-y-1 text-sm text-ink-muted">Idioma
-              <select aria-label="Idioma" className={inputClass} value={personality.language} onChange={(event) => setPersonality({ ...personality, language: event.target.value as typeof personality.language })}>{LANGUAGES.map((key) => <option key={key} value={key}>{key}</option>)}</select>
+              <select aria-label="Idioma" className={INPUT_FULL} value={personality.language} onChange={(event) => setPersonality({ ...personality, language: event.target.value as typeof personality.language })}>{LANGUAGES.map((key) => <option key={key} value={key}>{key}</option>)}</select>
             </label>
-            <label className="space-y-1 text-sm text-ink-muted">Estilo<input aria-label="Estilo" className={inputClass} value={personality.style} onChange={(event) => setPersonality({ ...personality, style: event.target.value })} /></label>
-            <label className="space-y-1 text-sm text-ink-muted">Ejecuciones por día<input type="number" aria-label="Ejecuciones por día" className={inputClass} value={limits.maxRunsPerDay} onChange={(event) => setLimits({ ...limits, maxRunsPerDay: Number(event.target.value) })} /></label>
-            <label className="space-y-1 text-sm text-ink-muted">Pasos por ejecución<input type="number" aria-label="Pasos por ejecución" className={inputClass} value={limits.maxStepsPerRun} onChange={(event) => setLimits({ ...limits, maxStepsPerRun: Number(event.target.value) })} /></label>
-            <label className="space-y-1 text-sm text-ink-muted">Costo máximo por ejecución (millonésimas de US$)<input type="number" aria-label="Costo máximo por ejecución" className={inputClass} value={limits.maxCostMicrosPerRun} onChange={(event) => setLimits({ ...limits, maxCostMicrosPerRun: Number(event.target.value) })} /></label>
+            <label className="space-y-1 text-sm text-ink-muted">Estilo<input aria-label="Estilo" className={INPUT_FULL} value={personality.style} onChange={(event) => setPersonality({ ...personality, style: event.target.value })} /></label>
+            <label className="space-y-1 text-sm text-ink-muted">Ejecuciones por día<input type="number" aria-label="Ejecuciones por día" className={INPUT_FULL} value={limits.maxRunsPerDay} onChange={(event) => setLimits({ ...limits, maxRunsPerDay: Number(event.target.value) })} /></label>
+            <label className="space-y-1 text-sm text-ink-muted">Pasos por ejecución<input type="number" aria-label="Pasos por ejecución" className={INPUT_FULL} value={limits.maxStepsPerRun} onChange={(event) => setLimits({ ...limits, maxStepsPerRun: Number(event.target.value) })} /></label>
+            <label className="space-y-1 text-sm text-ink-muted">Costo máximo por ejecución (millonésimas de US$)<input type="number" aria-label="Costo máximo por ejecución" className={INPUT_FULL} value={limits.maxCostMicrosPerRun} onChange={(event) => setLimits({ ...limits, maxCostMicrosPerRun: Number(event.target.value) })} /></label>
           </div>
         </section>
       )}
 
-      <label className="block space-y-1 text-sm text-ink-muted">Nota de la versión (opcional)<input aria-label="Nota de la versión" className={inputClass} value={note} onChange={(event) => setNote(event.target.value)} /></label>
+      <label className="block space-y-1 text-sm text-ink-muted">Nota de la versión (opcional)<input aria-label="Nota de la versión" className={INPUT_FULL} value={note} onChange={(event) => setNote(event.target.value)} /></label>
       {issues.length > 0 && <ul aria-label="Pendientes del formulario" className="list-disc space-y-0.5 pl-5 text-sm text-warning">{issues.map((issue) => <li key={issue}>{issue}</li>)}</ul>}
       {saved && <p role="status" className="text-sm text-success">{saved}</p>}
       <Button size="sm" disabled={issues.length > 0} onClick={save}>{existing ? "Guardar nueva versión" : kind === "prompt" ? "Crear prompt" : "Crear agente"}</Button>
@@ -186,23 +186,23 @@ export function PlaygroundTab({ state, send, persona, env, testTarget }: StudioT
         <p className="text-sm text-ink-muted">La prueba pasa por KOE: KOE elige el Worker y el Worker el modelo. La salida es una simulación; no se llama a ningún modelo.</p>
         <div className="grid gap-3 sm:grid-cols-4">
           <label className="space-y-1 text-sm text-ink-muted">Qué probar
-            <select aria-label="Qué probar" className={inputClass} value={assetId} onChange={(event) => { const next = assets.find((item) => item.id === event.target.value); setAssetId(event.target.value); setVersion(next ? latestOf(next).number : 1); setOther(""); }}>
+            <select aria-label="Qué probar" className={INPUT_FULL} value={assetId} onChange={(event) => { const next = assets.find((item) => item.id === event.target.value); setAssetId(event.target.value); setVersion(next ? latestOf(next).number : 1); setOther(""); }}>
               {assets.map((item) => <option key={item.id} value={item.id}>{item.name} ({label("kind", item.kind)})</option>)}
             </select>
           </label>
           <label className="space-y-1 text-sm text-ink-muted">Versión
-            <select aria-label="Versión" className={inputClass} value={version} onChange={(event) => setVersion(Number(event.target.value))}>
+            <select aria-label="Versión" className={INPUT_FULL} value={version} onChange={(event) => setVersion(Number(event.target.value))}>
               {asset?.versions.map((item) => <option key={item.id} value={item.number}>v{item.number} · {label("versionState", item.state)}</option>)}
             </select>
           </label>
           <label className="space-y-1 text-sm text-ink-muted">Worker
-            <select aria-label="Worker" className={inputClass} value={workerId} onChange={(event) => setWorkerId(event.target.value)}>
+            <select aria-label="Worker" className={INPUT_FULL} value={workerId} onChange={(event) => setWorkerId(event.target.value)}>
               <option value="">Que KOE elija</option>
               {env.workers.filter((item) => item.status === "active" && (item.ownerTenantId === PLATFORM_OWNER || item.ownerTenantId === persona.tenantId)).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
           </label>
           <label className="space-y-1 text-sm text-ink-muted">Comparar con
-            <select aria-label="Comparar con" className={inputClass} value={other} onChange={(event) => setOther(event.target.value === "" ? "" : Number(event.target.value))}>
+            <select aria-label="Comparar con" className={INPUT_FULL} value={other} onChange={(event) => setOther(event.target.value === "" ? "" : Number(event.target.value))}>
               <option value="">Sin comparar</option>
               {asset?.versions.filter((item) => item.number !== version).map((item) => <option key={item.id} value={item.number}>v{item.number}</option>)}
             </select>
@@ -212,7 +212,7 @@ export function PlaygroundTab({ state, send, persona, env, testTarget }: StudioT
         <div className="grid gap-2 sm:grid-cols-2">
           {variables.map((item) => (
             <label key={item.name} className="space-y-1 text-xs text-ink-muted">{item.name}{item.description ? ` · ${item.description}` : ""}
-              <input aria-label={`Entrada ${item.name}`} placeholder={item.example || "Valor de prueba"} className={inputClass} value={inputs[item.name] ?? ""} onChange={(event) => setInputs({ ...inputs, [item.name]: event.target.value })} />
+              <input aria-label={`Entrada ${item.name}`} placeholder={item.example || "Valor de prueba"} className={INPUT_FULL} value={inputs[item.name] ?? ""} onChange={(event) => setInputs({ ...inputs, [item.name]: event.target.value })} />
             </label>
           ))}
         </div>

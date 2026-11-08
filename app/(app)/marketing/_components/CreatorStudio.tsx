@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState, type KeyboardEvent } from "react";
+import { useId, useState } from "react";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import { EMPTY_BRIEF, videoOfIdea } from "@/lib/creator";
 import { BriefTab } from "./BriefTab";
@@ -10,6 +10,7 @@ import { ScriptsTab } from "./ScriptsTab";
 import { buttonClass } from "@/components/ui/Button";
 import { useCreatorStudio } from "./useCreatorStudio";
 import { Badge } from "@/components/ui/Badge";
+import { Tabs } from "@/components/ui/Tabs";
 
 // Creator studio v0 inside Marketing (ADR-0005: a module view of its own lives in _components/). A faceless
 // YouTube channel workspace that is local to this browser: it connects to no service and publishes nothing.
@@ -42,15 +43,6 @@ export function CreatorStudio() {
   function createScript(ideaId: string) {
     const existing = videoOfIdea(state, ideaId);
     openScript(existing?.id ?? actions.createScript(ideaId));
-  }
-
-  function onTabKeyDown(event: KeyboardEvent<HTMLButtonElement>, current: Tab) {
-    const index = TABS.indexOf(current);
-    const target = { ArrowRight: TABS[(index + 1) % TABS.length], ArrowLeft: TABS[(index + TABS.length - 1) % TABS.length], Home: TABS[0], End: TABS[TABS.length - 1] }[event.key];
-    if (!target) return;
-    event.preventDefault();
-    setTab(target);
-    document.getElementById(`${ids}-tab-${target}`)?.focus();
   }
 
   return (
@@ -102,24 +94,7 @@ export function CreatorStudio() {
               ))}
           </div>
 
-          <div role="tablist" aria-label={copy.tabsLabel} className="mt-5 flex flex-wrap gap-2 border-b border-line pb-3">
-            {TABS.map((name) => (
-              <button
-                key={name}
-                id={`${ids}-tab-${name}`}
-                type="button"
-                role="tab"
-                aria-selected={tab === name}
-                aria-controls={`${ids}-panel-${name}`}
-                tabIndex={tab === name ? 0 : -1}
-                onClick={() => setTab(name)}
-                onKeyDown={(event) => onTabKeyDown(event, name)}
-                className={buttonClass(tab === name ? "primary" : "secondary", "md", "min-h-11")}
-              >
-                {copy.tabs[name]}
-              </button>
-            ))}
-          </div>
+          <Tabs label={copy.tabsLabel} idPrefix={ids} items={TABS.map((name) => ({ key: name, label: copy.tabs[name] }))} value={tab} onChange={setTab} className="mt-5" />
 
           <div role="tabpanel" id={`${ids}-panel-${tab}`} aria-labelledby={`${ids}-tab-${tab}`} className="mt-5">
             {tab === "brief" && <BriefTab brief={state.brief} onChange={actions.updateBrief} />}

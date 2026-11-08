@@ -7,6 +7,7 @@ import { label } from "@/lib/contracts/platform/insights-messages";
 import { computeInsights, presetPeriod, type PeriodPreset } from "@/lib/contracts/platform/koe-insights";
 import { AiView, AnalyticsView, CustomersView, ExecutiveView, FinancialView, KoeView, ProductivityView } from "./InsightsViews";
 import { ReportsTab } from "./InsightsReports";
+import { Tabs } from "@/components/ui/Tabs";
 
 const TAB_KEYS = ["executive", "analytics", "ai", "productivity", "financial", "customers", "koe", "reports"] as const;
 type TabKey = (typeof TAB_KEYS)[number];
@@ -65,13 +66,7 @@ export function InsightsCenter() {
         </div>
       </div>
 
-      <div role="tablist" aria-label="Inteligencia empresarial" className="flex flex-wrap gap-1.5">
-        {TAB_KEYS.map((key) => (
-          <button key={key} role="tab" type="button" aria-selected={tab === key} onClick={() => { setTab(key); setMessage(null); }} className={tab === key ? "btn btn-sm btn-primary" : "btn btn-sm btn-ghost"}>
-            {label("tabs", key)}
-          </button>
-        ))}
-      </div>
+      <Tabs label="Inteligencia empresarial" items={TAB_KEYS.map((key) => ({ key, label: label("tabs", key) }))} value={tab} onChange={(key) => { setTab(key); setMessage(null); }} />
 
       {message && <p role="alert" className="rounded-xl bg-danger/15 px-3 py-2 text-sm text-danger-soft">{message}</p>}
 

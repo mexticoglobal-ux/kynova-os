@@ -12,6 +12,12 @@ import { FIELD, LABEL } from "@/components/ui/form";
 import { AreaChart } from "@/components/charts/AreaChart";
 import { BarList } from "@/components/charts/BarList";
 import { Sparkline } from "@/components/charts/Sparkline";
+import { BRAND_KEYS } from "@/config/brand";
+import { Dialog } from "@/components/ui/Dialog";
+import { ProductMark } from "@/components/ui/ProductMark";
+import { Stat } from "@/components/ui/Stat";
+import { Table } from "@/components/ui/Table";
+import { Tabs } from "@/components/ui/Tabs";
 
 const SURFACES = [
   ["canvas", "bg-canvas", "Fondo de página"],
@@ -63,6 +69,8 @@ function Block({ title, children }: { title: string; children: React.ReactNode }
 // Reference of the KYNOVA design system. The theme switcher only changes this tab's `data-theme`: nothing is stored.
 export function DesignSystemView() {
   const [theme, setTheme] = useState<Theme>(DEFAULT_THEME);
+  const [demoTab, setDemoTab] = useState<"uno" | "dos" | "tres">("uno");
+  const [demoDialog, setDemoDialog] = useState(false);
 
   function choose(next: Theme) {
     document.documentElement.dataset.theme = next;
@@ -76,9 +84,9 @@ export function DesignSystemView() {
           <Gem aria-hidden className="h-3.5 w-3.5" />
           Design System
         </Badge>
-        <h1 className="text-4xl font-semibold tracking-tight">KYNOVA Premium UI</h1>
+        <h1 className="text-4xl font-semibold tracking-tight">KYNOVA Design System V2</h1>
         <p className="max-w-2xl text-ink-muted">
-          Azul petróleo, grafito y dorado. Cada pantalla se construye con estas piezas: los colores salen de variables por tema y nada se pinta a mano.
+          Dos temas, NOVA Dark y NOVA Light, con exactamente los mismos componentes. Cada pantalla se construye con estas piezas: los colores salen de variables por tema y nada se pinta a mano.
         </p>
         <div role="group" aria-label="Tema" className="inline-flex rounded-full border border-line bg-raised p-1 text-sm">
           {THEMES.map((option) => (
@@ -120,6 +128,37 @@ export function DesignSystemView() {
         </Card>
       </Block>
 
+      <Block title="Pestañas, cifras y tablas">
+        <Tabs label="Ejemplo de pestañas" value={demoTab} onChange={setDemoTab} items={[{ key: "uno", label: "Panel" }, { key: "dos", label: "Detalle" }, { key: "tres", label: "Historial" }]} />
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Stat label="Clientes activos" value="1 284" hint="+4,2 % este mes" tone="good" />
+          <Stat label="Tareas de IA" value="9 310" hint="últimos 30 días" />
+          <Stat label="Por revisar" value="7" hint="requieren a una persona" tone="warn" />
+        </div>
+        <Card className="p-4">
+          <Table label="Ejemplo de tabla" minWidth={420}>
+            <thead><tr><th className="px-2 py-1.5">Módulo</th><th className="px-2 py-1.5">Estado</th><th className="px-2 py-1.5">Uso</th></tr></thead>
+            <tbody>
+              <tr className="border-t border-line text-sm"><td className="px-2 py-1.5">CRM</td><td className="px-2 py-1.5">Activo</td><td className="px-2 py-1.5">82 %</td></tr>
+              <tr className="border-t border-line text-sm"><td className="px-2 py-1.5">Communications</td><td className="px-2 py-1.5">Activo</td><td className="px-2 py-1.5">64 %</td></tr>
+            </tbody>
+          </Table>
+        </Card>
+        <Button variant="secondary" onClick={() => setDemoDialog(true)}>Abrir un diálogo</Button>
+        <Dialog open={demoDialog} onClose={() => setDemoDialog(false)} label="Ejemplo de diálogo" className="p-6">
+          <h3 className="text-lg font-semibold">Un diálogo</h3>
+          <p className="mt-2 text-sm text-ink-muted">Atrapa el foco, se cierra con Escape y devuelve el foco a quien lo abrió.</p>
+          <div className="mt-5 flex justify-end"><Button data-autofocus onClick={() => setDemoDialog(false)}>Entendido</Button></div>
+        </Dialog>
+      </Block>
+
+      <Block title="Marcas">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {BRAND_KEYS.map((brand) => (
+            <Card key={brand} className="p-4"><ProductMark brand={brand} showTagline /></Card>
+          ))}
+        </div>
+      </Block>
       <Block title="Botones">
         <div className="flex flex-wrap items-center gap-3">
           <Button variant="primary">Primario</Button>

@@ -6,6 +6,7 @@ import { DEMO_NOW, DEMO_PERSONAS, demoCommsOk } from "@/lib/contracts/platform/c
 import { label } from "@/lib/contracts/platform/comms-messages";
 import { AssignmentsTab, DraftsTab } from "./CommsDrafts";
 import { ConversationTab, InboxTab, IntelligenceTab, TimelineTab } from "./CommsViews";
+import { Tabs } from "@/components/ui/Tabs";
 
 const TAB_KEYS = ["inbox", "conversation", "timeline", "drafts", "assignments", "intelligence"] as const;
 type TabKey = (typeof TAB_KEYS)[number];
@@ -57,13 +58,7 @@ export function CommsCenter() {
         </label>
       </div>
 
-      <div role="tablist" aria-label="Centro de comunicaciones" className="flex flex-wrap gap-1.5">
-        {TAB_KEYS.map((key) => (
-          <button key={key} role="tab" type="button" aria-selected={tab === key} onClick={() => { setTab(key); setMessage(null); }} className={tab === key ? "btn btn-sm btn-primary" : "btn btn-sm btn-ghost"}>
-            {label("tabs", key)}
-          </button>
-        ))}
-      </div>
+      <Tabs label="Centro de comunicaciones" items={TAB_KEYS.map((key) => ({ key, label: label("tabs", key) }))} value={tab} onChange={(key) => { setTab(key); setMessage(null); }} />
 
       {message && <p role="alert" className="rounded-xl bg-danger/15 px-3 py-2 text-sm text-danger-soft">{message}</p>}
 

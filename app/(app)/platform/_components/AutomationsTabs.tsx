@@ -15,12 +15,12 @@ import { PLATFORM_OWNER, formatCostMicros } from "@/lib/contracts/platform/koe-r
 import { label as koeLabel } from "@/lib/contracts/platform/koe-messages";
 import { PRIORITY_TONE } from "./WorkersTabs";
 import type { AutomationsTabProps } from "./AutomationsCenter";
+import { INPUT_FULL } from "@/components/ui/form";
 
 const STATUS_TONE: Record<Automation["status"], BadgeTone> = { setupPending: "warning", draft: "neutral", active: "success", paused: "warning" };
 const RUN_TONE: Record<RunStatus, BadgeTone> = { completed: "success", testLogged: "primary", skipped: "warning", failed: "danger" };
 const OUTPUT_TONE: Record<OutputStatus, BadgeTone> = { open: "accent", done: "success", dismissed: "neutral" };
 const time = (iso: string) => iso.slice(0, 16).replace("T", " ");
-const inputClass = "w-full rounded-xl border border-line bg-raised px-3 py-1.5 text-sm text-ink";
 
 const workerOf = (id: string | undefined) => DEFAULT_KOE_ENV.workers.find((item) => item.id === id);
 
@@ -123,10 +123,10 @@ export function BuilderTab({ state, send, persona, editingId, edit }: Automation
       <h2 className="font-semibold">{current ? `Editar «${current.name}»` : "Nueva automatización"}</h2>
       {current?.status === "active" && <p className="text-sm text-warning">Al guardar, la automatización se pausa para que pueda revisar el cambio antes de reanudarla.</p>}
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="space-y-1 text-sm text-ink-muted">Nombre<input aria-label="Nombre" className={inputClass} value={input.name} onChange={(event) => setInput({ ...input, name: event.target.value })} /></label>
-        <label className="space-y-1 text-sm text-ink-muted">Descripción<input aria-label="Descripción" className={inputClass} value={input.description} onChange={(event) => setInput({ ...input, description: event.target.value })} /></label>
+        <label className="space-y-1 text-sm text-ink-muted">Nombre<input aria-label="Nombre" className={INPUT_FULL} value={input.name} onChange={(event) => setInput({ ...input, name: event.target.value })} /></label>
+        <label className="space-y-1 text-sm text-ink-muted">Descripción<input aria-label="Descripción" className={INPUT_FULL} value={input.description} onChange={(event) => setInput({ ...input, description: event.target.value })} /></label>
         <label className="space-y-1 text-sm text-ink-muted">Disparador
-          <select aria-label="Disparador" className={inputClass} value={input.trigger} onChange={(event) => setInput({ ...input, trigger: event.target.value as TriggerKind, conditions: [] })}>
+          <select aria-label="Disparador" className={INPUT_FULL} value={input.trigger} onChange={(event) => setInput({ ...input, trigger: event.target.value as TriggerKind, conditions: [] })}>
             {TRIGGERS.map((kind) => <option key={kind} value={kind}>{label("trigger", kind)}</option>)}
           </select>
         </label>
@@ -135,7 +135,7 @@ export function BuilderTab({ state, send, persona, editingId, edit }: Automation
       <section className="space-y-2">
         <h3 className="text-sm font-semibold">Worker que la ejecuta</h3>
         <label className="block space-y-1 text-sm text-ink-muted">Worker
-          <select aria-label="Worker" className={inputClass} value={input.workerId ?? ""} onChange={(event) => setInput({ ...input, workerId: event.target.value || undefined })}>
+          <select aria-label="Worker" className={INPUT_FULL} value={input.workerId ?? ""} onChange={(event) => setInput({ ...input, workerId: event.target.value || undefined })}>
             <option value="">Sin Worker (queda en «Configuración pendiente»)</option>
             {offered.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
@@ -180,10 +180,10 @@ export function BuilderTab({ state, send, persona, editingId, edit }: Automation
               {ACTION_PARAMS[action.kind].map((spec) => (
                 <label key={spec.key} className="space-y-1 text-xs text-ink-muted">{fieldLabel(spec.key)}{spec.required ? " *" : ""}
                   {spec.kind === "role"
-                    ? <select aria-label={`${spec.key} de la acción ${index + 1}`} className={inputClass} value={action.params[spec.key] ?? ""} onChange={(event) => setAction(index, { ...action, params: { ...action.params, [spec.key]: event.target.value } })}>
+                    ? <select aria-label={`${spec.key} de la acción ${index + 1}`} className={INPUT_FULL} value={action.params[spec.key] ?? ""} onChange={(event) => setAction(index, { ...action, params: { ...action.params, [spec.key]: event.target.value } })}>
                         <option value="">—</option>{ROLES.map((role) => <option key={role} value={role}>{label("role", role)}</option>)}
                       </select>
-                    : <input aria-label={`${spec.key} de la acción ${index + 1}`} className={inputClass} value={action.params[spec.key] ?? ""} onChange={(event) => setAction(index, { ...action, params: { ...action.params, [spec.key]: event.target.value } })} />}
+                    : <input aria-label={`${spec.key} de la acción ${index + 1}`} className={INPUT_FULL} value={action.params[spec.key] ?? ""} onChange={(event) => setAction(index, { ...action, params: { ...action.params, [spec.key]: event.target.value } })} />}
                 </label>
               ))}
             </div>
@@ -212,19 +212,19 @@ export function SimulateTab({ send }: AutomationsTabProps) {
     <Card className="space-y-4 p-5">
       <p className="text-sm text-ink-muted">Simule que ocurrió un evento en la empresa. Solo corren las automatizaciones activas con ese disparador; las que están en modo de prueba solo lo registran.</p>
       <label className="block space-y-1 text-sm text-ink-muted">Evento
-        <select aria-label="Evento" className={inputClass} value={kind} onChange={(event) => choose(event.target.value as TriggerKind)}>
+        <select aria-label="Evento" className={INPUT_FULL} value={kind} onChange={(event) => choose(event.target.value as TriggerKind)}>
           {TRIGGERS.filter((item) => item !== "manual").map((item) => <option key={item} value={item}>{label("trigger", item)}</option>)}
         </select>
       </label>
       <div className="grid gap-2 sm:grid-cols-2">
         {Object.keys(payload).map((key) => (
           <label key={key} className="space-y-1 text-xs text-ink-muted">{fieldLabel(key)}
-            <input aria-label={`Dato ${fieldLabel(key)}`} className={inputClass} value={payload[key]} onChange={(event) => setPayload({ ...payload, [key]: event.target.value })} />
+            <input aria-label={`Dato ${fieldLabel(key)}`} className={INPUT_FULL} value={payload[key]} onChange={(event) => setPayload({ ...payload, [key]: event.target.value })} />
           </label>
         ))}
       </div>
       <label className="block space-y-1 text-xs text-ink-muted">Identificador del evento (opcional; el mismo identificador se procesa una sola vez)
-        <input aria-label="Identificador del evento" className={inputClass} value={eventId} onChange={(event) => setEventId(event.target.value)} />
+        <input aria-label="Identificador del evento" className={INPUT_FULL} value={eventId} onChange={(event) => setEventId(event.target.value)} />
       </label>
       <Button size="sm" onClick={() => send({ type: "trigger.fire", kind, payload, ...(eventId.trim() ? { eventId: eventId.trim() } : {}) })}>Simular evento</Button>
     </Card>

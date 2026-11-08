@@ -51,7 +51,7 @@ function RealMetrics({ server }: { server: ServerDigest }) {
       <h2 id="metrics-title" className="text-xl font-semibold">
         El negocio hoy
       </h2>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
         <Stat label="Prospectos abiertos" value={String(server.leads.open)} hint={`${server.leads.hot} calientes`} />
         <Stat label="Sin seguimiento" value={String(server.leads.needFollowUp)} hint="Próxima acción vencida o sin fecha" />
         <Stat label="Oportunidades abiertas" value={String(server.opportunities.open)} hint={formatMoney(server.opportunities.openAmountMinor)} />
@@ -77,7 +77,7 @@ export function NexDashboard() {
   const anything = overnight.analyzed + overnight.hot + overnight.awaitingApproval + overnight.needFollowUp + overnight.withMeeting > 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <PageHeader
         icon={Bot}
         eyebrow={mode === "demo" ? "NEX · Datos de demostración" : `NEX · ${session.mode === "backend" ? session.tenantName : ""}`}
@@ -152,7 +152,7 @@ export function NexDashboard() {
         </Card>
       )}
 
-      <section className="grid gap-4 lg:grid-cols-2">
+      <section className="grid gap-5 lg:grid-cols-2">
         <Card className="animate-fade-up p-5 sm:p-6">
           <h2 className="flex items-center gap-2 font-medium">
             <ShieldCheck aria-hidden className="h-4 w-4 text-accent" />
@@ -180,7 +180,7 @@ export function NexDashboard() {
         </Card>
 
         <Card className="animate-fade-up flex flex-col p-5 sm:p-6">
-          <h2 className="font-medium">Recibir un prospecto</h2>
+          <h2 className="font-semibold tracking-tight">Recibir un prospecto</h2>
           <p className="mt-3 flex-1 text-sm text-ink-soft">
             Prueba el recorrido completo: haz de visitante en el sitio de Nova, deja que NEX te haga el diagnóstico y mira cómo el prospecto aparece en el Pipeline y aquí.
           </p>

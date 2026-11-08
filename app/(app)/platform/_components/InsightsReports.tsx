@@ -9,8 +9,8 @@ import { FORMATS, FREQUENCIES, FUTURE_CAPABILITIES, VIEWS, correctionsOf, effect
 import { label } from "@/lib/contracts/platform/insights-messages";
 import { metricOf } from "@/lib/contracts/platform/koe-ledger";
 import type { InsightsTabProps } from "./InsightsCenter";
+import { INPUT_FULL } from "@/components/ui/form";
 
-const inputClass = "w-full rounded-xl border border-line bg-raised px-3 py-1.5 text-sm text-ink";
 const who = (actor: string) => (actor.startsWith("worker:") ? "NEX (IA)" : actor);
 const time = (iso: string) => iso.slice(0, 16).replace("T", " ");
 
@@ -36,9 +36,9 @@ export function ReportsTab({ state, send, persona }: InsightsTabProps & { state:
         <p className="text-sm text-ink-muted">Hoy solo existe la arquitectura: un reporte es una definición, y la exportación a PDF o Excel es una <strong>descripción simulada</strong> (no se genera ningún archivo). NEX puede preparar borradores y exportaciones simuladas; aprobar, programar y compartir lo decide una persona. Programar y compartir son registros: nada se envía.</p>
         <Card className="space-y-3 p-4">
           <div className="grid gap-3 sm:grid-cols-3">
-            <label className="space-y-1 text-sm text-ink-muted">Nombre del reporte<input aria-label="Nombre del reporte" className={inputClass} value={name} onChange={(event) => setName(event.target.value)} /></label>
+            <label className="space-y-1 text-sm text-ink-muted">Nombre del reporte<input aria-label="Nombre del reporte" className={INPUT_FULL} value={name} onChange={(event) => setName(event.target.value)} /></label>
             <label className="space-y-1 text-sm text-ink-muted">Formato
-              <select aria-label="Formato" className={inputClass} value={format} onChange={(event) => setFormat(event.target.value as Format)}>{FORMATS.map((item) => <option key={item} value={item}>{item === "pdf" ? "PDF" : "Excel"}</option>)}</select>
+              <select aria-label="Formato" className={INPUT_FULL} value={format} onChange={(event) => setFormat(event.target.value as Format)}>{FORMATS.map((item) => <option key={item} value={item}>{item === "pdf" ? "PDF" : "Excel"}</option>)}</select>
             </label>
           </div>
           <fieldset className="flex flex-wrap gap-x-4 gap-y-1"><legend className="text-sm font-semibold">Secciones</legend>
@@ -77,12 +77,12 @@ export function ReportsTab({ state, send, persona }: InsightsTabProps & { state:
           <Card className="space-y-3 p-4">
             <div className="grid gap-3 sm:grid-cols-3">
               <label className="space-y-1 text-sm text-ink-muted">Métrica
-                <select aria-label="Métrica a corregir" className={inputClass} value={chosen} onChange={(event) => setFactId(event.target.value)}>
+                <select aria-label="Métrica a corregir" className={INPUT_FULL} value={chosen} onChange={(event) => setFactId(event.target.value)}>
                   {facts.shown.map((fact) => <option key={fact.id} value={fact.id}>{metricOf(fact.metric)?.label ?? fact.metric} · {fact.at.slice(0, 10)} · {fact.value}</option>)}
                 </select>
               </label>
-              <label className="space-y-1 text-sm text-ink-muted">Valor correcto<input type="number" aria-label="Valor correcto" className={inputClass} value={newValue} onChange={(event) => setNewValue(event.target.value)} /></label>
-              <label className="space-y-1 text-sm text-ink-muted">Motivo<input aria-label="Motivo de la corrección" className={inputClass} value={reason} onChange={(event) => setReason(event.target.value)} /></label>
+              <label className="space-y-1 text-sm text-ink-muted">Valor correcto<input type="number" aria-label="Valor correcto" className={INPUT_FULL} value={newValue} onChange={(event) => setNewValue(event.target.value)} /></label>
+              <label className="space-y-1 text-sm text-ink-muted">Motivo<input aria-label="Motivo de la corrección" className={INPUT_FULL} value={reason} onChange={(event) => setReason(event.target.value)} /></label>
             </div>
             <Button size="sm" variant="secondary" disabled={!chosenFact} onClick={() => send({ type: "correction.propose", factId: chosen, newValue: Number(newValue), reason })}>Proponer corrección</Button>
           </Card>

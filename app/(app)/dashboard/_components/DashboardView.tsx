@@ -49,9 +49,9 @@ export function DashboardView() {
   const overall = Math.round(HEALTH_ORDER.reduce((sum, area) => sum + data.health[area], 0) / HEALTH_ORDER.length);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
         {(Object.keys(data.kpis) as Array<keyof typeof data.kpis>).map((key, index) => (
           <div key={key} className="animate-fade-up" style={stagger(index + 1)}>
             <KpiCard label={m.dashboard.kpis[key]} kpi={data.kpis[key]} />
@@ -59,16 +59,16 @@ export function DashboardView() {
         ))}
       </section>
 
-      <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <section className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         <div className="animate-fade-up card p-5 sm:p-6 lg:col-span-2" style={stagger(5)}>
-          <h2 className="font-medium">{m.dashboard.revenueTrend}</h2>
+          <h2 className="font-semibold tracking-tight">{m.dashboard.revenueTrend}</h2>
           <div className="mt-4">
             <AreaChart data={data.revenueTrend} labels={m.dashboard.months} label={m.dashboard.revenueTrend} />
           </div>
         </div>
 
         <div className="animate-fade-up card p-5 sm:p-6" style={stagger(6)}>
-          <h2 className="font-medium">{m.dashboard.healthTitle}</h2>
+          <h2 className="font-semibold tracking-tight">{m.dashboard.healthTitle}</h2>
           <div className="mt-4 flex items-center gap-5">
             <div className="relative shrink-0">
               <HealthRing score={overall} />
@@ -86,9 +86,9 @@ export function DashboardView() {
         </div>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-2">
+      <section className="grid gap-5 lg:grid-cols-2">
         <div className="animate-fade-up card p-5 sm:p-6" style={stagger(7)}>
-          <h2 className="font-medium">{m.dashboard.channels}</h2>
+          <h2 className="font-semibold tracking-tight">{m.dashboard.channels}</h2>
           <div className="mt-4">
             <BarList
               items={CHANNEL_ORDER.map((channel) => ({
@@ -101,7 +101,7 @@ export function DashboardView() {
         </div>
 
         <div className="animate-fade-up card flex flex-col p-5 sm:p-6" style={stagger(8)}>
-          <h2 className="font-medium">{m.dashboard.recommended}</h2>
+          <h2 className="font-semibold tracking-tight">{m.dashboard.recommended}</h2>
           <ul className="mt-4 flex-1 space-y-3 text-sm">
             {m.dashboard.actions.map((action) => (
               <li key={action} className="flex items-start gap-3">

@@ -10,10 +10,11 @@ import { devDashboard, maskKey, type RateStatus } from "@/lib/contracts/platform
 import { hiddenNote, latest } from "@/lib/contracts/platform/display";
 import { Kpi, Ranking, Section, num } from "./InsightsCharts";
 import type { DevTabProps } from "./DevCenter";
+import { INPUT } from "@/components/ui/form";
+import { Table } from "@/components/ui/Table";
 
 export const SEVERITY_TONE: Record<string, BadgeTone> = { normal: "primary", high: "warning" };
 export const RATE_TONE: Record<RateStatus, BadgeTone> = { ok: "success", warn: "warning", atLimit: "warning", over: "danger" };
-export const inputClass = "rounded-xl border border-line bg-raised px-3 py-1.5 text-sm text-ink";
 export const when = (iso: string) => iso.slice(0, 16).replace("T", " ");
 export const day = (iso: string) => iso.slice(0, 10);
 export const who = (actor: string) => (actor.startsWith("worker:") ? "NEX (IA)" : actor === "system" ? "Plataforma" : actor);
@@ -95,8 +96,7 @@ export function DashboardTab({ state, asOf, persona, send }: DevTabProps) {
       </Section>
 
       <Section title="Rate limits" aside="Por empresa, aplicación y API Key; el plan fija el tope de la empresa">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[620px] text-left" aria-label="Rate limits">
+        <Table label="Rate limits" minWidth={620}>
             <thead><tr className="text-xs text-ink-muted"><th className="px-2 py-1.5">Nivel</th><th className="px-2 py-1.5">Nombre</th><th className="px-2 py-1.5">Último minuto</th><th className="px-2 py-1.5">Límite propio</th><th className="px-2 py-1.5">Límite efectivo</th><th className="px-2 py-1.5">Estado</th></tr></thead>
             <tbody>
               {d.rate.map((row) => (
@@ -106,8 +106,7 @@ export function DashboardTab({ state, asOf, persona, send }: DevTabProps) {
                 </tr>
               ))}
             </tbody>
-          </table>
-        </div>
+          </Table>
       </Section>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -162,11 +161,11 @@ export function KeysTab({ state, persona, send, sendAsPlatform }: DevTabProps) {
         <p className="font-medium">{nex ? "Preparar una API Key" : "Crear una API Key"}</p>
         <div className="flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-2 text-sm text-ink-muted">Aplicación
-            <select aria-label="Aplicación de la llave" className={inputClass} value={chosen?.id ?? ""} onChange={(event) => { setAppId(event.target.value); setScopes([]); }}>
+            <select aria-label="Aplicación de la llave" className={INPUT} value={chosen?.id ?? ""} onChange={(event) => { setAppId(event.target.value); setScopes([]); }}>
               {apps.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
           </label>
-          <input aria-label="Nombre de la llave" className={`${inputClass} w-56`} placeholder="Nombre de la llave" value={name} onChange={(event) => setName(event.target.value)} />
+          <input aria-label="Nombre de la llave" className={`${INPUT} w-56`} placeholder="Nombre de la llave" value={name} onChange={(event) => setName(event.target.value)} />
         </div>
         {chosen && <ScopePicker name="Permisos de la llave" value={scopes} allowed={chosen.scopes} onChange={setScopes} />}
         <Button size="sm" variant="secondary" disabled={!chosen} onClick={() => { if (chosen) send(nex ? { type: "proposal.create", payload: { kind: "key", appId: chosen.id, name, scopes }, reason: "Propuesta de NEX" } : { type: "key.create", appId: chosen.id, name, scopes }); }}>{nex ? "Preparar propuesta" : "Crear API Key"}</Button>
@@ -184,8 +183,8 @@ export function KeysTab({ state, persona, send, sendAsPlatform }: DevTabProps) {
               <div className="flex flex-wrap items-center gap-2">
                 {editing?.id === key.id
                   ? <>
-                    <input aria-label="Nuevo nombre" className={`${inputClass} w-44`} value={editing.name} onChange={(event) => setEditing({ ...editing, name: event.target.value })} />
-                    <input aria-label="Nuevo límite por minuto" type="number" min={1} className={`${inputClass} w-24`} value={editing.rate} onChange={(event) => setEditing({ ...editing, rate: event.target.value })} />
+                    <input aria-label="Nuevo nombre" className={`${INPUT} w-44`} value={editing.name} onChange={(event) => setEditing({ ...editing, name: event.target.value })} />
+                    <input aria-label="Nuevo límite por minuto" type="number" min={1} className={`${INPUT} w-24`} value={editing.rate} onChange={(event) => setEditing({ ...editing, rate: event.target.value })} />
                     <Button size="sm" onClick={() => { send({ type: "key.update", keyId: key.id, name: editing.name, rateLimitRpm: Number(editing.rate) }); setEditing(null); }}>Guardar</Button>
                     <Button size="sm" variant="ghost" onClick={() => setEditing(null)}>Cancelar</Button>
                   </>
@@ -216,14 +215,14 @@ export function WebhooksTab({ state, persona, send }: DevTabProps) {
       <p className="text-sm text-ink-muted">Todo es arquitectura: ningún webhook sale de la simulación. Cada entrega la decide KOE y va firmada ({SIGNATURE_ALGORITHM}); si falla, se puede reintentar hasta {MAX_DELIVERY_ATTEMPTS} intentos en total (espera declarada de {RETRY_BACKOFF_MINUTES.join(", ")} minutos).</p>
       <Card className="space-y-3 p-4" aria-label="Nuevo webhook">
         <p className="font-medium">{nex ? "Preparar un webhook" : "Crear un webhook"}</p>
-        <input aria-label="Dirección del webhook" className={`${inputClass} w-full max-w-md`} value={url} onChange={(event) => setUrl(event.target.value)} />
+        <input aria-label="Dirección del webhook" className={`${INPUT} w-full max-w-md`} value={url} onChange={(event) => setUrl(event.target.value)} />
         <EventPicker name="Eventos del webhook" value={events} onChange={setEvents} />
         <Button size="sm" variant="secondary" onClick={() => send(nex ? { type: "proposal.create", payload: { kind: "webhook", url, events }, reason: "Propuesta de NEX" } : { type: "webhook.create", url, events })}>{nex ? "Preparar propuesta" : "Crear webhook"}</Button>
       </Card>
 
       <Section title="Webhooks">
         <label className="flex items-center gap-2 text-sm text-ink-muted">Evento a simular
-          <select aria-label="Evento a simular" className={inputClass} value={simulated} onChange={(event) => setSimulated(event.target.value as EventType)}>
+          <select aria-label="Evento a simular" className={INPUT} value={simulated} onChange={(event) => setSimulated(event.target.value as EventType)}>
             {EVENT_TYPES.map((type) => <option key={type} value={type}>{label("event", type)}</option>)}
           </select>
         </label>
@@ -235,7 +234,7 @@ export function WebhooksTab({ state, persona, send }: DevTabProps) {
               {hook.status !== "deleted" && (
                 <div className="flex flex-wrap items-center gap-2">
                   {editing?.id === hook.id
-                    ? <><input aria-label="Nueva dirección" className={`${inputClass} w-72`} value={editing.url} onChange={(event) => setEditing({ ...editing, url: event.target.value })} /><Button size="sm" onClick={() => { send({ type: "webhook.update", webhookId: hook.id, url: editing.url }); setEditing(null); }}>Guardar</Button><Button size="sm" variant="ghost" onClick={() => setEditing(null)}>Cancelar</Button></>
+                    ? <><input aria-label="Nueva dirección" className={`${INPUT} w-72`} value={editing.url} onChange={(event) => setEditing({ ...editing, url: event.target.value })} /><Button size="sm" onClick={() => { send({ type: "webhook.update", webhookId: hook.id, url: editing.url }); setEditing(null); }}>Guardar</Button><Button size="sm" variant="ghost" onClick={() => setEditing(null)}>Cancelar</Button></>
                     : <Button size="sm" variant="secondary" onClick={() => setEditing({ id: hook.id, url: hook.url })}>Editar</Button>}
                   <Button size="sm" variant="secondary" onClick={() => send({ type: "webhook.setStatus", webhookId: hook.id, to: hook.status === "active" ? "paused" : "active" })}>{hook.status === "active" ? "Pausar" : "Reanudar"}</Button>
                   <Button size="sm" variant="secondary" onClick={() => send({ type: "webhook.simulate", webhookId: hook.id, event: simulated })}>Simular un evento</Button>
