@@ -61,6 +61,13 @@ export const ACTION_LEVELS = {
   "org.admin": 3,
   "org.permissions": 3,
   "org.owner": 3,
+  "billing.draft": 1,
+  "billing.request.auto": 2,
+  "billing.charge": 3,
+  "billing.cancel": 3,
+  "billing.renew": 3,
+  "billing.payment": 3,
+  "billing.invoice": 3,
 } as const;
 export type WorkerAction = keyof typeof ACTION_LEVELS;
 

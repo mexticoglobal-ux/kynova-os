@@ -27,6 +27,7 @@
 | `koe-crm.ts`, `crm-center.ts`, `crm-audit.ts` (+ `-messages`, `-demo`) | CRM inteligente: el único motor de inteligencia comercial de KOE y los registros que lo hacen duradero (§15) |
 | `koe-comms.ts`, `comms-center.ts` (+ `-messages`, `-demo`) | Centro de Comunicaciones: el único motor de entendimiento y enrutamiento de conversaciones de KOE y los registros que lo hacen duradero (§16) |
 | `koe-org.ts`, `org-center.ts` (+ `-messages`, `-demo`) | Organización e identidad: la estructura de la empresa, roles y permisos, y el único motor de fuerza de trabajo y recomendaciones de KOE (§17) |
+| `koe-billing.ts`, `billing-center.ts`, `billing-catalog.ts` (+ `-messages`, `-demo`) | Facturación y suscripciones: planes, add-ons, licencias, facturas y el único motor financiero de KOE: límites, consumo de IA, forecast y ROI (§18) |
 | `automations.ts` | Plantillas y validación anteriores (se conservan): disparador, condiciones, acciones | Validación, acciones externas por aprobación, aviso de bucle, modo de prueba por defecto |
 
 ## 3. Modelos de datos (futuros; ninguno existe aún)
@@ -402,3 +403,37 @@ Dos datos nuevos en cada definición, pensados para las métricas futuras de KOE
 **Preparado para el futuro, no implementado** (`FUTURE_IDENTITY`): SSO, Azure AD, Google Workspace, Microsoft Entra, LDAP, SCIM, Okta y Auth0. Cada uno será un conector de identidad que pasa por KOE, nunca directo a un proveedor, con aprobación humana para los roles críticos; hoy ninguno existe.
 
 **Pendiente al conectar:** tablas con RLS por empresa; autenticación real, verificación en dos pasos y sesiones; los conectores de identidad detrás de KOE; los límites de capacidad y los costos por rol configurables por empresa; la lectura real del trabajo abierto de cada persona desde los demás módulos; y la aplicación de los permisos en cada módulo (hoy `canUser` es el contrato que cada uno consultará).
+
+## 18. Billing & Subscription Center v1
+
+`/platform/billing`. El plan, la suscripción, los add-ons, las licencias, las facturas y el consumo de IA de cada empresa, con el forecast y el ROI. Todo es simulación local: sin APIs, sin pasarela de pagos, sin migraciones, sin dependencias nuevas y sin llamadas externas. **Nunca se cobra a nadie**: un pago solo se registra.
+
+**Qué ofrece (8 vistas)**
+- **Panel:** plan actual, estado de la suscripción, próxima renovación, usuarios y Workers activos, consumo de IA, almacenamiento, automatizaciones, integraciones, Marketplace, Academy, facturación mensual y ROI estimado; las **alertas de límites** con las opciones de KOE, las **propuestas de NEX**, la autorización de Nivel 2 y la **auditoría**.
+- **Planes:** Starter, Professional, Business y Enterprise, más planes personalizados que solo ve su empresa. Cada plan declara sus límites de usuarios, Workers, sucursales, departamentos, equipos, almacenamiento, Academy, Marketplace, integraciones, automatizaciones, API, AI Studio, Comunicaciones, CRM, Insights y tareas de KOE al mes. Los precios son de ejemplo.
+- **Licencias:** usuarios, Workers, sucursales, departamentos, equipos, Academy, Marketplace e integraciones, y los demás límites del plan. El límite es lo que incluye el plan más lo que suman los add-ons activos.
+- **Add-ons:** usuarios extra, Workers extra, almacenamiento, Academy, Marketplace, Automation Packs y créditos de IA. Se compran por paquetes y **son independientes del plan**: sobreviven a un cambio de plan.
+- **Facturación:** facturas, recibos, renovaciones, créditos, saldo e historial. Una **factura emitida nunca se modifica**: que esté pagada, abierta o vencida se lee de los pagos que apuntan a ella, y un error se corrige con un crédito. Los pagos y las facturas solo se registran (arquitectura).
+- **Consumo IA (KOE AI Usage):** tareas ejecutadas, costo estimado, costo promedio, tiempo ahorrado y el costo por departamento, por Worker, por automatización y por agente IA. **Nunca se muestran proveedores ni modelos.**
+- **Forecast:** consumo y costo proyectados, el uso proyectado por recurso, la recomendación (mantener, subir o bajar de plan) y el ROI.
+- **Upgrade Center:** upgrade, downgrade, prueba, Enterprise, cancelar y reactivar. Todo simulado.
+
+**KOE es la única fuente de todo cálculo financiero, y hay un solo motor** (`koe-billing.ts`): los límites, el total de una factura, el saldo, el crédito que se aplica, el consumo y su costo, el ROI, las alertas con sus opciones, el forecast y la recomendación. El almacén (`billing-center.ts`) solo decide quién puede hacer qué y registra el resultado; las pantallas solo dan formato. Una prueba lo verifica: las reglas viven en un solo archivo, el almacén no suma dinero y las pantallas no calculan ni nombran proveedores. El consumo sale de los registros de KOE (las ejecuciones de los Workers) y de lo que cada módulo reporta (usuarios y estructura de la organización, Workers instalados, automatizaciones, cursos, publicaciones, activos de AI Studio, canales, contactos del CRM y reportes de Insights); lo que ningún módulo guarda todavía (almacenamiento, llamadas a la API y conexiones) lo mide la plataforma.
+
+**Supuestos declarados.** Todo es estimado y cada supuesto está en una constante del motor: el uso y el ROI se miden en los últimos 30 días; KOE empieza a recomendar al 80 % de un límite; el forecast sigue el ritmo de los últimos 15 días contra los 15 anteriores (entre la mitad y el doble); se sugiere un plan menor solo si el uso proyectado queda por debajo del 70 % de sus límites; y una hora de trabajo manual se valora a 12 US$. El ROI es (ahorro − costo de IA − costo de plataforma) / (costo de IA + costo de plataforma).
+
+**Los límites nunca bloquean lo que ya existe.** Cuando un límite se acerca o se alcanza, KOE recomienda opciones (un add-on o el plan que alcance, la más barata primero) y solo limita **crear más**; no bloquea ni borra datos. Un downgrade o la cancelación de un add-on se **rechaza** si el uso actual no cabe, sin tocar nada. Cancelar la suscripción tampoco borra datos.
+
+**Autoridad.** Decide sobre el dinero el propietario y quienes él nombra; el resto solo lee. Un Worker o la plataforma nunca.
+
+**Constitución de NEX**
+- **Nivel 1, prepara:** propuestas de cambio de plan o de compra de un add-on. **Una persona las aprueba, y al aprobarlas se aplican como esa persona**, con las mismas comprobaciones (si rompen una regla, se rechazan y la propuesta sigue abierta).
+- **Nivel 2, con autorización vigente:** solicitar un upgrade al plan inmediatamente superior, con límite por día y vencimiento. **Es solo una solicitud**: no cambia el plan hasta que una persona la aprueba. Enterprise y los planes personalizados no se piden por esta vía.
+- **Nivel 3, siempre una persona:** **NEX nunca cobra, cancela, renueva, emite pagos ni modifica facturas.** No existe ningún evento para editar o borrar una factura, un pago o el historial, y NEX ni siquiera prepara una propuesta de ese tipo.
+- **Auditoría que nunca se borra:** plan, add-ons, facturas, pagos, créditos, propuestas y acceso, con quién, qué y cuándo.
+
+**Multiempresa.** Cada empresa administra únicamente su plan, su consumo, sus licencias y sus facturas; nada se comparte. Un plan personalizado solo lo ve su empresa, una persona de una empresa no tiene autoridad en otra y los cambios sobre algo ajeno se rechazan (todo probado).
+
+**Preparado para el futuro, no implementado** (`FUTURE_PAYMENT_CONNECTORS`): Stripe, PayPal, MakaPay, MakaWallet, SINPE, cripto, Apple Pay y Google Pay. Cada uno será un conector que pasa por KOE, nunca directo, con la aprobación de una persona en cada cobro; hoy ninguno existe.
+
+**Pendiente al conectar:** tablas con RLS por empresa; una pasarela real y la conciliación; el prorrateo de cambios a mitad de periodo y los impuestos; las facturas con el formato legal de cada país; la lectura real del uso de cada módulo (hoy el almacenamiento, la API y las conexiones son medidas de ejemplo); la aplicación de los límites en cada módulo (`canUse` es el contrato que cada uno consultará antes de crear algo); y que el equipo de la empresa que administra la facturación salga de la organización (hoy lo nombra el propietario).
