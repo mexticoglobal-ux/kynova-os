@@ -28,6 +28,7 @@
 | `koe-comms.ts`, `comms-center.ts` (+ `-messages`, `-demo`) | Centro de Comunicaciones: el único motor de entendimiento y enrutamiento de conversaciones de KOE y los registros que lo hacen duradero (§16) |
 | `koe-org.ts`, `org-center.ts` (+ `-messages`, `-demo`) | Organización e identidad: la estructura de la empresa, roles y permisos, y el único motor de fuerza de trabajo y recomendaciones de KOE (§17) |
 | `koe-billing.ts`, `billing-center.ts`, `billing-catalog.ts` (+ `-messages`, `-demo`) | Facturación y suscripciones: planes, add-ons, licencias, facturas y el único motor financiero de KOE: límites, consumo de IA, forecast y ROI (§18) |
+| `koe-dev.ts`, `dev-center.ts`, `dev-catalog.ts` (+ `-messages`, `-demo`) | Plataforma para desarrolladores: apps, API Keys, webhooks, sandbox, explorador y el único motor de KOE para límites, consumo, respuestas simuladas y recomendaciones (§19) |
 | `automations.ts` | Plantillas y validación anteriores (se conservan): disparador, condiciones, acciones | Validación, acciones externas por aprobación, aviso de bucle, modo de prueba por defecto |
 
 ## 3. Modelos de datos (futuros; ninguno existe aún)
@@ -437,3 +438,37 @@ Dos datos nuevos en cada definición, pensados para las métricas futuras de KOE
 **Preparado para el futuro, no implementado** (`FUTURE_PAYMENT_CONNECTORS`): Stripe, PayPal, MakaPay, MakaWallet, SINPE, cripto, Apple Pay y Google Pay. Cada uno será un conector que pasa por KOE, nunca directo, con la aprobación de una persona en cada cobro; hoy ninguno existe.
 
 **Pendiente al conectar:** tablas con RLS por empresa; una pasarela real y la conciliación; el prorrateo de cambios a mitad de periodo y los impuestos; las facturas con el formato legal de cada país; la lectura real del uso de cada módulo (hoy el almacenamiento, la API y las conexiones son medidas de ejemplo); la aplicación de los límites en cada módulo (`canUse` es el contrato que cada uno consultará antes de crear algo); y que el equipo de la empresa que administra la facturación salga de la organización (hoy lo nombra el propietario).
+
+## 19. Developer Platform v1
+
+`/platform/developers`. El centro para quien construye sobre KYNOVA: aplicaciones, API Keys, webhooks, sandbox, explorador de la API, SDK y el historial de todo. Todo es simulación local: **sin API, OAuth, webhooks ni SDK reales**, sin migraciones, sin dependencias nuevas y sin llamadas externas. Las credenciales son **simuladas** (empiezan por «kyn_sim_» y «whsec_sim_») y nada sale de la simulación.
+
+**Qué ofrece (8 vistas)**
+- **Panel:** API Keys, aplicaciones, webhooks, eventos, SDK, sandbox, versiones, consumo, rate limits y logs; las **recomendaciones de KOE**, los límites por empresa, aplicación y llave, el consumo, las **propuestas de NEX** y la autorización de Nivel 2.
+- **API Keys:** crear, editar, revocar, regenerar y expirar, con permisos (scopes) y estado. **La llave completa se muestra una sola vez**, al crearla o regenerarla; el estado solo guarda un prefijo, los últimos cuatro caracteres y un hash, y ningún log la contiene. Una llave nunca puede tener más permisos ni más límite que su aplicación.
+- **Webhooks:** crear, editar, pausar, eliminar, rotar el secreto, simular un evento, reintentar y ver el historial. Cada entrega va firmada (HMAC-SHA256 simulada) y KOE decide cómo sale; si falla se puede reintentar hasta 4 intentos en total (espera declarada de 1, 5 y 30 minutos). Eliminar un webhook lo deja de usar pero **conserva sus entregas y su historial**.
+- **Sandbox:** un entorno de pruebas con datos, eventos, errores y latencia simulados. Su latencia y su tasa de errores afectan al explorador y a las entregas.
+- **Logs:** peticiones, errores, eventos, webhooks y API Keys, filtrables por tipo. **Nunca se borran: solo crecen.** No existe ningún evento que borre o edite un log, una petición o una entrega.
+- **Marketplace Apps:** el modelo de lo que se podrá ofrecer: apps, plugins, Workers, prompts, templates, automatizaciones y conectores. Solo arquitectura: una solicitud de publicación se **registra**, aprobarla no publica nada hoy.
+- **API Explorer:** endpoints, métodos, headers, body y una respuesta simulada por KOE. **Nunca llama a una API real**: aplica las mismas reglas que una puerta de enlace (llave inválida o expirada: 401; permiso faltante: 403; app pausada: 403; límite alcanzado: 429; errores del sandbox: 500).
+- **SDK Center:** JavaScript, TypeScript, Python, PHP, C#, Java y Go, y la arquitectura de OAuth (Authorization Code, PKCE, Client Credentials, Refresh Tokens y scopes). Todo está declarado y nada está implementado.
+
+**KOE es la única fuente de todo cálculo, y hay un solo motor** (`koe-dev.ts`): los rate limits, el consumo, la respuesta simulada a una petición, el resultado de una entrega, la firma, los secretos, los datos del sandbox, el panel y las recomendaciones (una llave por expirar, una llave sin uso, un webhook que falla, una llave cerca de su límite, una versión que se retirará, una tasa de errores alta). El almacén (`dev-center.ts`) solo decide quién puede qué y registra el resultado; las pantallas solo dan formato. Una prueba lo verifica: las reglas viven en un solo archivo, el almacén no calcula y las pantallas no calculan, no llaman a la red ni nombran proveedores.
+
+**Rate limits.** El **plan** fija el tope por minuto de toda la empresa (60, 300, 1.200 o 6.000); cada **aplicación** y cada **API Key** solo se pueden limitar más. El límite efectivo es el menor de los tres, y una petición que lo supera en cualquiera de los niveles recibe un 429.
+
+**Supuestos declarados** (constantes del motor): KOE avisa al 80 % de un límite; una llave sin uso en 30 días se marca como sin uso; una llave se avisa 14 días antes de expirar; un webhook con 3 fallos en 7 días se marca como fallando; una tasa de errores del 10 % o más (con al menos 50 peticiones) se marca como alta; el consumo se mide en 30 días. Los números son ejemplos: las llaves, las direcciones y las respuestas son inventadas.
+
+**Autoridad.** Construyen el propietario y las personas que él nombra; el resto solo lee. Un Worker o la plataforma nunca.
+
+**Constitución de NEX**
+- **Nivel 1, prepara:** propuestas de API Key, de webhook o de aplicación. **Una persona las aprueba, y al aprobarlas se aplican como esa persona** (la llave o el secreto se muestran una sola vez a quien aprueba). Si una aprobación rompe una regla, se rechaza y la propuesta sigue abierta.
+- **Nivel 2, con autorización vigente:** solicitar la publicación de una app activa, con límite por día y vencimiento. **Es solo una solicitud**: una persona la decide y hoy no se publica nada.
+- **Nivel 3, siempre una persona:** **NEX nunca crea credenciales reales** (ni siquiera simuladas: solo las prepara como propuesta), **nunca activa una aplicación, nunca publica y nunca elimina logs.** Las propuestas de ese tipo ni siquiera se aceptan.
+- **Logs que nunca se borran:** cada cambio queda con quién, qué y cuándo.
+
+**Multiempresa.** Cada empresa administra únicamente sus apps, llaves, logs, webhooks y sandbox; nada se comparte. Una persona de una empresa no tiene autoridad en otra y los cambios sobre algo ajeno se rechazan (todo probado).
+
+**Preparado para el futuro, no implementado** (`FUTURE_PLATFORM`): GraphQL, gRPC, OpenAPI, AsyncAPI, CLI, Terraform, GitHub Apps y una extensión de VS Code. Cada uno pasará por KOE, nunca directo; hoy ninguno existe.
+
+**Pendiente al conectar:** tablas con RLS por empresa; un almacén de credenciales con hash real y rotación; una puerta de enlace real con OAuth, límites y firma de webhooks; los SDK; que el consumo salga de las peticiones reales; que quién construye salga de la organización (hoy lo nombra el propietario); y la publicación real en el Marketplace con su revisión.
