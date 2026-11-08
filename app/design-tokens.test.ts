@@ -7,7 +7,7 @@ import { THEMES, DEFAULT_THEME, type Theme } from "@/lib/theme";
 const css = readFileSync(join(process.cwd(), "app/globals.css"), "utf8");
 
 function tokensOf(theme: Theme): Record<string, [number, number, number]> {
-  const selector = theme === "premium" ? ':root,\n[data-theme="premium"]' : `[data-theme="${theme}"]`;
+  const selector = theme === "nova-dark" ? ':root,\n[data-theme="nova-dark"]' : `[data-theme="${theme}"]`;
   const start = css.indexOf(`${selector} {`);
   expect(start, `block for ${theme}`).toBeGreaterThanOrEqual(0);
   const block = css.slice(start, css.indexOf("}", start));
@@ -31,13 +31,13 @@ const contrast = (a: [number, number, number], b: [number, number, number]) => {
 };
 
 describe("design tokens", () => {
-  it("declares three themes and defaults to premium", () => {
-    expect([...THEMES]).toEqual(["premium", "dark", "light"]);
-    expect(DEFAULT_THEME).toBe("premium");
+  it("declares the two NOVA themes and defaults to NOVA Dark", () => {
+    expect([...THEMES]).toEqual(["nova-dark", "nova-light"]);
+    expect(DEFAULT_THEME).toBe("nova-dark");
   });
 
-  it.each(THEMES)("%s defines exactly the same tokens as premium", (theme) => {
-    expect(Object.keys(tokensOf(theme)).sort()).toEqual(Object.keys(tokensOf("premium")).sort());
+  it.each(THEMES)("%s defines exactly the same tokens as NOVA Dark", (theme) => {
+    expect(Object.keys(tokensOf(theme)).sort()).toEqual(Object.keys(tokensOf("nova-dark")).sort());
   });
 
   it.each(THEMES)("%s never uses pure black or pure white for the page or cards", (theme) => {

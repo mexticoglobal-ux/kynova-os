@@ -9,8 +9,10 @@ import { label } from "@/lib/contracts/platform/dev-messages";
 import { FUTURE_PLATFORM, OAUTH_ARCHITECTURE, SDK_CENTER, maskKey, sandboxData } from "@/lib/contracts/platform/koe-dev";
 import { hiddenNote, latest } from "@/lib/contracts/platform/display";
 import { Section, money, num } from "./InsightsCharts";
-import { ScopePicker, day, inputClass, isNex, when, who } from "./DevViews";
+import { ScopePicker, day, isNex, when, who } from "./DevViews";
 import type { DevTabProps } from "./DevCenter";
+import { INPUT } from "@/components/ui/form";
+import { Table } from "@/components/ui/Table";
 
 // ---------------------------------------------------------------- sandbox
 export function SandboxTab({ state, persona, send }: DevTabProps) {
@@ -29,9 +31,9 @@ export function SandboxTab({ state, persona, send }: DevTabProps) {
         ? <Card className="space-y-3 p-4" aria-label="Crear el sandbox">
           <p className="font-medium">Crear el entorno de pruebas</p>
           <div className="flex flex-wrap items-center gap-3">
-            <input aria-label="Nombre del sandbox" className={`${inputClass} w-48`} value={name} onChange={(event) => setName(event.target.value)} />
-            <label className="flex items-center gap-2 text-sm text-ink-muted">Latencia (ms)<input aria-label="Latencia simulada" type="number" className={`${inputClass} w-24`} value={latency} onChange={(event) => setLatency(event.target.value)} /></label>
-            <label className="flex items-center gap-2 text-sm text-ink-muted">Errores (%)<input aria-label="Errores simulados" type="number" className={`${inputClass} w-24`} value={errors} onChange={(event) => setErrors(event.target.value)} /></label>
+            <input aria-label="Nombre del sandbox" className={`${INPUT} w-48`} value={name} onChange={(event) => setName(event.target.value)} />
+            <label className="flex items-center gap-2 text-sm text-ink-muted">Latencia (ms)<input aria-label="Latencia simulada" type="number" className={`${INPUT} w-24`} value={latency} onChange={(event) => setLatency(event.target.value)} /></label>
+            <label className="flex items-center gap-2 text-sm text-ink-muted">Errores (%)<input aria-label="Errores simulados" type="number" className={`${INPUT} w-24`} value={errors} onChange={(event) => setErrors(event.target.value)} /></label>
             <Button size="sm" variant="secondary" onClick={() => send({ type: "sandbox.create", name, latencyMs: Number(latency), errorRatePercent: Number(errors) })}>Crear sandbox</Button>
           </div>
         </Card>
@@ -40,7 +42,7 @@ export function SandboxTab({ state, persona, send }: DevTabProps) {
 
           <Section title="Eventos simulados">
             <div className="flex flex-wrap items-center gap-2">
-              <select aria-label="Evento a emitir" className={inputClass} value={emitted} onChange={(event) => setEmitted(event.target.value as EventType)}>{EVENT_TYPES.map((type) => <option key={type} value={type}>{label("event", type)}</option>)}</select>
+              <select aria-label="Evento a emitir" className={INPUT} value={emitted} onChange={(event) => setEmitted(event.target.value as EventType)}>{EVENT_TYPES.map((type) => <option key={type} value={type}>{label("event", type)}</option>)}</select>
               <Button size="sm" variant="secondary" onClick={() => send({ type: "sandbox.emit", event: emitted })}>Emitir evento simulado</Button>
             </div>
             <ul className="space-y-0.5 text-sm text-ink-soft" aria-label="Eventos del sandbox">
@@ -50,12 +52,10 @@ export function SandboxTab({ state, persona, send }: DevTabProps) {
           </Section>
 
           <Section title="Datos simulados" aside="Siempre los mismos para la misma empresa">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[420px] text-left" aria-label="Datos del sandbox">
+            <Table label="Datos del sandbox" minWidth={420}>
                 <thead><tr className="text-xs text-ink-muted"><th className="px-2 py-1.5">Id</th><th className="px-2 py-1.5">Prospecto</th><th className="px-2 py-1.5">Etapa</th><th className="px-2 py-1.5">Valor</th></tr></thead>
                 <tbody>{data.map((row) => <tr key={row.id} className="border-t border-line text-sm"><td className="px-2 py-1.5">{row.id}</td><td className="px-2 py-1.5 font-medium">{row.name}</td><td className="px-2 py-1.5">{row.stage}</td><td className="px-2 py-1.5">{money(row.valueMicros)}</td></tr>)}</tbody>
-              </table>
-            </div>
+              </Table>
           </Section>
         </>}
     </div>
@@ -69,8 +69,8 @@ function SandboxConfig({ sandbox, send }: { sandbox: { id: string; name: string;
     <Card className="space-y-3 p-4" aria-label="Configuración del sandbox">
       <div className="flex flex-wrap items-center gap-2"><p className="font-medium">{sandbox.name}</p><Badge tone="primary">Simulado</Badge></div>
       <div className="flex flex-wrap items-center gap-3">
-        <label className="flex items-center gap-2 text-sm text-ink-muted">Latencia (ms)<input aria-label="Latencia simulada" type="number" className={`${inputClass} w-24`} value={latency} onChange={(event) => setLatency(event.target.value)} /></label>
-        <label className="flex items-center gap-2 text-sm text-ink-muted">Errores (%)<input aria-label="Errores simulados" type="number" className={`${inputClass} w-24`} value={errors} onChange={(event) => setErrors(event.target.value)} /></label>
+        <label className="flex items-center gap-2 text-sm text-ink-muted">Latencia (ms)<input aria-label="Latencia simulada" type="number" className={`${INPUT} w-24`} value={latency} onChange={(event) => setLatency(event.target.value)} /></label>
+        <label className="flex items-center gap-2 text-sm text-ink-muted">Errores (%)<input aria-label="Errores simulados" type="number" className={`${INPUT} w-24`} value={errors} onChange={(event) => setErrors(event.target.value)} /></label>
         <Button size="sm" variant="secondary" onClick={() => send({ type: "sandbox.configure", sandboxId: sandbox.id, latencyMs: Number(latency), errorRatePercent: Number(errors) })}>Guardar</Button>
       </div>
       <p className="text-xs text-ink-muted">Latencia actual {sandbox.latencyMs} ms · {sandbox.errorRatePercent} % de errores simulados. Afectan a las peticiones del API Explorer y a las entregas de los webhooks.</p>
@@ -87,7 +87,7 @@ export function LogsTab({ state, persona }: DevTabProps) {
     <div className="space-y-4">
       <p className="text-sm text-ink-muted">Historial de peticiones, errores, eventos, webhooks y API Keys. Los logs nunca se borran: solo crecen.</p>
       <label className="flex items-center gap-2 text-sm text-ink-muted">Tipo
-        <select aria-label="Tipo de log" className={inputClass} value={kind} onChange={(event) => setKind(event.target.value as LogKind | "")}>
+        <select aria-label="Tipo de log" className={INPUT} value={kind} onChange={(event) => setKind(event.target.value as LogKind | "")}>
           <option value="">Todos ({all.length})</option>
           {(["request", "error", "event", "webhook", "key", "app", "access", "proposal", "other"] as const).map((item) => <option key={item} value={item}>{label("logKind", item)}</option>)}
         </select>
@@ -115,9 +115,9 @@ export function AppsTab({ state, persona, send }: DevTabProps) {
       <Card className="space-y-3 p-4" aria-label="Nueva aplicación">
         <p className="font-medium">{nex ? "Preparar una aplicación" : "Crear una aplicación"}</p>
         <div className="flex flex-wrap items-center gap-3">
-          <input aria-label="Nombre de la aplicación" className={`${inputClass} w-56`} placeholder="Nombre" value={name} onChange={(event) => setName(event.target.value)} />
-          <select aria-label="Tipo de aplicación" className={inputClass} value={kind} onChange={(event) => setKind(event.target.value as AppKind)}>{APP_KINDS.map((item) => <option key={item} value={item}>{label("appKind", item)}</option>)}</select>
-          <select aria-label="Versión de la API" className={inputClass} value={version} onChange={(event) => setVersion(event.target.value as ApiVersion)}>{API_VERSIONS.map((item) => <option key={item.id} value={item.id}>{item.id} · {label("versionStatus", item.status)}</option>)}</select>
+          <input aria-label="Nombre de la aplicación" className={`${INPUT} w-56`} placeholder="Nombre" value={name} onChange={(event) => setName(event.target.value)} />
+          <select aria-label="Tipo de aplicación" className={INPUT} value={kind} onChange={(event) => setKind(event.target.value as AppKind)}>{APP_KINDS.map((item) => <option key={item} value={item}>{label("appKind", item)}</option>)}</select>
+          <select aria-label="Versión de la API" className={INPUT} value={version} onChange={(event) => setVersion(event.target.value as ApiVersion)}>{API_VERSIONS.map((item) => <option key={item.id} value={item.id}>{item.id} · {label("versionStatus", item.status)}</option>)}</select>
         </div>
         <ScopePicker name="Permisos de la aplicación" value={scopes} onChange={setScopes} />
         <Button size="sm" variant="secondary" onClick={() => send(nex ? { type: "proposal.create", payload: { kind: "app", name, appKind: kind, description: "", scopes, apiVersion: version }, reason: "Propuesta de NEX" } : { type: "app.create", name, appKind: kind, scopes, apiVersion: version })}>{nex ? "Preparar propuesta" : "Crear aplicación"}</Button>
@@ -169,10 +169,10 @@ export function ExplorerTab({ state, persona, send }: DevTabProps) {
       <Card className="space-y-3 p-4" aria-label="Petición">
         <div className="flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-2 text-sm text-ink-muted">API Key
-            <select aria-label="API Key de la petición" className={inputClass} value={key?.id ?? ""} onChange={(event) => setKeyId(event.target.value)}>{keys.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
+            <select aria-label="API Key de la petición" className={INPUT} value={key?.id ?? ""} onChange={(event) => setKeyId(event.target.value)}>{keys.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
           </label>
           <label className="flex items-center gap-2 text-sm text-ink-muted">Endpoint
-            <select aria-label="Endpoint" className={inputClass} value={endpoint?.id ?? ""} onChange={(event) => setEndpointId(event.target.value)}>{ENDPOINTS.map((item) => <option key={item.id} value={item.id}>{item.method} {item.path}</option>)}</select>
+            <select aria-label="Endpoint" className={INPUT} value={endpoint?.id ?? ""} onChange={(event) => setEndpointId(event.target.value)}>{ENDPOINTS.map((item) => <option key={item.id} value={item.id}>{item.method} {item.path}</option>)}</select>
           </label>
         </div>
         {endpoint && (
@@ -185,7 +185,7 @@ export function ExplorerTab({ state, persona, send }: DevTabProps) {
               <li><code>KYNOVA-Version: {app?.apiVersion ?? "v1"}</code></li>
             </ul>
             <label className="block text-xs text-ink-muted">Body
-              <textarea aria-label="Body" readOnly rows={3} className={`${inputClass} mt-1 w-full font-mono text-xs`} value={endpoint.body ?? "(sin body)"} />
+              <textarea aria-label="Body" readOnly rows={3} className={`${INPUT} mt-1 w-full font-mono text-xs`} value={endpoint.body ?? "(sin body)"} />
             </label>
           </div>
         )}

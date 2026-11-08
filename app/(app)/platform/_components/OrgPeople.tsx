@@ -11,9 +11,9 @@ import { assignmentHistory, currentAssignments, membersOf, orgTree, permissionMa
 import { SPECIALTIES } from "@/lib/contracts/platform/koe-registry";
 import { Section, num } from "./InsightsCharts";
 import type { OrgTabProps } from "./OrgCenter";
+import { INPUT_FULL } from "@/components/ui/form";
 
 const STATUS_TONE: Record<string, BadgeTone> = { pending: "warning", active: "success", suspended: "warning", disabled: "neutral" };
-const inputClass = "w-full rounded-xl border border-line bg-raised px-3 py-1.5 text-sm text-ink";
 const when = (iso: string) => iso.slice(0, 16).replace("T", " ");
 const who = (actor: string) => (actor.startsWith("worker:") ? "NEX (IA)" : actor === "system" ? "Plataforma" : actor);
 
@@ -33,10 +33,10 @@ export function UsersTab({ state, persona, send, sendAsPlatform }: OrgTabProps) 
         <h2 className="font-semibold">Invitar a una persona</h2>
         <p className="text-xs text-ink-muted">La persona queda «Pendiente» hasta que acepte la invitación por la plataforma; la invitación vence en 14 días.</p>
         <div className="grid gap-2 sm:grid-cols-4">
-          <input aria-label="Nombre de la persona invitada" placeholder="Nombre" className={inputClass} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
-          <input aria-label="Correo de la persona invitada" placeholder="Correo" className={inputClass} value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} />
-          <select aria-label="Rol de la persona invitada" className={inputClass} value={defaultRole} onChange={(event) => setForm({ ...form, roleId: event.target.value })}>{roles.map((item) => <option key={item.id} value={item.id}>{item.name}{item.critical ? " (crítico)" : ""}</option>)}</select>
-          <select aria-label="Equipo de la persona invitada" className={inputClass} value={form.teamId} onChange={(event) => setForm({ ...form, teamId: event.target.value })}><option value="">Sin equipo</option>{teams.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
+          <input aria-label="Nombre de la persona invitada" placeholder="Nombre" className={INPUT_FULL} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+          <input aria-label="Correo de la persona invitada" placeholder="Correo" className={INPUT_FULL} value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} />
+          <select aria-label="Rol de la persona invitada" className={INPUT_FULL} value={defaultRole} onChange={(event) => setForm({ ...form, roleId: event.target.value })}>{roles.map((item) => <option key={item.id} value={item.id}>{item.name}{item.critical ? " (crítico)" : ""}</option>)}</select>
+          <select aria-label="Equipo de la persona invitada" className={INPUT_FULL} value={form.teamId} onChange={(event) => setForm({ ...form, teamId: event.target.value })}><option value="">Sin equipo</option>{teams.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
         </div>
         <Button size="sm" onClick={() => { if (!send({ type: "invite.create", email: form.email, name: form.name, roleId: defaultRole, ...(form.teamId ? { teamId: form.teamId } : {}) })) setForm({ name: "", email: "", roleId: "", teamId: "" }); }}>Enviar invitación</Button>
       </Card>
@@ -100,11 +100,11 @@ export function TeamsTab({ state, env, persona, send }: OrgTabProps) {
       <Card className="space-y-3 p-4" aria-label="Crear un equipo">
         <h2 className="font-semibold">Crear un equipo</h2>
         <div className="grid gap-2 sm:grid-cols-3">
-          <input aria-label="Nombre del equipo" placeholder="Nombre" className={inputClass} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
-          <select aria-label="Departamento del equipo" className={inputClass} value={dept} onChange={(event) => setForm({ ...form, departmentId: event.target.value })}>{departments.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
-          <select aria-label="Especialidad del equipo" className={inputClass} value={form.specialty} onChange={(event) => setForm({ ...form, specialty: event.target.value })}><option value="">Sin especialidad</option>{SPECIALTIES.map((item) => <option key={item} value={item}>{item}</option>)}</select>
-          <input aria-label="Objetivos del equipo" placeholder="Objetivos separados por punto y coma" className={`${inputClass} sm:col-span-2`} value={form.goals} onChange={(event) => setForm({ ...form, goals: event.target.value })} />
-          <select aria-label="Responsable del equipo" className={inputClass} value={form.leadId} onChange={(event) => setForm({ ...form, leadId: event.target.value })}><option value="">Sin responsable</option>{users.filter((item) => item.status === "active").map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
+          <input aria-label="Nombre del equipo" placeholder="Nombre" className={INPUT_FULL} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+          <select aria-label="Departamento del equipo" className={INPUT_FULL} value={dept} onChange={(event) => setForm({ ...form, departmentId: event.target.value })}>{departments.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
+          <select aria-label="Especialidad del equipo" className={INPUT_FULL} value={form.specialty} onChange={(event) => setForm({ ...form, specialty: event.target.value })}><option value="">Sin especialidad</option>{SPECIALTIES.map((item) => <option key={item} value={item}>{item}</option>)}</select>
+          <input aria-label="Objetivos del equipo" placeholder="Objetivos separados por punto y coma" className={`${INPUT_FULL} sm:col-span-2`} value={form.goals} onChange={(event) => setForm({ ...form, goals: event.target.value })} />
+          <select aria-label="Responsable del equipo" className={INPUT_FULL} value={form.leadId} onChange={(event) => setForm({ ...form, leadId: event.target.value })}><option value="">Sin responsable</option>{users.filter((item) => item.status === "active").map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
         </div>
         <Button size="sm" onClick={() => { if (!send({ type: "team.create", departmentId: dept, name: form.name, specialty: form.specialty || undefined, goals: form.goals.split(";").map((item) => item.trim()).filter(Boolean), leadId: form.leadId || undefined })) setForm({ name: "", departmentId: "", specialty: "", goals: "", leadId: "" }); }}>Crear equipo</Button>
       </Card>
@@ -132,12 +132,12 @@ export function TeamsTab({ state, env, persona, send }: OrgTabProps) {
         <h2 className="font-semibold">Asignar personas y Workers a un equipo</h2>
         <p className="text-xs text-ink-muted">Mover es un cambio con historial: nada se reescribe. NEX solo mueve a una persona con una autorización vigente (pestaña Panel); los Workers los mueve siempre una persona.</p>
         <div className="grid gap-2 sm:grid-cols-3">
-          <select aria-label="Integrante" id="org-subject" className={inputClass} defaultValue="">
+          <select aria-label="Integrante" id="org-subject" className={INPUT_FULL} defaultValue="">
             <option value="">Elija a quién…</option>
             {users.map((item) => <option key={`u-${item.id}`} value={`user:${item.id}`}>{item.name} (persona)</option>)}
             {workers.map((item) => <option key={`w-${item.id}`} value={`worker:${item.id}`}>{item.name} (Worker IA)</option>)}
           </select>
-          <select aria-label="Equipo de destino" id="org-target" className={inputClass} defaultValue=""><option value="">Elija el equipo…</option><option value="__none__">Sin equipo</option>{teams.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
+          <select aria-label="Equipo de destino" id="org-target" className={INPUT_FULL} defaultValue=""><option value="">Elija el equipo…</option><option value="__none__">Sin equipo</option>{teams.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
           <Button size="sm" variant="secondary" onClick={() => {
             const subject = (document.getElementById("org-subject") as HTMLSelectElement | null)?.value ?? "";
             const target = (document.getElementById("org-target") as HTMLSelectElement | null)?.value ?? "";
@@ -165,7 +165,7 @@ export function RolesTab({ state, persona, send }: OrgTabProps) {
       <p className="text-sm text-ink-muted">Cada empresa tiene sus propios roles: nunca se comparten. Un rol es crítico si es el de administrador o si administra pagos, integraciones, el Developer Center o los Workers; los roles críticos solo los asigna un administrador.</p>
       <Card className="space-y-2 p-4" aria-label="Crear un rol personalizado">
         <h2 className="font-semibold">Crear un rol personalizado</h2>
-        <div className="flex flex-wrap items-end gap-2"><label className="min-w-64 space-y-1 text-sm text-ink-muted">Nombre del rol<input aria-label="Nombre del rol" className={inputClass} value={name} onChange={(event) => setName(event.target.value)} /></label>
+        <div className="flex flex-wrap items-end gap-2"><label className="min-w-64 space-y-1 text-sm text-ink-muted">Nombre del rol<input aria-label="Nombre del rol" className={INPUT_FULL} value={name} onChange={(event) => setName(event.target.value)} /></label>
           <Button size="sm" onClick={() => { if (!send({ type: "role.create", name, permissions: { crm: "read" } })) setName(""); }}>Crear rol</Button></div>
         <p className="text-xs text-ink-muted">Nace con lectura del CRM; sus permisos se ajustan en «Permisos».</p>
       </Card>
@@ -235,10 +235,10 @@ export function BranchesTab({ state, env, persona, send }: OrgTabProps) {
               <p className="text-sm text-ink-soft">{num(departments.length)} departamentos · {num(teams.length)} equipos · {num(people.length)} personas · {num(workers.length)} Workers IA</p>
               <div className="grid gap-2 sm:grid-cols-2">
                 <label className="space-y-1 text-xs text-ink-muted">Idioma
-                  <select aria-label={`Idioma de ${branch.name}`} className={inputClass} value={branch.settings.language} onChange={(event) => send({ type: "branch.update", branchId: branch.id, settings: { language: event.target.value as (typeof LANGUAGES)[number] } })}>{LANGUAGES.map((item) => <option key={item} value={item}>{item}</option>)}</select>
+                  <select aria-label={`Idioma de ${branch.name}`} className={INPUT_FULL} value={branch.settings.language} onChange={(event) => send({ type: "branch.update", branchId: branch.id, settings: { language: event.target.value as (typeof LANGUAGES)[number] } })}>{LANGUAGES.map((item) => <option key={item} value={item}>{item}</option>)}</select>
                 </label>
                 <label className="space-y-1 text-xs text-ink-muted">Zona horaria
-                  <select aria-label={`Zona horaria de ${branch.name}`} className={inputClass} value={branch.settings.timezone} onChange={(event) => send({ type: "branch.update", branchId: branch.id, settings: { timezone: event.target.value as (typeof TIMEZONES)[number] } })}>{TIMEZONES.map((item) => <option key={item} value={item}>{item}</option>)}</select>
+                  <select aria-label={`Zona horaria de ${branch.name}`} className={INPUT_FULL} value={branch.settings.timezone} onChange={(event) => send({ type: "branch.update", branchId: branch.id, settings: { timezone: event.target.value as (typeof TIMEZONES)[number] } })}>{TIMEZONES.map((item) => <option key={item} value={item}>{item}</option>)}</select>
                 </label>
               </div>
               <p className="text-xs text-ink-muted">Moneda {branch.settings.currency} · Horario {branch.settings.workHours}</p>

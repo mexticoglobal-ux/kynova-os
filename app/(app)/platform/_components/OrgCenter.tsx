@@ -6,6 +6,7 @@ import { DEMO_NOW, DEMO_PERSONAS, demoOrgOk } from "@/lib/contracts/platform/org
 import { label } from "@/lib/contracts/platform/org-messages";
 import { DashboardTab, IdentityTab, TreeTab, WorkforceTab } from "./OrgViews";
 import { BranchesTab, PermissionsTab, RolesTab, TeamsTab, UsersTab } from "./OrgPeople";
+import { Tabs } from "@/components/ui/Tabs";
 
 const TAB_KEYS = ["dashboard", "tree", "users", "teams", "roles", "permissions", "branches", "identity", "workforce"] as const;
 type TabKey = (typeof TAB_KEYS)[number];
@@ -55,13 +56,7 @@ export function OrgCenter() {
         </label>
       </div>
 
-      <div role="tablist" aria-label="Organización e identidad" className="flex flex-wrap gap-1.5">
-        {TAB_KEYS.map((key) => (
-          <button key={key} role="tab" type="button" aria-selected={tab === key} onClick={() => { setTab(key); setMessage(null); }} className={tab === key ? "btn btn-sm btn-primary" : "btn btn-sm btn-ghost"}>
-            {label("tabs", key)}
-          </button>
-        ))}
-      </div>
+      <Tabs label="Organización e identidad" items={TAB_KEYS.map((key) => ({ key, label: label("tabs", key) }))} value={tab} onChange={(key) => { setTab(key); setMessage(null); }} />
 
       {message && <p role="alert" className="rounded-xl bg-danger/15 px-3 py-2 text-sm text-danger-soft">{message}</p>}
 

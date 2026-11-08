@@ -6,6 +6,7 @@ import { isAdmin, newMarketState, reduceMarket, type MarketEvent, type MarketSta
 import { DEMO_ADMINS, DEMO_PERSONAS, DEMO_TENANTS, demoMarketState } from "@/lib/contracts/platform/marketplace-demo";
 import { label } from "@/lib/contracts/platform/marketplace-messages";
 import { ActivityTab, AdminTab, CatalogTab, FavoritesTab, ModerationTab, PurchasesTab, SellTab } from "./MarketplaceTabs";
+import { Tabs } from "@/components/ui/Tabs";
 
 const TAB_KEYS = ["catalog", "purchases", "favorites", "sell", "moderation", "admin", "activity"] as const;
 type TabKey = (typeof TAB_KEYS)[number];
@@ -55,13 +56,7 @@ export function MarketplaceCenter() {
         </div>
       </div>
 
-      <div role="tablist" aria-label="Marketplace" className="flex flex-wrap gap-1.5">
-        {TAB_KEYS.map((key) => (
-          <button key={key} role="tab" type="button" aria-selected={tab === key} onClick={() => { setTab(key); setMessage(null); }} className={tab === key ? "btn btn-sm btn-primary" : "btn btn-sm btn-ghost"}>
-            {label("tabs", key)}
-          </button>
-        ))}
-      </div>
+      <Tabs label="Marketplace" items={TAB_KEYS.map((key) => ({ key, label: label("tabs", key) }))} value={tab} onChange={(key) => { setTab(key); setMessage(null); }} />
 
       {message && <p role="alert" className="rounded-xl bg-danger/15 px-3 py-2 text-sm text-danger-soft">{message}</p>}
 

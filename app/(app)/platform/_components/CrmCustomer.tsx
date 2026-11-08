@@ -10,10 +10,10 @@ import { label } from "@/lib/contracts/platform/crm-messages";
 import { customer360, timelineOf } from "@/lib/contracts/platform/koe-crm";
 import { Kpi, Section, money, num } from "./InsightsCharts";
 import type { CrmTabProps } from "./CrmCenter";
+import { INPUT_FULL } from "@/components/ui/form";
 
 const when = (iso: string) => iso.slice(0, 16).replace("T", " ");
 const who = (actor: string) => (actor.startsWith("worker:") ? "NEX (IA)" : actor === "system" ? "Plataforma" : actor);
-const inputClass = "w-full rounded-xl border border-line bg-raised px-3 py-1.5 text-sm text-ink";
 const KIND_TONE: Record<string, BadgeTone> = { email: "primary", whatsapp: "success", call: "accent", note: "neutral", meeting: "warning", automation: "neutral", worker: "neutral", audit: "accent", nex: "primary" };
 
 // ---------------------------------------------------------------- timeline
@@ -29,15 +29,15 @@ export function TimelineTab({ state, persona, selected, select, send }: CrmTabPr
   return (
     <div className="space-y-4">
       <label className="block max-w-sm space-y-1 text-sm text-ink-muted">Prospecto
-        <select aria-label="Prospecto" className={inputClass} value={lead.id} onChange={(event) => select(event.target.value)}>{leads.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.company}</option>)}</select>
+        <select aria-label="Prospecto" className={INPUT_FULL} value={lead.id} onChange={(event) => select(event.target.value)}>{leads.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.company}</option>)}</select>
       </label>
       <Card className="space-y-2 p-4" aria-label="Registrar contacto">
         <h2 className="font-semibold">Registrar un contacto</h2>
         <p className="text-xs text-ink-muted">Lo registra una persona. Las automatizaciones, los Workers, los Business Audit y NEX aparecen solos, y nada de lo registrado se borra.</p>
         <div className="grid gap-2 sm:grid-cols-4">
-          <select aria-label="Tipo de contacto" className={inputClass} value={kind} onChange={(event) => setKind(event.target.value as typeof kind)}>{PERSON_KINDS.map((item) => <option key={item} value={item}>{label("timelineKind", item)}</option>)}</select>
-          <select aria-label="Dirección" className={inputClass} value={direction} onChange={(event) => setDirection(event.target.value as "out" | "in")}><option value="out">Salida (lo hicimos nosotros)</option><option value="in">Entrada (nos escribieron)</option></select>
-          <input aria-label="Resumen del contacto" placeholder="Qué pasó" className={`${inputClass} sm:col-span-2`} value={summary} onChange={(event) => setSummary(event.target.value)} />
+          <select aria-label="Tipo de contacto" className={INPUT_FULL} value={kind} onChange={(event) => setKind(event.target.value as typeof kind)}>{PERSON_KINDS.map((item) => <option key={item} value={item}>{label("timelineKind", item)}</option>)}</select>
+          <select aria-label="Dirección" className={INPUT_FULL} value={direction} onChange={(event) => setDirection(event.target.value as "out" | "in")}><option value="out">Salida (lo hicimos nosotros)</option><option value="in">Entrada (nos escribieron)</option></select>
+          <input aria-label="Resumen del contacto" placeholder="Qué pasó" className={`${INPUT_FULL} sm:col-span-2`} value={summary} onChange={(event) => setSummary(event.target.value)} />
         </div>
         <Button size="sm" variant="secondary" onClick={() => { if (!send({ type: "interaction.record", subject: { kind: "lead", id: lead.id }, kind, direction, summary })) setSummary(""); }}>Registrar</Button>
       </Card>
@@ -110,7 +110,7 @@ export function CustomerTab({ state, asOf, persona, selected, select, send }: Cr
       {!view || !customer ? <p className="text-sm text-ink-muted">Todavía no hay clientes.</p> : (
         <>
           <label className="block max-w-sm space-y-1 text-sm text-ink-muted">Cliente
-            <select aria-label="Cliente" className={inputClass} value={customer.id} onChange={(event) => select(event.target.value)}>{customers.map((item) => <option key={item.id} value={item.id}>{item.company}</option>)}</select>
+            <select aria-label="Cliente" className={INPUT_FULL} value={customer.id} onChange={(event) => select(event.target.value)}>{customers.map((item) => <option key={item.id} value={item.id}>{item.company}</option>)}</select>
           </label>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Kpi label="Empresa" value={view.company} hint={`Cliente desde ${customer.since.slice(0, 10)}`} />
@@ -121,7 +121,7 @@ export function CustomerTab({ state, asOf, persona, selected, select, send }: Cr
           <div className="grid gap-4 lg:grid-cols-2">
             <Card className="space-y-2 p-4" aria-label="Lista de contactos"><h2 className="font-semibold">Contactos</h2>
               <ul className="space-y-1 text-sm">{view.contacts.map((item) => <li key={item.id}><strong>{item.name}</strong> · {item.role}{item.email ? ` · ${item.email}` : ""}{item.phone ? ` · ${item.phone}` : ""}</li>)}</ul>
-              <div className="grid gap-2 sm:grid-cols-3"><input aria-label="Nombre del contacto" placeholder="Nombre" className={inputClass} value={contact.name} onChange={(event) => setContact({ ...contact, name: event.target.value })} /><input aria-label="Cargo del contacto" placeholder="Cargo" className={inputClass} value={contact.role} onChange={(event) => setContact({ ...contact, role: event.target.value })} /><input aria-label="Correo del contacto" placeholder="Correo" className={inputClass} value={contact.email} onChange={(event) => setContact({ ...contact, email: event.target.value })} /></div>
+              <div className="grid gap-2 sm:grid-cols-3"><input aria-label="Nombre del contacto" placeholder="Nombre" className={INPUT_FULL} value={contact.name} onChange={(event) => setContact({ ...contact, name: event.target.value })} /><input aria-label="Cargo del contacto" placeholder="Cargo" className={INPUT_FULL} value={contact.role} onChange={(event) => setContact({ ...contact, role: event.target.value })} /><input aria-label="Correo del contacto" placeholder="Correo" className={INPUT_FULL} value={contact.email} onChange={(event) => setContact({ ...contact, email: event.target.value })} /></div>
               <Button size="sm" variant="secondary" onClick={() => { if (!send({ type: "contact.add", customerId: customer.id, name: contact.name, role: contact.role, ...(contact.email ? { email: contact.email } : {}) })) setContact({ name: "", role: "", email: "" }); }}>Añadir contacto</Button>
             </Card>
             <Card className="space-y-2 p-4" aria-label="Pipeline del cliente"><h2 className="font-semibold">Pipeline</h2>

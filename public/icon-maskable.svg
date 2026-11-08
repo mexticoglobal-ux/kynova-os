@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="KYNOVA">
+  <rect width="512" height="512" fill="#0F161A"/>
+  <circle cx="256" cy="256" r="150" fill="none" stroke="#147882" stroke-width="14" opacity="0.55"/>
+  <rect x="196" y="196" width="120" height="120" rx="22" transform="rotate(45 256 256)" fill="#C9A24B"/>
+</svg>

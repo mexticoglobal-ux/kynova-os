@@ -10,6 +10,8 @@ import { aiUsage, billingDashboard, forecast, limitAlerts, planOf, plansFor, roi
 import { hiddenNote, latest } from "@/lib/contracts/platform/display";
 import { Kpi, Ranking, Section, money, num, pct, unitValue } from "./InsightsCharts";
 import type { BillingTabProps } from "./BillingCenter";
+import { INPUT } from "@/components/ui/form";
+import { Table } from "@/components/ui/Table";
 
 export const STATUS_TONE: Record<UsageStatus, BadgeTone> = { ok: "success", warn: "warning", atLimit: "warning", over: "danger" };
 const SEVERITY_TONE: Record<string, BadgeTone> = { normal: "primary", high: "warning" };
@@ -18,7 +20,6 @@ export const day = (iso: string) => iso.slice(0, 10);
 export const who = (actor: string) => (actor.startsWith("worker:") ? "NEX (IA)" : actor === "system" ? "Plataforma" : actor);
 export const isNex = (actor: string) => actor.startsWith("worker:");
 export const quota = (row: UsageRow) => `${num(row.used)} de ${num(row.limit)}`;
-const inputClass = "rounded-xl border border-line bg-raised px-3 py-1.5 text-sm text-ink";
 
 const describePayload = (payload: ProposalPayload, planName: (id: string) => string): string =>
   payload.kind === "plan" ? `Cambiar al plan ${planName(payload.toPlanId)}` : `Comprar ${payload.quantity} × ${label("addon", payload.addon)}`;
@@ -121,7 +122,7 @@ export function DashboardTab({ state, env, asOf, persona, send }: BillingTabProp
 
       <Section title="Auditoría" aside="Nunca se borra">
         <label className="flex items-center gap-2 text-sm text-ink-muted">Categoría
-          <select aria-label="Categoría de auditoría" className={inputClass} value={category} onChange={(event) => setCategory(event.target.value as BillingAuditCategory | "")}>
+          <select aria-label="Categoría de auditoría" className={INPUT} value={category} onChange={(event) => setCategory(event.target.value as BillingAuditCategory | "")}>
             <option value="">Todas</option>
             {(["plan", "addons", "invoices", "payments", "credits", "proposals", "access", "other"] as const).map((key) => <option key={key} value={key}>{label("auditCategory", key)}</option>)}
           </select>
@@ -163,8 +164,7 @@ export function LicensesTab({ state, env, asOf, persona, send }: BillingTabProps
   const rows = usageRows(state, env.signals, persona.tenantId, asOf);
   const alerts = limitAlerts(state, env.signals, persona.tenantId, asOf);
   const table = (items: readonly UsageRow[], name: string) => (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[640px] text-left" aria-label={name}>
+    <Table label={name} minWidth={640}>
         <thead><tr className="text-xs text-ink-muted"><th className="px-2 py-1.5">Recurso</th><th className="px-2 py-1.5">En uso</th><th className="px-2 py-1.5">Del plan</th><th className="px-2 py-1.5">Add-ons</th><th className="px-2 py-1.5">Límite</th><th className="px-2 py-1.5">Estado</th></tr></thead>
         <tbody>
           {items.map((row) => (
@@ -174,8 +174,7 @@ export function LicensesTab({ state, env, asOf, persona, send }: BillingTabProps
             </tr>
           ))}
         </tbody>
-      </table>
-    </div>
+      </Table>
   );
   return (
     <div className="space-y-6">
@@ -202,7 +201,7 @@ export function AddonsTab({ state, persona, send }: BillingTabProps) {
     <div className="space-y-6">
       <Section title="Catálogo de add-ons" aside="Desacoplados del plan: se compran por paquetes y suman a lo que el plan incluye">
         <label className="flex items-center gap-2 text-sm text-ink-muted">Paquetes
-          <input aria-label="Paquetes" type="number" min={1} max={20} className={`${inputClass} w-20`} value={quantity} onChange={(event) => setQuantity(Number(event.target.value))} />
+          <input aria-label="Paquetes" type="number" min={1} max={20} className={`${INPUT} w-20`} value={quantity} onChange={(event) => setQuantity(Number(event.target.value))} />
         </label>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {ADDON_KEYS.map((key: AddonKey) => (
@@ -283,14 +282,12 @@ export function ForecastTab({ state, env, asOf, persona, send }: BillingTabProps
       </Card>
 
       <Section title="Uso proyectado por recurso" aside="Los recursos sin historial se proyectan sin crecimiento">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[560px] text-left" aria-label="Uso proyectado">
+        <Table label="Uso proyectado" minWidth={560}>
             <thead><tr className="text-xs text-ink-muted"><th className="px-2 py-1.5">Recurso</th><th className="px-2 py-1.5">Hoy</th><th className="px-2 py-1.5">Proyectado</th><th className="px-2 py-1.5">Límite</th><th className="px-2 py-1.5">Proyectado / límite</th></tr></thead>
             <tbody>
               {f.rows.map((row) => <tr key={row.resource} className="border-t border-line text-sm"><td className="px-2 py-1.5 font-medium">{label("resource", row.resource)}</td><td className="px-2 py-1.5">{num(row.used)}</td><td className="px-2 py-1.5">{num(row.projected)}</td><td className="px-2 py-1.5">{num(row.limit)}</td><td className="px-2 py-1.5">{pct(row.ratio)}</td></tr>)}
             </tbody>
-          </table>
-        </div>
+          </Table>
       </Section>
 
       <Section title="ROI" aside="Estimado, con supuestos documentados">

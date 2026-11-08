@@ -6,6 +6,7 @@ import { DEMO_NOW, DEMO_PERSONAS, demoBillingOk } from "@/lib/contracts/platform
 import { label } from "@/lib/contracts/platform/billing-messages";
 import { InvoicesTab, UpgradeTab } from "./BillingAccount";
 import { AddonsTab, AiTab, DashboardTab, ForecastTab, LicensesTab, PlansTab } from "./BillingViews";
+import { Tabs } from "@/components/ui/Tabs";
 
 const TAB_KEYS = ["dashboard", "plans", "licenses", "addons", "invoices", "ai", "forecast", "upgrade"] as const;
 type TabKey = (typeof TAB_KEYS)[number];
@@ -55,13 +56,7 @@ export function BillingCenter() {
         </label>
       </div>
 
-      <div role="tablist" aria-label="Facturación y suscripciones" className="flex flex-wrap gap-1.5">
-        {TAB_KEYS.map((key) => (
-          <button key={key} role="tab" type="button" aria-selected={tab === key} onClick={() => { setTab(key); setMessage(null); }} className={tab === key ? "btn btn-sm btn-primary" : "btn btn-sm btn-ghost"}>
-            {label("tabs", key)}
-          </button>
-        ))}
-      </div>
+      <Tabs label="Facturación y suscripciones" items={TAB_KEYS.map((key) => ({ key, label: label("tabs", key) }))} value={tab} onChange={(key) => { setTab(key); setMessage(null); }} />
 
       {message && <p role="alert" className="rounded-xl bg-danger/15 px-3 py-2 text-sm text-danger-soft">{message}</p>}
 

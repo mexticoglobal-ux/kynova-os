@@ -10,10 +10,10 @@ import { label } from "@/lib/contracts/platform/comms-messages";
 import { entriesOf } from "@/lib/contracts/platform/koe-comms";
 import { Section } from "./InsightsCharts";
 import type { CommsTabProps } from "./CommsCenter";
+import { INPUT_FULL } from "@/components/ui/form";
 
 const when = (iso: string) => iso.slice(0, 16).replace("T", " ");
 const who = (actor: string) => (actor === "" ? "Sin responsable" : actor.startsWith("worker:") ? "NEX (IA)" : actor === "system" ? "Plataforma" : actor);
-const inputClass = "w-full rounded-xl border border-line bg-raised px-3 py-1.5 text-sm text-ink";
 const DRAFT_TONE: Record<Draft["status"], BadgeTone> = { draft: "warning", ready: "success", discarded: "neutral" };
 const STATUS_TONE: Record<ConvStatus, BadgeTone> = { open: "accent", pending: "warning", resolved: "success", archived: "neutral" };
 
@@ -29,7 +29,7 @@ function DraftCard({ draft, props }: { draft: Draft; props: CommsTabProps }) {
         <span className="font-medium">{conversation?.contact.name}</span><span className="text-xs text-ink-muted">{conversation?.subject} · preparado por {who(draft.createdBy)} · {when(draft.createdAt)}</span>
       </div>
       {lastRevision.subject && <p className="text-sm"><span className="text-ink-muted">Asunto:</span> {lastRevision.subject}</p>}
-      {draft.status === "draft" ? <textarea aria-label={`Texto del borrador de ${conversation?.contact.name ?? ""}`} rows={5} className={inputClass} value={body} onChange={(event) => setBody(event.target.value)} /> : <p className="whitespace-pre-line rounded-xl bg-raised p-3 text-sm text-ink-soft">{lastRevision.body}</p>}
+      {draft.status === "draft" ? <textarea aria-label={`Texto del borrador de ${conversation?.contact.name ?? ""}`} rows={5} className={INPUT_FULL} value={body} onChange={(event) => setBody(event.target.value)} /> : <p className="whitespace-pre-line rounded-xl bg-raised p-3 text-sm text-ink-soft">{lastRevision.body}</p>}
       <p className="text-xs text-ink-muted">{draft.reason}</p>
       <details className="text-sm"><summary className="cursor-pointer text-ink-muted">Revisiones ({draft.revisions.length}); ninguna se pierde</summary>
         <ol className="mt-1 space-y-1">{draft.revisions.map((revision, index) => <li key={index} className="rounded-xl bg-raised p-2 text-xs text-ink-soft"><span className="text-ink-muted">{when(revision.at)} · {who(revision.by)}</span><br />{revision.body}</li>)}</ol>
@@ -56,7 +56,7 @@ export function DraftsTab(props: CommsTabProps) {
       <p className="text-sm text-ink-muted">NEX prepara borradores de correo, WhatsApp, Messenger, Instagram, chat y formulario. <strong>Nunca se envían:</strong> una persona los revisa, los marca como listos y los envía ella misma, fuera de la plataforma.</p>
       <Card className="flex flex-wrap items-end gap-3 p-4" aria-label="Preparar un borrador">
         <label className="min-w-64 space-y-1 text-sm text-ink-muted">Conversación
-          <select aria-label="Conversación del borrador" className={inputClass} value={current?.id ?? ""} onChange={(event) => select(event.target.value)}>{conversations.map((item) => <option key={item.id} value={item.id}>{item.contact.name} · {label("channel", item.channel)} · {item.subject}</option>)}</select>
+          <select aria-label="Conversación del borrador" className={INPUT_FULL} value={current?.id ?? ""} onChange={(event) => select(event.target.value)}>{conversations.map((item) => <option key={item.id} value={item.id}>{item.contact.name} · {label("channel", item.channel)} · {item.subject}</option>)}</select>
         </label>
         <Button size="sm" variant="secondary" disabled={!current} onClick={() => current && send({ type: "draft.create", conversationId: current.id })}>Preparar borrador</Button>
       </Card>
@@ -78,7 +78,7 @@ export function AssignmentsTab(props: CommsTabProps) {
     <div className="space-y-5">
       <p className="text-sm text-ink-muted">Asignar, cambiar de responsable, marcar pendiente, resolver y archivar: siempre con historial. Resolver y archivar los decide una persona; una conversación nunca se cierra sola ni se borra.</p>
       <label className="block max-w-lg space-y-1 text-sm text-ink-muted">Conversación
-        <select aria-label="Conversación" className={inputClass} value={current?.id ?? ""} onChange={(event) => select(event.target.value)}>{conversations.map((item) => <option key={item.id} value={item.id}>{item.contact.name} · {label("channel", item.channel)} · {item.subject}</option>)}</select>
+        <select aria-label="Conversación" className={INPUT_FULL} value={current?.id ?? ""} onChange={(event) => select(event.target.value)}>{conversations.map((item) => <option key={item.id} value={item.id}>{item.contact.name} · {label("channel", item.channel)} · {item.subject}</option>)}</select>
       </label>
       {current && (
         <Card className="space-y-3 p-4" aria-label="Asignación">

@@ -11,13 +11,13 @@ import { FUTURE_CRM, OPEN_STAGES, analyzeLead, assistantMessages, contextOf, crm
 import { formatCostMicros } from "@/lib/contracts/platform/koe-registry";
 import { Kpi, Section, money, num, pct } from "./InsightsCharts";
 import type { CrmTabProps } from "./CrmCenter";
+import { INPUT_FULL } from "@/components/ui/form";
 
 const RISK_TONE: Record<RiskLevel, BadgeTone> = { low: "success", medium: "neutral", high: "warning", critical: "danger" };
 const PRIORITY_TONE = { low: "neutral", normal: "primary", high: "warning", critical: "danger" } as const;
 const who = (actor: string) => (actor === "" ? "Sin asignar" : actor.startsWith("worker:") ? "NEX (IA)" : actor);
 const when = (iso: string) => iso.slice(0, 16).replace("T", " ");
 const NEXT_STAGE: Record<string, Stage | undefined> = { prospect: "qualified", qualified: "meeting", meeting: "proposal", proposal: "negotiation" };
-const inputClass = "w-full rounded-xl border border-line bg-raised px-3 py-1.5 text-sm text-ink";
 
 // ---------------------------------------------------------------- dashboard
 export function DashboardTab({ state, asOf, persona, send, select }: CrmTabProps) {
@@ -124,7 +124,7 @@ export function OpportunityTab({ state, asOf, persona, selected, select, send, s
   return (
     <div className="space-y-5">
       <label className="block max-w-sm space-y-1 text-sm text-ink-muted">Prospecto
-        <select aria-label="Prospecto" className={inputClass} value={lead.id} onChange={(event) => select(event.target.value)}>
+        <select aria-label="Prospecto" className={INPUT_FULL} value={lead.id} onChange={(event) => select(event.target.value)}>
           {leads.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.company} · {label("stage", item.stage)}</option>)}
         </select>
       </label>

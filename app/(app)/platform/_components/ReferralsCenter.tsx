@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { Tabs } from "@/components/ui/Tabs";
 import { Button } from "@/components/ui/Button";
 import { newReferralState, reduceReferrals, type ReferralEvent, type ReferralState } from "@/lib/contracts/platform/referral-center";
 import { DEMO_TENANTS, demoReferralState } from "@/lib/contracts/platform/referral-demo";
@@ -66,13 +67,7 @@ export function ReferralsCenter() {
         </div>
       </div>
 
-      <div role="tablist" aria-label="Centro de Referidos" className="flex flex-wrap gap-1.5">
-        {TAB_KEYS.map((key) => (
-          <button key={key} role="tab" type="button" aria-selected={tab === key} onClick={() => { setTab(key); setMessage(null); }} className={tab === key ? "btn btn-sm btn-primary" : "btn btn-sm btn-ghost"}>
-            {label("tabs", key)}
-          </button>
-        ))}
-      </div>
+      <Tabs label="Centro de Referidos" items={TAB_KEYS.map((key) => ({ key, label: label("tabs", key) }))} value={tab} onChange={(key) => { setTab(key); setMessage(null); }} />
 
       {message && <p role="alert" className="rounded-xl bg-danger/15 px-3 py-2 text-sm text-danger-soft">{message}</p>}
 

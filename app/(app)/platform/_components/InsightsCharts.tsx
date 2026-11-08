@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import { Card } from "@/components/ui/Card";
 import type { Point } from "@/lib/contracts/platform/koe-insights";
+import { Stat } from "@/components/ui/Stat";
 
 // Presentation only: these helpers format and draw what the engine (koe-insights.ts) computed. They never count or calculate.
 
@@ -12,16 +12,8 @@ export const ms = (value: number | null): string => (value === null ? "—" : va
 export const multiple = (value: number | null): string => (value === null ? "—" : `×${num(value, 1)}`);
 export const unitValue = (unit: string, value: number): string => (unit === "money" ? money(value) : unit === "minutes" ? `${num(value)} min` : num(value));
 
-/** One figure: a label, the number, and an optional note. */
-export function Kpi({ label, value, hint, tone }: { label: string; value: ReactNode; hint?: string; tone?: "good" | "warn" }) {
-  return (
-    <Card className="space-y-1 p-4" aria-label={label}>
-      <p className="text-xs uppercase tracking-wide text-ink-muted">{label}</p>
-      <p className={`text-2xl font-semibold ${tone === "good" ? "text-success" : tone === "warn" ? "text-warning" : ""}`}>{value}</p>
-      {hint && <p className="text-xs text-ink-muted">{hint}</p>}
-    </Card>
-  );
-}
+/** One figure: a label, the number, and an optional note. The same card as every dashboard of the product (components/ui/Stat). */
+export const Kpi = Stat;
 
 /** A small bar chart in plain HTML: accessible (a text summary is the label) and without any library. */
 export function BarChart({ points, unit, title }: { points: readonly Point[]; unit: string; title: string }) {

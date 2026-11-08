@@ -13,9 +13,9 @@ export function KpiCard({ label, kpi }: { label: string; kpi: ModuleKpi }) {
   const Arrow = kpi.delta >= 0 ? ArrowUpRight : ArrowDownRight;
 
   return (
-    <div className="card flex flex-col gap-3 p-5 transition hover:-translate-y-0.5 hover:border-line-strong">
-      <p className="text-sm text-ink-muted">{label}</p>
-      <p className="text-2xl font-semibold tabular-nums sm:text-3xl">{formatValue(kpi.value, kpi.format, tag)}</p>
+    <div className="card card-lift stat flex flex-col gap-3">
+      <p className="stat-label">{label}</p>
+      <p className="stat-value !mt-0 sm:text-3xl">{formatValue(kpi.value, kpi.format, tag)}</p>
       <div className="flex items-center gap-1.5 text-xs">
         <span
           className={clsx(

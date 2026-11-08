@@ -11,12 +11,12 @@ import { CHANNELS_INFO, FUTURE_CONNECTORS, analyzeConversation, commsStats, cust
 import { formatCostMicros } from "@/lib/contracts/platform/koe-registry";
 import { Kpi, Section, money, num, pct } from "./InsightsCharts";
 import type { CommsTabProps } from "./CommsCenter";
+import { INPUT_FULL } from "@/components/ui/form";
 
 const PRIORITY_TONE: Record<string, BadgeTone> = { low: "neutral", normal: "primary", high: "warning", critical: "danger" };
 const STATUS_TONE: Record<ConvStatus, BadgeTone> = { open: "accent", pending: "warning", resolved: "success", archived: "neutral" };
 const when = (iso: string) => iso.slice(0, 16).replace("T", " ");
 const who = (actor: string) => (actor === "" ? "Sin responsable" : actor.startsWith("worker:") ? "NEX (IA)" : actor === "system" ? "Plataforma" : actor === "customer" ? "Cliente" : actor);
-const inputClass = "w-full rounded-xl border border-line bg-raised px-3 py-1.5 text-sm text-ink";
 const selectedOf = (props: CommsTabProps) => conversationsOf(props.state, props.persona.tenantId).find((item) => item.id === props.selected) ?? conversationsOf(props.state, props.persona.tenantId)[0];
 
 function ConversationPicker({ props }: { props: CommsTabProps }) {
@@ -24,7 +24,7 @@ function ConversationPicker({ props }: { props: CommsTabProps }) {
   const current = selectedOf(props);
   return (
     <label className="block max-w-lg space-y-1 text-sm text-ink-muted">Conversación
-      <select aria-label="Conversación" className={inputClass} value={current?.id ?? ""} onChange={(event) => props.select(event.target.value)}>
+      <select aria-label="Conversación" className={INPUT_FULL} value={current?.id ?? ""} onChange={(event) => props.select(event.target.value)}>
         {items.map((item) => <option key={item.id} value={item.id}>{item.contact.name} · {label("channel", item.channel)} · {item.subject}</option>)}
       </select>
     </label>
@@ -49,17 +49,17 @@ export function InboxTab(props: CommsTabProps) {
         <Kpi label="Espera promedio" value={stats.averageWaitMinutes === null ? "—" : formatWait(stats.averageWaitMinutes)} />
       </div>
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5" aria-label="Filtros de la bandeja">
-        <select aria-label="Canal" className={inputClass} value={filter.channel ?? ""} onChange={(event) => setFilter({ ...filter, channel: (event.target.value || undefined) as Channel | undefined })}>
+        <select aria-label="Canal" className={INPUT_FULL} value={filter.channel ?? ""} onChange={(event) => setFilter({ ...filter, channel: (event.target.value || undefined) as Channel | undefined })}>
           <option value="">Todos los canales</option>{CHANNELS.filter((channel) => !CHANNELS_INFO[channel].future).map((channel) => <option key={channel} value={channel}>{label("channel", channel)} ({stats.byChannel[channel]})</option>)}
         </select>
-        <select aria-label="Estado" className={inputClass} value={filter.status ?? ""} onChange={(event) => setFilter({ ...filter, status: (event.target.value || undefined) as ConvStatus | undefined })}>
+        <select aria-label="Estado" className={INPUT_FULL} value={filter.status ?? ""} onChange={(event) => setFilter({ ...filter, status: (event.target.value || undefined) as ConvStatus | undefined })}>
           <option value="">Todos los estados</option>{(["open", "pending", "resolved", "archived"] as const).map((status) => <option key={status} value={status}>{label("status", status)} ({stats.byStatus[status]})</option>)}
         </select>
-        <select aria-label="Responsable" className={inputClass} value={filter.assignee ?? ""} onChange={(event) => setFilter({ ...filter, assignee: event.target.value || undefined })}>
+        <select aria-label="Responsable" className={INPUT_FULL} value={filter.assignee ?? ""} onChange={(event) => setFilter({ ...filter, assignee: event.target.value || undefined })}>
           <option value="">Todos los responsables</option><option value="unassigned">Sin responsable</option>{people.map((person) => <option key={person} value={person}>{person}</option>)}
         </select>
-        <input aria-label="Etiqueta" placeholder="Etiqueta" className={inputClass} value={filter.tag ?? ""} onChange={(event) => setFilter({ ...filter, tag: event.target.value || undefined })} />
-        <input aria-label="Buscar" placeholder="Buscar cliente, empresa o texto" className={inputClass} value={filter.search ?? ""} onChange={(event) => setFilter({ ...filter, search: event.target.value || undefined })} />
+        <input aria-label="Etiqueta" placeholder="Etiqueta" className={INPUT_FULL} value={filter.tag ?? ""} onChange={(event) => setFilter({ ...filter, tag: event.target.value || undefined })} />
+        <input aria-label="Buscar" placeholder="Buscar cliente, empresa o texto" className={INPUT_FULL} value={filter.search ?? ""} onChange={(event) => setFilter({ ...filter, search: event.target.value || undefined })} />
       </div>
       {rows.length === 0 && <p className="text-sm text-ink-muted">No hay conversaciones con esos filtros.</p>}
       <ul className="space-y-2" aria-label="Bandeja unificada">
@@ -86,9 +86,9 @@ export function InboxTab(props: CommsTabProps) {
         <h2 className="font-semibold">Simular un mensaje entrante</h2>
         <p className="text-xs text-ink-muted">Los mensajes de los clientes llegan a través de la plataforma y KOE los enruta; ni una persona ni NEX los escriben. Esto simula esa llegada.</p>
         <div className="grid gap-2 sm:grid-cols-4">
-          <select aria-label="Canal del mensaje simulado" className={inputClass} value={sim.channel} onChange={(event) => setSim({ ...sim, channel: event.target.value as Channel })}>{CHANNELS.map((channel) => <option key={channel} value={channel}>{label("channel", channel)}</option>)}</select>
-          <input aria-label="Nombre del cliente simulado" className={inputClass} value={sim.name} onChange={(event) => setSim({ ...sim, name: event.target.value })} />
-          <input aria-label="Texto del mensaje simulado" className={`${inputClass} sm:col-span-2`} value={sim.text} onChange={(event) => setSim({ ...sim, text: event.target.value })} />
+          <select aria-label="Canal del mensaje simulado" className={INPUT_FULL} value={sim.channel} onChange={(event) => setSim({ ...sim, channel: event.target.value as Channel })}>{CHANNELS.map((channel) => <option key={channel} value={channel}>{label("channel", channel)}</option>)}</select>
+          <input aria-label="Nombre del cliente simulado" className={INPUT_FULL} value={sim.name} onChange={(event) => setSim({ ...sim, name: event.target.value })} />
+          <input aria-label="Texto del mensaje simulado" className={`${INPUT_FULL} sm:col-span-2`} value={sim.text} onChange={(event) => setSim({ ...sim, text: event.target.value })} />
         </div>
         <Button size="sm" variant="secondary" onClick={() => sendAsPlatform({ type: "conversation.open", input: { channel: sim.channel, subject: `Mensaje de ${sim.name}`, contact: { name: sim.name, handle: sim.name.toLowerCase().replace(/\s+/g, "-") }, company: "", text: sim.text } })}>Recibir mensaje (plataforma)</Button>
       </Card>
@@ -149,7 +149,7 @@ export function ConversationTab(props: CommsTabProps) {
           ))}
         </ol>
         <div className="space-y-2">
-          <textarea aria-label="Respuesta enviada" rows={2} placeholder="Registre aquí la respuesta que usted envió fuera de la plataforma" className={inputClass} value={reply} onChange={(event) => setReply(event.target.value)} />
+          <textarea aria-label="Respuesta enviada" rows={2} placeholder="Registre aquí la respuesta que usted envió fuera de la plataforma" className={INPUT_FULL} value={reply} onChange={(event) => setReply(event.target.value)} />
           <Button size="sm" variant="secondary" onClick={() => { if (!send({ type: "message.record", conversationId: conversation.id, text: reply })) setReply(""); }}>Registrar respuesta enviada</Button>
           <p className="text-xs text-ink-muted">La plataforma no envía nada: esto solo deja constancia de lo que una persona respondió.</p>
         </div>
@@ -158,7 +158,7 @@ export function ConversationTab(props: CommsTabProps) {
       <Section title="Notas internas" aside="Nunca las ve el cliente; quedan auditadas">
         {notes.length === 0 && <p className="text-sm text-ink-muted">No hay notas.</p>}
         <ul className="space-y-1 text-sm" aria-label="Notas internas">{notes.map((item) => <li key={item.id} className="rounded-xl bg-warning/10 px-3 py-1.5"><span className="text-xs text-ink-muted">{when(item.at)} · {who(item.actor)}</span> {item.text}</li>)}</ul>
-        <div className="flex flex-wrap gap-2"><input aria-label="Nota interna" placeholder="Escriba una nota para el equipo" className={`${inputClass} max-w-xl`} value={note} onChange={(event) => setNote(event.target.value)} /><Button size="sm" variant="secondary" onClick={() => { if (!send({ type: "note.add", conversationId: conversation.id, text: note })) setNote(""); }}>Agregar nota</Button></div>
+        <div className="flex flex-wrap gap-2"><input aria-label="Nota interna" placeholder="Escriba una nota para el equipo" className={`${INPUT_FULL} max-w-xl`} value={note} onChange={(event) => setNote(event.target.value)} /><Button size="sm" variant="secondary" onClick={() => { if (!send({ type: "note.add", conversationId: conversation.id, text: note })) setNote(""); }}>Agregar nota</Button></div>
       </Section>
 
       <Section title="Contexto del cliente" aside="Se consulta al CRM de KOE; no se copia aquí">

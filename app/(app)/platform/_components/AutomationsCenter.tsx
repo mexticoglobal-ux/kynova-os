@@ -6,6 +6,7 @@ import { newAutomationState, reduceAutomations, type AutomationEvent, type Autom
 import { DEMO_PERSONAS, DEMO_TENANTS, demoAutomationState } from "@/lib/contracts/platform/automation-demo";
 import { label } from "@/lib/contracts/platform/automation-messages";
 import { ActivityTab, BuilderTab, ListTab, ResultsTab, SimulateTab } from "./AutomationsTabs";
+import { Tabs } from "@/components/ui/Tabs";
 
 const TAB_KEYS = ["list", "build", "simulate", "results", "activity"] as const;
 type TabKey = (typeof TAB_KEYS)[number];
@@ -70,13 +71,7 @@ export function AutomationsCenter() {
         </Button>
       </div>
 
-      <div role="tablist" aria-label="Automatizaciones" className="flex flex-wrap gap-1.5">
-        {TAB_KEYS.map((key) => (
-          <button key={key} role="tab" type="button" aria-selected={tab === key} onClick={() => { setTab(key); setMessage(null); }} className={tab === key ? "btn btn-sm btn-primary" : "btn btn-sm btn-ghost"}>
-            {label("tabs", key)}
-          </button>
-        ))}
-      </div>
+      <Tabs label="Automatizaciones" items={TAB_KEYS.map((key) => ({ key, label: label("tabs", key) }))} value={tab} onChange={(key) => { setTab(key); setMessage(null); }} />
 
       {message && <p role="alert" className="rounded-xl bg-danger/15 px-3 py-2 text-sm text-danger-soft">{message}</p>}
 
