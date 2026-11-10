@@ -19,8 +19,8 @@ export function KpiCard({ label, kpi }: { label: string; kpi: ModuleKpi }) {
       <div className="flex items-center gap-1.5 text-xs">
         <span
           className={clsx(
-            "inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 font-medium",
-            improving ? "bg-success/15 text-success" : "bg-danger/15 text-danger-soft",
+            "inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 font-semibold ring-1 ring-inset",
+            improving ? "bg-success/15 text-success ring-success/30" : "bg-danger/15 text-danger-soft ring-danger/30",
           )}
         >
           <Arrow aria-hidden className="h-3 w-3" />

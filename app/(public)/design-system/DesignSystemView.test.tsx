@@ -12,7 +12,7 @@ describe("design system page", () => {
         <DesignSystemView />
       </Providers>,
     );
-    expect(screen.getByRole("heading", { level: 1, name: "KYNOVA Design System V2" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "KYNOVA Design System V3" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "NOVA Light" }));
     expect(document.documentElement.dataset.theme).toBe("nova-light");
     fireEvent.click(screen.getByRole("button", { name: "NOVA Dark" }));
@@ -26,7 +26,7 @@ describe("design system page", () => {
         <DesignSystemView />
       </Providers>,
     );
-    for (const title of ["Colores", "Pestañas, cifras y tablas", "Marcas", "Botones", "Tarjetas, badges e iconos", "Campos y opciones", "Gráficos", "Sombras y espaciados"]) {
+    for (const title of ["Colores", "Pestañas, cifras y tablas", "Marcas", "Botones", "Tarjetas, badges e iconos", "Campos y opciones", "Estados: vacío y carga", "Gráficos", "Sombras y espaciados"]) {
       expect(screen.getByRole("heading", { name: title })).toBeInTheDocument();
     }
   });

@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Bot, Gem, TrendingUp } from "lucide-react";
+import { Bot, Gem, Inbox, TrendingUp } from "lucide-react";
 import { THEMES, THEME_LABEL, DEFAULT_THEME, type Theme } from "@/lib/theme";
 import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { IconBadge } from "@/components/ui/IconBadge";
 import { choiceClass } from "@/components/ui/choice";
 import { FIELD, LABEL } from "@/components/ui/form";
@@ -15,22 +16,24 @@ import { Sparkline } from "@/components/charts/Sparkline";
 import { BRAND_KEYS } from "@/config/brand";
 import { Dialog } from "@/components/ui/Dialog";
 import { ProductMark } from "@/components/ui/ProductMark";
+import { SkeletonKpis } from "@/components/ui/Skeleton";
 import { Stat } from "@/components/ui/Stat";
 import { Table } from "@/components/ui/Table";
 import { Tabs } from "@/components/ui/Tabs";
 
 const SURFACES = [
-  ["canvas", "bg-canvas", "Fondo de página"],
-  ["surface", "bg-surface", "Tarjetas"],
+  ["canvas", "bg-canvas", "Fondo de página (azul muy oscuro)"],
+  ["surface", "bg-surface", "Menús y superficies sólidas"],
   ["raised", "bg-raised", "Controles y chips"],
   ["raised-strong", "bg-raised-strong", "Hover y pulsado"],
   ["shade", "bg-shade", "Campos y huecos"],
 ] as const;
 const BRAND = [
-  ["primary", "bg-primary", "Azul petróleo"],
-  ["primary-soft", "bg-primary-soft", "Texto e iconos sobre oscuro"],
-  ["accent", "bg-accent", "Dorado premium"],
-  ["accent-soft", "bg-accent-soft", "Dorado para texto"],
+  ["primary", "bg-primary", "Azul eléctrico"],
+  ["primary-deep", "bg-primary-deep", "Fin cian del degradado"],
+  ["primary-soft", "bg-primary-soft", "Azul para texto e iconos"],
+  ["accent", "bg-accent", "Cian eléctrico"],
+  ["accent-soft", "bg-accent-soft", "Cian para texto"],
 ] as const;
 const STATUS = [
   ["success", "bg-success"],
@@ -84,9 +87,9 @@ export function DesignSystemView() {
           <Gem aria-hidden className="h-3.5 w-3.5" />
           Design System
         </Badge>
-        <h1 className="text-4xl font-semibold tracking-tight">KYNOVA Design System V2</h1>
+        <h1 className="text-4xl font-bold tracking-tight">KYNOVA Design System V3</h1>
         <p className="max-w-2xl text-ink-muted">
-          Dos temas, NOVA Dark y NOVA Light, con exactamente los mismos componentes. Cada pantalla se construye con estas piezas: los colores salen de variables por tema y nada se pinta a mano.
+          Dos temas, NOVA Dark (un azul muy oscuro iluminado por azul eléctrico y cian) y NOVA Light, con exactamente los mismos componentes. Cada pantalla se construye con estas piezas: los colores salen de variables por tema y nada se pinta a mano.
         </p>
         <div role="group" aria-label="Tema" className="inline-flex rounded-full border border-line bg-raised p-1 text-sm">
           {THEMES.map((option) => (
@@ -109,7 +112,7 @@ export function DesignSystemView() {
             <Swatch key={token} token={token} className={className} note={note} />
           ))}
         </div>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
           {BRAND.map(([token, className, note]) => (
             <Swatch key={token} token={token} className={className} note={note} />
           ))}
@@ -119,6 +122,8 @@ export function DesignSystemView() {
             <Swatch key={token} token={token} className={className} />
           ))}
         </div>
+        <div aria-hidden className="h-14 rounded-2xl bg-gradient-to-r from-primary to-primary-deep shadow-glow" />
+        <p className="text-sm text-ink-muted">Degradado eléctrico: de primary a primary-deep, el de los botones primarios y la pestaña activa.</p>
         <Card className="space-y-1 p-5">
           {INK.map(([token, className, note]) => (
             <p key={token} className={className}>
@@ -187,7 +192,7 @@ export function DesignSystemView() {
           </Card>
           <Card className="p-5">
             <IconBadge icon={TrendingUp} tone="accent" />
-            <h3 className="mt-4 font-medium">Icono dorado</h3>
+            <h3 className="mt-4 font-medium">Icono cian</h3>
             <p className="mt-1 text-sm text-ink-muted">Iconos de lucide-react: 16 px en línea, 20 px en navegación.</p>
           </Card>
           <Card className="space-y-3 p-5">
@@ -220,6 +225,13 @@ export function DesignSystemView() {
             </button>
           </div>
         </Card>
+      </Block>
+
+      <Block title="Estados: vacío y carga">
+        <div className="grid gap-4 lg:grid-cols-2">
+          <EmptyState icon={Inbox} title="Aún no hay nada aquí">Cuando haya algo, aparecerá en este lugar. Mientras tanto, empiece por crear el primero.</EmptyState>
+          <SkeletonKpis count={2} />
+        </div>
       </Block>
 
       <Block title="Gráficos">

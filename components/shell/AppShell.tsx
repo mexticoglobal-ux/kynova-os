@@ -73,7 +73,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       >
         <div className={`mb-6 flex items-center ${collapsed ? "justify-center" : "justify-between"}`}>
           <Link href="/" aria-label={site.product} className="min-w-0">
-            {collapsed ? <span aria-hidden className="block h-3 w-3 rotate-45 rounded-[4px] bg-accent" /> : <Brand name={site.product} />}
+            {collapsed ? <span aria-hidden className="block h-3 w-3 rotate-45 rounded-[4px] bg-gradient-to-br from-primary to-accent" /> : <Brand name={site.product} />}
           </Link>
           {!collapsed && (
             <button type="button" onClick={() => collapse(true)} aria-label={t.collapse} className="rounded-lg p-1.5 text-ink-muted transition hover:bg-raised hover:text-ink">
@@ -92,7 +92,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-line-soft bg-canvas/80 px-4 py-3 backdrop-blur lg:justify-end lg:border-none lg:bg-transparent lg:px-10 lg:pt-6 lg:backdrop-blur-none">
+        <header className="app-header sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-line-soft px-4 py-3 lg:justify-end lg:border-none lg:bg-transparent lg:px-10 lg:pt-6 lg:backdrop-blur-none">
           <button
             type="button"
             onClick={() => setOpen(true)}
@@ -111,11 +111,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               onClick={openSearch}
               aria-label={t.search}
               aria-keyshortcuts="Control+K Meta+K"
-              className="flex items-center gap-2 rounded-xl border border-line-soft bg-shade px-2.5 py-2 text-sm text-ink-muted transition hover:border-line-strong hover:text-ink sm:px-3 sm:py-1.5"
+              className="flex items-center gap-2 rounded-xl border border-line bg-raised/60 px-2.5 py-2 text-sm text-ink-muted transition hover:border-accent/50 hover:text-ink sm:px-3 sm:py-1.5"
             >
               <Search aria-hidden className="h-4 w-4" />
               <span className="hidden sm:inline">{t.search}</span>
-              <kbd className="hidden rounded-md border border-line-soft px-1.5 text-[0.6875rem] sm:inline">Ctrl K</kbd>
+              <kbd className="hidden rounded-md border border-line px-1.5 text-[0.6875rem] sm:inline">Ctrl K</kbd>
             </button>
             <InstallButton />
             <ThemeSwitcher />
@@ -142,7 +142,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               animate={{ x: 0 }}
               exit={{ x: -280 }}
               transition={{ type: "tween", duration: 0.2 }}
-              className="absolute inset-y-0 left-0 w-72 max-w-[85vw] overflow-y-auto border-r border-line bg-canvas p-5"
+              className="absolute inset-y-0 left-0 w-72 max-w-[85vw] overflow-y-auto border-r border-line bg-surface p-5 shadow-raised"
             >
               <div className="mb-8 flex items-center justify-between">
                 <Brand name={site.product} />

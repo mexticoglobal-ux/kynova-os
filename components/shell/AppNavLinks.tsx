@@ -22,7 +22,8 @@ type Props = {
   labelOf?: (href: string) => string | undefined;
 };
 
-const link = "flex items-center gap-3 rounded-xl px-3 py-2 transition";
+// The item itself (its hover, its current state and its light bar) is `.nav-item` in app/globals.css.
+const link = "nav-item";
 
 export function AppNavLinks({ onNavigate, collapsed = false, memory, onToggleFavorite, labelOf }: Props) {
   const pathname = usePathname();
@@ -35,7 +36,7 @@ export function AppNavLinks({ onNavigate, collapsed = false, memory, onToggleFav
     if (!name) return null;
     return (
       <li key={href}>
-        <Link href={href} onClick={onNavigate} aria-current={isActive(pathname, href) ? "page" : undefined} className={clsx(link, "text-ink-muted hover:bg-raised hover:text-ink", isActive(pathname, href) && "bg-primary/15 text-ink")}>
+        <Link href={href} onClick={onNavigate} aria-current={isActive(pathname, href) ? "page" : undefined} className={link}>
           <span className="truncate">{name}</span>
         </Link>
       </li>
@@ -46,7 +47,7 @@ export function AppNavLinks({ onNavigate, collapsed = false, memory, onToggleFav
     <div className="space-y-5">
       {!collapsed && favorites.length > 0 && (
         <section aria-label={t.favorites}>
-          <h2 className="mb-1 flex items-center gap-1.5 px-3 text-[0.6875rem] font-semibold uppercase tracking-wide text-ink-muted">
+          <h2 className="mb-1.5 flex items-center gap-1.5 px-3 text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-ink-muted">
             <Star aria-hidden className="h-3 w-3 text-accent" />
             {t.favorites}
           </h2>
@@ -55,7 +56,7 @@ export function AppNavLinks({ onNavigate, collapsed = false, memory, onToggleFav
       )}
       {!collapsed && recents.length > 0 && (
         <section aria-label={t.recents}>
-          <h2 className="mb-1 flex items-center gap-1.5 px-3 text-[0.6875rem] font-semibold uppercase tracking-wide text-ink-muted">
+          <h2 className="mb-1.5 flex items-center gap-1.5 px-3 text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-ink-muted">
             <Clock aria-hidden className="h-3 w-3" />
             {t.recents}
           </h2>
@@ -77,7 +78,7 @@ export function AppNavLinks({ onNavigate, collapsed = false, memory, onToggleFav
                   aria-current={active ? "page" : undefined}
                   aria-label={collapsed ? name : undefined}
                   title={collapsed ? name : undefined}
-                  className={clsx(link, collapsed && "justify-center", active ? "bg-primary/15 text-ink shadow-[inset_2px_0_0_rgb(var(--accent))]" : "text-ink-muted hover:bg-raised hover:text-ink")}
+                  className={clsx(link, collapsed && "justify-center")}
                 >
                   <Icon aria-hidden className={clsx("h-5 w-5 shrink-0", active && "text-accent")} />
                   {!collapsed && name}

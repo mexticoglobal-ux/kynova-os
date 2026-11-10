@@ -6,7 +6,7 @@ export function Skeleton({ className }: { className?: string }) {
     <div
       aria-hidden
       className={clsx(
-        "relative overflow-hidden rounded-card bg-raised/70 before:absolute before:inset-0 before:-translate-x-full before:animate-shimmer before:bg-gradient-to-r before:from-transparent before:via-ink/10 before:to-transparent",
+        "relative overflow-hidden rounded-card bg-raised/60 before:absolute before:inset-0 before:-translate-x-full before:animate-shimmer before:bg-gradient-to-r before:from-transparent before:via-accent/15 before:to-transparent",
         className,
       )}
     />

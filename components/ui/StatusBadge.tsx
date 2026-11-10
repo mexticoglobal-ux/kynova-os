@@ -32,5 +32,5 @@ const BADGE_TONE: Record<"positive" | "neutral" | "warning" | "negative", BadgeT
 
 export function StatusBadge({ status }: { status: StatusKey }) {
   const { m } = useI18n();
-  return <Badge tone={BADGE_TONE[TONE[status]]}>{m.status[status]}</Badge>;
+  return <Badge tone={BADGE_TONE[TONE[status]]} dot>{m.status[status]}</Badge>;
 }

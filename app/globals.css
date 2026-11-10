@@ -3,69 +3,80 @@
 @tailwind utilities;
 
 /*
-  KYNOVA Design System V2.
-  One visual system, two themes: NOVA Dark (the identity: petrol blue + graphite + premium gold) and NOVA Light (warm paper).
+  KYNOVA Design System V3 (NOVA).
+  One visual system, two themes: NOVA Dark (the identity: a very dark blue canvas lit by electric blue and cyan) and NOVA Light (cool, bright and clean).
   Colors are RGB triplets so Tailwind can add opacity (`bg-primary/15`). Both themes declare exactly the same token names
   (checked by app/design-tokens.test.ts), so a theme change never touches a component. No theme uses pure black or pure white
   as the page background. Nothing else in the product declares a color: app/design-system-audit.test.ts enforces it.
+  The look of every shared piece (glass cards, buttons, fields, tabs, tables, figures, navigation, skeletons) lives in this file only.
 */
 :root,
 [data-theme="nova-dark"] {
   color-scheme: dark;
-  --canvas: 15 22 26; /* #0F161A graphite with a petrol tint */
-  --surface: 23 33 39; /* cards */
-  --raised: 32 45 53; /* controls, chips */
-  --raised-strong: 44 60 70; /* hover, pressed */
-  --shade: 11 17 20; /* inset wells inside cards */
-  --scrim: 6 10 12; /* overlays behind dialogs */
-  --line: 50 66 76;
-  --line-soft: 38 52 60;
-  --line-strong: 74 94 106;
-  --ink: 244 241 234; /* warm off-white */
-  --ink-soft: 202 209 212;
-  --ink-muted: 148 162 169;
-  --primary: 20 120 130; /* petrol blue */
-  --primary-soft: 104 200 209; /* petrol for text and icons on dark */
+  --canvas: 6 11 24; /* #060B18 a very dark blue */
+  --surface: 12 20 40; /* solid cards and menus */
+  --raised: 19 30 56; /* controls, chips */
+  --raised-strong: 29 44 78; /* hover, pressed */
+  --shade: 4 8 18; /* inset wells: fields, tab bars */
+  --scrim: 2 5 12; /* overlays behind dialogs */
+  --glass: 15 25 48; /* the tint of a glass card */
+  --line: 34 50 86;
+  --line-soft: 24 37 66;
+  --line-strong: 58 80 128;
+  --ink: 238 243 252;
+  --ink-soft: 196 208 230;
+  --ink-muted: 140 156 188;
+  --primary: 37 99 235; /* electric blue */
+  --primary-deep: 6 120 190; /* the cyan-blue end of the electric gradient */
+  --primary-soft: 112 192 255; /* blue for text and icons on dark */
   --on-primary: 255 255 255;
-  --accent: 201 162 75; /* premium gold */
-  --accent-soft: 232 205 133;
-  --on-accent: 28 22 8;
-  --success: 84 196 146;
-  --warning: 233 178 79;
-  --danger: 226 92 92;
-  --danger-soft: 244 140 140;
-  --glow-b: 201 162 75;
-  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 12px 36px -14px rgb(0 0 0 / 0.55);
-  --shadow-raised: 0 10px 30px -10px rgb(0 0 0 / 0.6);
+  --accent: 34 211 238; /* electric cyan */
+  --accent-soft: 125 229 250;
+  --on-accent: 3 18 30;
+  --success: 52 211 153;
+  --warning: 251 191 36;
+  --danger: 248 113 113;
+  --danger-soft: 252 165 165;
+  --aurora-a: 37 99 235; /* the two lights behind the page */
+  --aurora-b: 34 211 238;
+  --aurora-strength: 0.3;
+  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.05) inset, 0 18px 50px -22px rgb(0 4 22 / 0.8);
+  --shadow-raised: 0 14px 40px -14px rgb(0 4 22 / 0.85);
+  --shadow-glow: 0 10px 30px -10px rgb(37 99 235 / 0.75);
 }
 
 [data-theme="nova-light"] {
   color-scheme: light;
-  --canvas: 243 241 235; /* warm paper */
-  --surface: 252 251 248;
-  --raised: 234 231 223;
-  --raised-strong: 223 219 209;
-  --shade: 238 235 228;
-  --scrim: 20 28 32;
-  --line: 214 210 199;
-  --line-soft: 226 222 212;
-  --line-strong: 184 179 166;
-  --ink: 23 33 39;
-  --ink-soft: 62 75 82;
-  --ink-muted: 90 102 109;
-  --primary: 14 103 112;
-  --primary-soft: 11 89 97; /* darker than primary: this one is for text on light */
+  --canvas: 237 242 252; /* cool paper */
+  --surface: 250 252 255;
+  --raised: 226 234 248;
+  --raised-strong: 211 222 242;
+  --shade: 232 238 250;
+  --scrim: 8 16 36;
+  --glass: 255 255 255;
+  --line: 205 216 238;
+  --line-soft: 220 229 245;
+  --line-strong: 160 178 214;
+  --ink: 10 18 36;
+  --ink-soft: 44 58 88;
+  --ink-muted: 78 94 126;
+  --primary: 29 78 216;
+  --primary-deep: 3 105 161;
+  --primary-soft: 30 64 175; /* darker than primary: this one is for text on light */
   --on-primary: 255 255 255;
-  --accent: 143 104 18;
-  --accent-soft: 118 86 14;
+  --accent: 14 116 144;
+  --accent-soft: 21 94 117; /* darker than accent: for text on light */
   --on-accent: 255 255 255;
-  --success: 25 127 88;
-  --warning: 156 99 6;
-  --danger: 187 48 48;
-  --danger-soft: 170 40 40;
-  --glow-b: 201 162 75;
-  --shadow-card: 0 1px 2px rgb(23 33 39 / 0.06), 0 12px 30px -16px rgb(23 33 39 / 0.18);
-  --shadow-raised: 0 10px 28px -12px rgb(23 33 39 / 0.25);
+  --success: 4 120 87;
+  --warning: 146 82 5;
+  --danger: 185 28 28;
+  --danger-soft: 153 27 27;
+  --aurora-a: 37 99 235;
+  --aurora-b: 34 211 238;
+  --aurora-strength: 0.16;
+  --shadow-card: 0 1px 2px rgb(10 18 36 / 0.05), 0 18px 40px -22px rgb(30 64 175 / 0.28);
+  --shadow-raised: 0 12px 30px -12px rgb(30 64 175 / 0.3);
+  --shadow-glow: 0 10px 26px -10px rgb(29 78 216 / 0.55);
 }
 
 html {
@@ -77,12 +88,27 @@ body {
   background: rgb(var(--canvas));
   color: rgb(var(--ink));
   font-family: theme("fontFamily.sans");
+  font-feature-settings:
+    "cv11" 1,
+    "ss01" 1;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   /* the installed app (PWA) never hides content behind a notch or the home indicator */
   padding-left: env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
+}
+
+/* The two lights behind the whole product. A fixed layer: it costs one paint, never scrolls and never blocks a click. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(56% 42% at 12% -6%, rgb(var(--aurora-a) / var(--aurora-strength)), transparent 72%),
+    radial-gradient(42% 36% at 100% 0%, rgb(var(--aurora-b) / calc(var(--aurora-strength) * 0.55)), transparent 70%);
 }
 
 /* One focus ring for the whole product: visible on both themes, only for keyboard users. */
@@ -95,15 +121,27 @@ body {
   background: rgb(var(--primary) / 0.35);
 }
 
+/* Premium type: a display face for headings and figures, the text face for everything else. */
+@layer base {
+  h1,
+  h2,
+  h3 {
+    font-family: theme("fontFamily.display");
+    letter-spacing: -0.02em;
+  }
+}
+
 /*
   Shared building blocks. Components use these through components/ui (Button, Card, Badge, Tabs, Table, Stat, Dialog, fields);
   nothing else should restyle them, so the whole product changes in one place.
 */
 @layer components {
+  /* Glass: a translucent tinted surface over the page lights, with a soft edge. */
   .card {
-    background: rgb(var(--surface) / 0.92);
-    border: 1px solid rgb(var(--line));
-    backdrop-filter: blur(12px);
+    background: linear-gradient(160deg, rgb(var(--glass) / 0.8), rgb(var(--glass) / 0.55));
+    border: 1px solid rgb(var(--line) / 0.85);
+    -webkit-backdrop-filter: blur(16px) saturate(1.4);
+    backdrop-filter: blur(16px) saturate(1.4);
     border-radius: theme("borderRadius.card");
     box-shadow: var(--shadow-card);
     transition:
@@ -112,10 +150,11 @@ body {
       transform 0.2s ease;
   }
 
+  /* The hero light of a page header and of large panels. */
   .glow {
     background:
-      radial-gradient(60% 50% at 50% 0%, rgb(var(--primary) / 0.32), transparent),
-      radial-gradient(40% 40% at 85% 15%, rgb(var(--glow-b) / 0.18), transparent);
+      radial-gradient(60% 55% at 50% 0%, rgb(var(--aurora-a) / 0.34), transparent),
+      radial-gradient(40% 40% at 88% 12%, rgb(var(--aurora-b) / 0.2), transparent);
   }
 
   .btn {
@@ -123,12 +162,15 @@ body {
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    border-radius: 9999px;
-    font-weight: 500;
+    border-radius: 0.875rem;
+    font-weight: 600;
+    letter-spacing: -0.005em;
     transition:
       background-color 0.18s ease,
       border-color 0.18s ease,
       color 0.18s ease,
+      box-shadow 0.18s ease,
+      filter 0.18s ease,
       transform 0.18s ease;
   }
   .btn:active:not(:disabled) {
@@ -139,33 +181,37 @@ body {
     cursor: not-allowed;
   }
   .btn-primary {
-    background: rgb(var(--primary));
+    background: linear-gradient(135deg, rgb(var(--primary)), rgb(var(--primary-deep)));
     color: rgb(var(--on-primary));
+    border: 1px solid rgb(var(--accent) / 0.3);
+    box-shadow: var(--shadow-glow);
   }
   .btn-primary:hover:not(:disabled) {
-    background: rgb(var(--primary) / 0.88);
+    filter: brightness(1.1);
   }
   .btn-secondary {
-    background: rgb(var(--raised));
+    background: rgb(var(--raised) / 0.7);
     color: rgb(var(--ink-soft));
     border: 1px solid rgb(var(--line));
   }
   .btn-secondary:hover:not(:disabled) {
-    background: rgb(var(--raised-strong));
+    background: rgb(var(--raised-strong) / 0.8);
+    border-color: rgb(var(--accent) / 0.45);
     color: rgb(var(--ink));
   }
   .btn-accent {
-    background: rgb(var(--accent));
+    background: linear-gradient(135deg, rgb(var(--accent)), rgb(var(--accent-soft)));
     color: rgb(var(--on-accent));
   }
   .btn-accent:hover:not(:disabled) {
-    background: rgb(var(--accent) / 0.9);
+    filter: brightness(1.06);
+    box-shadow: 0 8px 24px -10px rgb(var(--accent) / 0.7);
   }
   .btn-ghost {
     color: rgb(var(--ink-muted));
   }
   .btn-ghost:hover:not(:disabled) {
-    background: rgb(var(--raised));
+    background: rgb(var(--raised) / 0.8);
     color: rgb(var(--ink));
   }
   .btn-sm {
@@ -173,32 +219,34 @@ body {
     font-size: 0.8125rem;
   }
   .btn-md {
-    padding: 0.5rem 1rem;
+    padding: 0.5625rem 1.125rem;
     font-size: 0.875rem;
   }
   .btn-lg {
-    padding: 0.75rem 1.75rem;
+    padding: 0.8125rem 1.75rem;
     font-size: 1rem;
   }
 
   /* Fields. `.field` is the full-size input of forms; `.field-sm` is the compact one of toolbars and tables. */
   .field,
   .field-sm {
-    border-radius: 0.75rem;
-    border: 1px solid rgb(var(--line-strong));
-    background: rgb(var(--shade));
+    border-radius: 0.875rem;
+    border: 1px solid rgb(var(--line-strong) / 0.8);
+    background: rgb(var(--shade) / 0.85);
+    box-shadow: inset 0 1px 2px rgb(0 4 22 / 0.18);
     color: rgb(var(--ink));
     transition:
       border-color 0.18s ease,
-      box-shadow 0.18s ease;
+      box-shadow 0.18s ease,
+      background-color 0.18s ease;
   }
   .field {
     width: 100%;
-    padding: 0.625rem 0.875rem;
+    padding: 0.6875rem 0.9375rem;
     font-size: 0.875rem;
   }
   .field-sm {
-    padding: 0.375rem 0.75rem;
+    padding: 0.4375rem 0.75rem;
     font-size: 0.875rem;
   }
   .field::placeholder,
@@ -207,13 +255,19 @@ body {
   }
   .field:hover,
   .field-sm:hover {
-    border-color: rgb(var(--primary-soft) / 0.6);
+    border-color: rgb(var(--accent) / 0.5);
   }
   .field:focus-visible,
   .field-sm:focus-visible {
     outline: none;
-    border-color: rgb(var(--primary-soft));
-    box-shadow: 0 0 0 2px rgb(var(--primary-soft) / 0.5);
+    border-color: rgb(var(--accent));
+    background: rgb(var(--shade));
+    box-shadow: 0 0 0 3px rgb(var(--accent) / 0.25);
+  }
+  .field:disabled,
+  .field-sm:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   /* Tabs: one segmented control, scrollable on a phone, the same markup everywhere (components/ui/Tabs). */
@@ -225,7 +279,7 @@ body {
     padding: 0.25rem;
     border-radius: 9999px;
     border: 1px solid rgb(var(--line-soft));
-    background: rgb(var(--shade));
+    background: rgb(var(--shade) / 0.8);
     scrollbar-width: none;
     width: fit-content;
   }
@@ -236,9 +290,9 @@ body {
     flex-shrink: 0;
     white-space: nowrap;
     border-radius: 9999px;
-    padding: 0.375rem 0.875rem;
+    padding: 0.4375rem 1rem;
     font-size: 0.8125rem;
-    font-weight: 500;
+    font-weight: 600;
     color: rgb(var(--ink-muted));
     transition:
       background-color 0.18s ease,
@@ -247,66 +301,131 @@ body {
   }
   .tab:hover {
     color: rgb(var(--ink));
-    background: rgb(var(--raised));
+    background: rgb(var(--raised) / 0.8);
   }
   .tab[aria-selected="true"] {
-    background: rgb(var(--primary));
+    background: linear-gradient(135deg, rgb(var(--primary)), rgb(var(--primary-deep)));
     color: rgb(var(--on-primary));
-    box-shadow: var(--shadow-raised);
+    box-shadow: var(--shadow-glow);
   }
 
   /* Tables: every data table of the product reads the same, and scrolls sideways on a phone instead of breaking the page. */
   .table-wrap {
     overflow-x: auto;
-    border-radius: 0.75rem;
+    border-radius: 0.875rem;
+    border: 1px solid rgb(var(--line-soft));
+    background: rgb(var(--shade) / 0.35);
     -webkit-overflow-scrolling: touch;
   }
   main table {
     border-collapse: collapse;
   }
   main thead th {
-    font-size: 0.6875rem;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: rgb(var(--ink-muted));
-  }
-  main tbody tr {
-    transition: background-color 0.15s ease;
-  }
-  main tbody tr:hover {
-    background: rgb(var(--raised) / 0.45);
-  }
-
-  /* Figures: a quiet label, a large number, an optional note. The hierarchy of every dashboard. */
-  .stat {
-    padding: 1.125rem 1.25rem;
-  }
-  .stat-label {
+    background: rgb(var(--shade) / 0.7);
     font-size: 0.6875rem;
     font-weight: 600;
     letter-spacing: 0.06em;
     text-transform: uppercase;
     color: rgb(var(--ink-muted));
+    padding-top: 0.625rem;
+    padding-bottom: 0.625rem;
+  }
+  main tbody tr {
+    border-top: 1px solid rgb(var(--line-soft));
+    transition: background-color 0.15s ease;
+  }
+  main tbody tr:nth-child(even) {
+    background: rgb(var(--raised) / 0.16);
+  }
+  main tbody tr:hover {
+    background: rgb(var(--primary) / 0.1);
+  }
+
+  /* Figures: a quiet label, a large number, an optional note. The hierarchy of every dashboard, with a light line on top. */
+  .stat {
+    position: relative;
+    overflow: hidden;
+    padding: 1.25rem 1.375rem;
+  }
+  .stat::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 2px;
+    background: linear-gradient(90deg, rgb(var(--primary)), rgb(var(--accent)) 55%, transparent);
+    opacity: 0.85;
+  }
+  .stat-label {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgb(var(--ink-muted));
   }
   .stat-value {
-    margin-top: 0.375rem;
-    font-size: 1.625rem;
-    font-weight: 600;
-    line-height: 1.15;
-    letter-spacing: -0.01em;
+    margin-top: 0.4375rem;
+    font-family: theme("fontFamily.display");
+    font-size: clamp(1.5rem, 1.25rem + 0.9vw, 1.875rem);
+    font-weight: 700;
+    line-height: 1.12;
+    letter-spacing: -0.02em;
     font-variant-numeric: tabular-nums;
   }
   .stat-hint {
-    margin-top: 0.375rem;
+    margin-top: 0.4375rem;
     font-size: 0.75rem;
     color: rgb(var(--ink-muted));
+  }
+
+  /* Navigation: the sidebar and the menu of a phone share one item. The current one carries a light bar and a soft blue wash. */
+  .nav-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    border-radius: 0.875rem;
+    padding: 0.5625rem 0.75rem;
+    color: rgb(var(--ink-muted));
+    transition:
+      background-color 0.18s ease,
+      color 0.18s ease;
+  }
+  .nav-item:hover {
+    background: rgb(var(--raised) / 0.7);
+    color: rgb(var(--ink));
+  }
+  .nav-item[aria-current="page"] {
+    background: linear-gradient(90deg, rgb(var(--primary) / 0.26), rgb(var(--primary) / 0.05));
+    color: rgb(var(--ink));
+  }
+  .nav-item[aria-current="page"]::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 22%;
+    bottom: 22%;
+    width: 3px;
+    border-radius: 9999px;
+    background: linear-gradient(180deg, rgb(var(--accent)), rgb(var(--primary)));
+  }
+
+  /* The top bar: glass over the page lights, with a hairline under it on a phone. */
+  .app-header {
+    -webkit-backdrop-filter: blur(18px) saturate(1.4);
+    backdrop-filter: blur(18px) saturate(1.4);
+    background: rgb(var(--canvas) / 0.72);
+  }
+
+  /* Empty states: a halo that breathes slowly behind the icon. */
+  .empty-halo {
+    background: radial-gradient(60% 60% at 50% 0%, rgb(var(--aurora-a) / 0.18), transparent 75%);
   }
 
   /* Dialogs: a card over a scrim. */
   .dialog-scrim {
     background: rgb(var(--scrim) / 0.72);
-    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
   }
 
   /* The skip link is the first thing a keyboard user reaches. */
@@ -315,11 +434,11 @@ body {
     left: 1rem;
     top: -4rem;
     z-index: 100;
-    border-radius: 9999px;
+    border-radius: 0.875rem;
     background: rgb(var(--primary));
     padding: 0.5rem 1rem;
     font-size: 0.875rem;
-    font-weight: 500;
+    font-weight: 600;
     color: rgb(var(--on-primary));
     transition: top 0.15s ease;
   }
@@ -331,7 +450,26 @@ body {
 @media (hover: hover) {
   .card-lift:hover {
     transform: translateY(-2px);
-    border-color: rgb(var(--line-strong));
+    border-color: rgb(var(--accent) / 0.4);
+    box-shadow:
+      var(--shadow-raised),
+      0 0 0 1px rgb(var(--accent) / 0.1);
+  }
+}
+
+/* Where blur is not available, or a person asks for less transparency, a card is solid: the text never depends on what is behind it. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .card,
+  .app-header {
+    background: rgb(var(--surface));
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .card,
+  .app-header {
+    background: rgb(var(--surface));
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
 }
 

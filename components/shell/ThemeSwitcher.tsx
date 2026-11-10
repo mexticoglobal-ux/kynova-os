@@ -27,7 +27,7 @@ export function ThemeSwitcher() {
         applyTheme(next);
         setTheme(next);
       }}
-      className="rounded-xl p-2 text-ink-soft transition hover:bg-raised hover:text-ink"
+      className="rounded-xl p-2 text-ink-soft transition hover:bg-raised/80 hover:text-accent"
     >
       <Icon aria-hidden className="h-5 w-5" />
     </button>

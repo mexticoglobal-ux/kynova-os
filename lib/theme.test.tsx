@@ -12,7 +12,7 @@ describe("themes", () => {
   it("has exactly NOVA Dark and NOVA Light, each with a name and a browser-bar color", () => {
     expect([...THEMES]).toEqual(["nova-dark", "nova-light"]);
     expect(THEME_LABEL).toEqual({ "nova-dark": "NOVA Dark", "nova-light": "NOVA Light" });
-    expect(THEME_COLOR["nova-dark"]).toBe("#0F161A");
+    expect(THEME_COLOR["nova-dark"]).toBe("#060B18");
     expect(isTheme("nova-light")).toBe(true);
     expect(isTheme("premium")).toBe(false);
   });

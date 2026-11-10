@@ -9,7 +9,7 @@ export function ProductMark({ brand, size = "md", showName = true, showTagline =
   const glyph = size === "lg" ? "h-6 w-6" : size === "sm" ? "h-3.5 w-3.5" : "h-4.5 w-4.5";
   return (
     <span className={clsx("inline-flex items-center gap-3", className)} data-brand={brand}>
-      <span aria-hidden className={clsx("inline-flex shrink-0 items-center justify-center", box, tones.chip)}>
+      <span aria-hidden className={clsx("inline-flex shrink-0 items-center justify-center ring-1 ring-inset ring-line-soft", box, tones.chip)}>
         <Icon className={clsx(glyph, tones.icon)} />
       </span>
       {(showName || showTagline) && (

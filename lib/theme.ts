@@ -3,12 +3,12 @@
 export const THEMES = ["nova-dark", "nova-light"] as const;
 export type Theme = (typeof THEMES)[number];
 
-// NOVA Dark (petrol blue + graphite + gold) is the product identity.
+// NOVA Dark (a very dark blue lit by electric blue and cyan) is the product identity.
 export const DEFAULT_THEME: Theme = "nova-dark";
 
 export const THEME_LABEL: Record<Theme, string> = { "nova-dark": "NOVA Dark", "nova-light": "NOVA Light" };
 /** The color of the browser bar and of the installed app's frame for each theme (the canvas token of each theme). */
-export const THEME_COLOR: Record<Theme, string> = { "nova-dark": "#0F161A", "nova-light": "#F3F1EB" };
+export const THEME_COLOR: Record<Theme, string> = { "nova-dark": "#060B18", "nova-light": "#EDF2FC" };
 
 export const THEME_STORAGE_KEY = "kynova_theme";
 export const isTheme = (value: unknown): value is Theme => typeof value === "string" && (THEMES as readonly string[]).includes(value);

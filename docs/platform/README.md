@@ -33,6 +33,7 @@
 | `lib/backend/*`, `lib/db/core-clients.ts` | Backend Core v1: entorno, secretos, cifrado, Event Bus, auditoría central, Storage, contratos de datos, RLS preparado sin activar, Auth, observabilidad y rendimiento (§21, ADR-0011) |
 | `ai-decision.ts`, `ai-cost-optimizer.ts`, `ai-model-registry.ts`, `ai-model-performance.ts`, `ai-limits.ts`, `ai-observability.ts`, `koe-ai*.ts`, `gateway-*.ts` | IA: KOE decide el Worker y la política, el AI Cost Optimizer recomienda el modelo y el AI Gateway elige proveedor, fallback y reintentos; todo simulado (§22, ADR-0012) |
 | `agent-catalog.ts`, `agent-runtime.ts`, `agent-center.ts`, `agent-messages.ts` | Runtime de Agentes IA: un plan por pasos que maneja el motor de Workers y la cadena de IA, con límites, reintentos, escalamiento y aprobación humana; todo simulado (§23, ADR-0013) |
+| `app/globals.css`, `tailwind.config.ts`, `components/ui/*`, `components/shell/*` | Design System V3 (NOVA): azul muy oscuro, azul y cian eléctricos, vidrio, tipografía premium; sustituye el estilo de §20 sin tocar lógica (§24, `docs/design-system.md`) |
 | `automations.ts` | Plantillas y validación anteriores (se conservan): disparador, condiciones, acciones | Validación, acciones externas por aprobación, aviso de bucle, modo de prueba por defecto |
 
 ## 3. Modelos de datos (futuros; ninguno existe aún)
@@ -477,7 +478,7 @@ Dos datos nuevos en cada definición, pensados para las métricas futuras de KOE
 
 **Pendiente al conectar:** tablas con RLS por empresa; un almacén de credenciales con hash real y rotación; una puerta de enlace real con OAuth, límites y firma de webhooks; los SDK; que el consumo salga de las peticiones reales; que quién construye salga de la organización (hoy lo nombra el propietario); y la publicación real en el Marketplace con su revisión.
 
-## 20. Premium Experience v2
+## 20. Premium Experience v2 (su estilo visual lo reemplaza el §24)
 
 Una mejora de experiencia, no de negocio: **no hay módulos nuevos, ni APIs, ni migraciones, ni dependencias, y no cambia ninguna regla de negocio, KOE, NEX, reducer ni contrato.** Solo cambia cómo se ve, cómo se navega, cómo carga y cómo se instala la plataforma, y con una auditoría que impide que vuelva la duplicación.
 
@@ -589,3 +590,26 @@ Persona → sesión → plan (pasos) → motor de Workers (herramientas, memoria
 **Reglas que las pruebas mantienen:** planes válidos para su Worker; el agente no puede más que su Worker; Nivel 3 espera y el rechazo termina; solo personas aprueban, cancelan y toman el control; límites y paradas; reintento y escalamiento; aislamiento entre empresas; sin red, entorno, claves ni dependencias; ningún módulo existente lo importa.
 
 **Pendiente (no se hizo a propósito):** un "cerebro" que planifique y replanifique con un modelo real; delegación y traspaso entre agentes; ejecución asíncrona y reanudación (colas); conectar las sesiones al Event Bus y a la auditoría central; tablas con RLS por empresa; planes escritos por cada empresa; una pantalla para ver y aprobar las sesiones.
+
+## 24. Design System V3 (NOVA)
+
+Renueva por completo la identidad visual (reemplaza el estilo de §20: petróleo y dorado) sin tocar lógica, contratos, KOE, NEX, el AI Gateway ni los Workers. Todo pasa por los tokens y por las piezas compartidas, así que **toda la plataforma cambia a la vez** (Dashboard, CRM, Communications, Organization, Billing, Developer Platform, Insights, Marketplace, Academy, Workers, AI Studio, NEX, KOE y el sitio público) sin editar ninguno de esos módulos. La referencia completa está en `docs/design-system.md` y la viva en `/design-system`.
+
+| Archivo | Qué cambia |
+|---------|------------|
+| `app/globals.css` | Los dos temas con tokens nuevos (azul muy oscuro, azul y cian eléctricos, vidrio, auras), y el aspecto de las piezas compartidas |
+| `tailwind.config.ts`, `app/layout.tsx` | La tipografía de títulos (Manrope, una fuente variable en latín), `primary-deep`, la sombra `glow`, las animaciones `fade-in` y `breathe` |
+| `components/ui/*` | `Badge` (borde fino y luz de estado), `EmptyState` (halo), `Skeleton` (brillo cian), `IconBadge`, `Brand`, `ProductMark`, `PageHeader`, `KpiCard`, `StatusBadge`, `choice` |
+| `components/shell/*` | Barra lateral, barra superior de vidrio y navegación (`.nav-item`) |
+| `lib/theme.ts`, `public/icon-maskable.svg`, `app/icon.svg` | Los colores de la barra del navegador y de los íconos |
+
+- **Fondo NOVA Dark** `#060B18` con dos auras (azul y cian) en una sola capa fija; **NOVA Light** en azul frío.
+- **Un sistema de colores unificado:** `primary` azul eléctrico, `accent` cian, `primary-deep` como fin del degradado de la acción principal; sin dorado.
+- **Vidrio** en las tarjetas, con respaldo sólido donde no hay desenfoque o se pide menos transparencia.
+- **Botones, campos, badges, pestañas, tablas, cifras, encabezado, barra lateral y navegación** rediseñados en un solo archivo; **estados vacíos, carga y esqueletos** con luz suave que se detiene con `prefers-reduced-motion`.
+- **Accesibilidad:** contraste AA comprobado también sobre ambos extremos del degradado y sobre el vidrio; un solo anillo de foco; enlace "saltar al contenido".
+- **Rendimiento:** una fuente más (variable, latín), sin imágenes ni dependencias nuevas.
+
+**Pruebas:** `app/design-system-v3.test.ts` (identidad, contrastes, vidrio, degradado, tablas, navegación y tipografía), `components/ui/v3.test.tsx` (insignias, estados vacíos, esqueletos y marcas), y se actualizaron `lib/theme.test.tsx` y la prueba de la página `/design-system`. Las pruebas de tokens y de auditoría del sistema siguen pasando sin cambios de reglas.
+
+**Pendiente (no se hizo a propósito):** una pasada visual con Lighthouse sobre la versión desplegada (aquí solo se midió con pruebas y la construcción); revisar las imágenes sociales (`opengraph-image.png`, `apple-icon.png`), que siguen con el estilo anterior porque son binarios.
