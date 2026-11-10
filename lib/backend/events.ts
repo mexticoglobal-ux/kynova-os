@@ -21,6 +21,7 @@ export const EVENT_CATALOG: readonly EventDef[] = [
   def("organizations", "member.joined", "Una persona entró a la empresa.", { userId: "string", roleId: "string" }),
   audit("organizations"),
   def("workers", "installed", "Se instaló un Worker.", { workerId: "string", name: "string" }),
+  def("workers", "session.changed", "Una sesión de agente cambió de estado.", { sessionId: "string", status: "string", stopReason: "string?" }),
   def("workers", "run.completed", "Un Worker terminó una ejecución.", { workerId: "string", runId: "string", outcome: "string", costMicros: "number" }),
   audit("workers"),
   def("automations", "activated", "Se activó una automatización.", { automationId: "string" }),
@@ -46,6 +47,7 @@ export const EVENT_CATALOG: readonly EventDef[] = [
   def("communications", "message.received", "Llegó un mensaje.", { conversationId: "string", channel: "string" }),
   def("communications", "message.sent", "Se envió un mensaje.", { conversationId: "string" }),
   audit("communications"),
+  def("koe", "ai.call.recorded", "El AI Gateway terminó una llamada.", { callId: "string", status: "string", fallback: "boolean", latencyMs: "number", costMicros: "number" }),
   def("koe", "decision.recorded", "KOE registró una decisión.", { decisionId: "string", kind: "string" }),
   audit("koe"),
 ];

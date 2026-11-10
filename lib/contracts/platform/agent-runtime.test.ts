@@ -566,9 +566,10 @@ describe("the rules of the runtime in the code", () => {
     for (const name of FILES) expect(code(name), name).not.toMatch(/\bfetch\(|XMLHttpRequest|WebSocket|process\.env|import\(|node:https?|lib\/ai|lib\/db|apiKey|api_key|Authorization|Bearer/);
   });
 
-  it("changes nothing that exists: no existing module imports it, and it adds no dependency", () => {
+  it("changes nothing that exists: only the Backend Core's bridges import it (Sprint 30), no module does, and it adds no dependency", () => {
     const sources = ["app", "components", "lib", "config"].flatMap((dir) => walk(join(ROOT, dir))).filter((file) => /\.(ts|tsx)$/.test(file) && !/\.test\.(ts|tsx)$/.test(file) && !/[\\/]agent-(catalog|messages|runtime|center)\.ts$/.test(file));
-    expect(sources.filter((file) => /from "[^"]*agent-(catalog|messages|runtime|center)"/.test(readFileSync(file, "utf8")))).toEqual([]);
+    const importers = sources.filter((file) => /from "[^"]*agent-(catalog|messages|runtime|center)"/.test(readFileSync(file, "utf8"))).map((file) => file.slice(ROOT.length + 1).split("\\").join("/"));
+    expect(importers).toEqual(["lib/backend/integration/bridges.ts"]);
     const manifest = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")) as { dependencies: Record<string, string>; devDependencies: Record<string, string> };
     expect([...Object.keys(manifest.dependencies), ...Object.keys(manifest.devDependencies)].filter((name) => /openai|anthropic|langchain|ai-sdk|agent/i.test(name))).toEqual([]);
   });

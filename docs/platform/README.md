@@ -34,6 +34,7 @@
 | `ai-decision.ts`, `ai-cost-optimizer.ts`, `ai-model-registry.ts`, `ai-model-performance.ts`, `ai-limits.ts`, `ai-observability.ts`, `koe-ai*.ts`, `gateway-*.ts` | IA: KOE decide el Worker y la política, el AI Cost Optimizer recomienda el modelo y el AI Gateway elige proveedor, fallback y reintentos; todo simulado (§22, ADR-0012) |
 | `agent-catalog.ts`, `agent-runtime.ts`, `agent-center.ts`, `agent-messages.ts` | Runtime de Agentes IA: un plan por pasos que maneja el motor de Workers y la cadena de IA, con límites, reintentos, escalamiento y aprobación humana; todo simulado (§23, ADR-0013) |
 | `app/globals.css`, `tailwind.config.ts`, `components/ui/*`, `components/shell/*` | Design System V3 (NOVA): azul muy oscuro, azul y cian eléctricos, vidrio, tipografía premium; sustituye el estilo de §20 sin tocar lógica (§24, `docs/design-system.md`) |
+| `lib/backend/integration/*` | Backend Core Integration v1: un conector que envuelve el reductor de cada módulo y lo lleva al Event Bus, la auditoría, las métricas y las trazas, sin modificar los módulos (§25, ADR-0014) |
 | `automations.ts` | Plantillas y validación anteriores (se conservan): disparador, condiciones, acciones | Validación, acciones externas por aprobación, aviso de bucle, modo de prueba por defecto |
 
 ## 3. Modelos de datos (futuros; ninguno existe aún)
@@ -613,3 +614,34 @@ Renueva por completo la identidad visual (reemplaza el estilo de §20: petróleo
 **Pruebas:** `app/design-system-v3.test.ts` (identidad, contrastes, vidrio, degradado, tablas, navegación y tipografía), `components/ui/v3.test.tsx` (insignias, estados vacíos, esqueletos y marcas), y se actualizaron `lib/theme.test.tsx` y la prueba de la página `/design-system`. Las pruebas de tokens y de auditoría del sistema siguen pasando sin cambios de reglas.
 
 **Pendiente (no se hizo a propósito):** una pasada visual con Lighthouse sobre la versión desplegada (aquí solo se midió con pruebas y la construcción); revisar las imágenes sociales (`opengraph-image.png`, `apple-icon.png`), que siguen con el estilo anterior porque son binarios.
+
+## 25. Backend Core Integration v1
+
+Une todo lo construido con el Backend Core (§21) **sin modificar** ningún módulo, KOE, NEX, el AI Gateway ni el runtime, sin pantallas ni funciones nuevas, y todavía en simulación (ADR-0014). La conexión va en un solo sentido: `lib/backend/integration/` importa los módulos; ningún módulo importa el Backend Core.
+
+```
+reductor del módulo (sin cambios) → conector → Event Bus + auditoría central + métricas + trazas
+                                             → base simulada (platform_events, audit_log, storage_objects) → [Supabase preparado]
+```
+
+| Archivo (`lib/backend/integration/`) | Contenido |
+|--------------------------------------|-----------|
+| `connector.ts` | El conector: ejecuta el reductor tal cual y lleva lo que el módulo registró al Event Bus y a la auditoría; cuenta, mide y traza cada llamada |
+| `bridges.ts` | Los catorce puentes (Workers, IA de KOE, AI Gateway, runtime de agentes, automatizaciones, Marketplace, Academy, CRM, Billing, Insights, Developer Platform, Communications, Organización y AI Studio) y la telemetría de dominio de la cadena de IA |
+| `persistence.ts` | Filas según el contrato de datos, base simulada y adaptador de Supabase preparado (bloqueado sin datos reales) |
+| `archive.ts` | Storage y Secrets Manager por contratos: archivo cifrado de la auditoría de una empresa |
+| `health.ts`, `coverage.ts` | Siete comprobaciones de salud nuevas y la prueba de que todo lo auditado pasó por el bus |
+| `index.ts` | `connectPlatform(core)`: un conector por módulo, la base y el almacenamiento simulados, y la salud integrada |
+
+- **Event Bus y auditoría:** cada entrada nueva de la traza de un módulo se publica con un id determinista (repetir la misma historia no duplica nada) y queda en la auditoría central encadenada; un intento rechazado se audita como `refused` y no genera evento. El resultado del módulo no se toca.
+- **Runtime, IA y Gateway:** al envolver el runtime de agentes se reenvían también el motor de Workers, la solicitud de IA y el Gateway que van dentro. Cada llamada del Gateway deja el evento `koe.ai.call.recorded`, sus métricas (`kynova_ai_gateway_*`) y un span hijo con la duración simulada; cada cambio de estado de una sesión deja `workers.session.changed`. Nunca viaja el texto de un prompt.
+- **Trazas:** un solo id de traza une el span de la llamada, los eventos (`correlationId`) y los registros de auditoría (`requestId`).
+- **Métricas:** `kynova_reducer_*`, `kynova_bus_events_total`, `kynova_audit_records_total`, `kynova_integration_violations_total` y `kynova_health_ok`. Sus etiquetas son solo las permitidas: nunca llevan empresa ni modelo.
+- **Salud:** a las comprobaciones del núcleo se suman `event_bus`, `audit_chain`, `bus_coverage`, `tenancy`, `bridges`, `persistence`, `file_storage` y `secrets_access`, cada una también como métrica.
+- **`tenant_id` en todo el flujo:** una llamada sin empresa se rechaza antes de tocar el módulo; una entrada de otra empresa dentro de una llamada no se publica y cuenta como violación (la salud cae).
+- **Supabase y RLS preparados:** las filas se validan contra `platform_events`, `audit_log` y `storage_objects` (que ya tienen su política por empresa, sin activar). El adaptador es perezoso, solo inserta, filtra cada lectura por empresa y **no escribe nada** mientras el entorno no admita datos reales; no hay migraciones nuevas.
+- **Storage y secretos:** el archivo de la auditoría se cifra con la llave de la empresa (leída solo por nombre y propósito), se guarda bajo su carpeta y se registra en `storage_objects`; ninguna otra empresa puede leerlo ni abrirlo.
+
+**Reglas que las pruebas mantienen:** los puentes apuntan a la misma función que exporta cada módulo y el resultado con y sin conector es idéntico; cada centro de la plataforma está conectado o declarado (hoy solo los referidos y los pagos quedan fuera); la historia de cada módulo demostrada se reenvía completa y es idempotente; la cobertura del bus se verifica por empresa; aislamiento total de eventos, auditoría, filas, archivos y sellos; sin prompts, credenciales ni datos personales en el bus, la auditoría, los logs ni los spans; nadie se suscribe al bus; ningún módulo importa el Backend Core; sin red, proveedor real ni migraciones.
+
+**Pendiente (no se hizo a propósito):** conectar la base real (hace falta la validación con Supabase real, que sigue bloqueada hasta que haya sesión iniciada) y activar el RLS con sus pruebas de aislamiento; que KOE consuma el bus; eventos de dominio finos para cada módulo; pagos y referidos (necesitan una traza por empresa); un puente para el módulo de usuarios cuando exista su reductor.

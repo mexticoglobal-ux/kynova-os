@@ -313,7 +313,7 @@ describe("the assembled Backend Core", () => {
   });
 
   it("lists every piece of the Backend Core, with the file that holds it", () => {
-    expect(BACKEND_MANIFEST.map((item) => item.id)).toEqual(["supabase", "auth", "organization", "rls", "database", "storage", "events", "audit", "environment", "security", "performance", "observability", "koe"]);
+    expect(BACKEND_MANIFEST.map((item) => item.id)).toEqual(["supabase", "auth", "organization", "rls", "database", "storage", "events", "audit", "environment", "security", "performance", "observability", "integration", "koe"]);
     for (const item of BACKEND_MANIFEST) expect(existsSync(join(process.cwd(), item.file)), item.file).toBe(true);
     expect(BACKEND_MANIFEST.filter((item) => item.status === "prepared").map((item) => item.id)).toEqual(["supabase", "auth", "rls", "database", "storage", "observability"]);
   });

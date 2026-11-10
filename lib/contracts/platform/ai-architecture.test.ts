@@ -747,9 +747,10 @@ describe("the rules of the architecture", () => {
     expect(sources.filter((file) => /\b(openai|anthropic|mistral|deepseek|openrouter)\b/i.test(strip(readFileSync(file, "utf8"))))).toEqual([]);
   });
 
-  it("is not called by any existing module and adds no dependency", () => {
+  it("is not called by any existing module (only the Backend Core's bridges read it, Sprint 30) and adds no dependency", () => {
     const sources = ["app", "components", "lib", "config"].flatMap((dir) => walk(join(ROOT, dir))).filter((file) => /\.(ts|tsx)$/.test(file) && !isTest(file) && !/(^|[\\/])(gateway-|koe-ai|ai-(decision|limits|cost-optimizer|model-registry|model-performance|observability))/.test(file));
-    expect(sources.filter((file) => /from "[^"]*(gateway-(catalog|center|engine|messages)|koe-ai|ai-(decision|limits|cost-optimizer|model-registry|model-performance|observability))"/.test(readFileSync(file, "utf8")))).toEqual([]);
+    const importers = sources.filter((file) => /from "[^"]*(gateway-(catalog|center|engine|messages)|koe-ai|ai-(decision|limits|cost-optimizer|model-registry|model-performance|observability))"/.test(readFileSync(file, "utf8"))).map((file) => file.slice(ROOT.length + 1).split("\\").join("/"));
+    expect(importers).toEqual(["lib/backend/integration/bridges.ts"]);
     const manifest = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")) as { dependencies: Record<string, string>; devDependencies: Record<string, string> };
     expect([...Object.keys(manifest.dependencies), ...Object.keys(manifest.devDependencies)].filter((name) => /openai|anthropic|google|mistral|ai-sdk|langchain/i.test(name))).toEqual([]);
   });

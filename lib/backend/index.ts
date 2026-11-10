@@ -28,6 +28,7 @@ export const BACKEND_MANIFEST = [
   { id: "security", title: "Secrets Manager, cifrado y hashes", status: "built", file: "lib/backend/secrets.ts", note: "Ningún secreto en el código." },
   { id: "performance", title: "Pool de conexiones, caché y arranque perezoso", status: "built", file: "lib/backend/performance.ts", note: "Genéricos: no conectan a nada por sí solos." },
   { id: "observability", title: "Logging, trazas, salud y métricas", status: "prepared", file: "lib/backend/observability.ts", note: "Solo arquitectura: sin servicio de destino." },
+  { id: "integration", title: "Integración con los módulos", status: "built", file: "lib/backend/integration/index.ts", note: "Envuelve el reductor de cada módulo sin cambiarlo: lo que registra pasa al Event Bus, a la auditoría, a las métricas y a las trazas." },
   { id: "koe", title: "Vista de solo lectura para KOE", status: "built", file: "lib/backend/index.ts", note: "KOE no se modifica." },
 ] as const;
 
@@ -61,6 +62,8 @@ export function createBackendCore(options: BackendOptions) {
 
   return {
     config,
+    clock,
+    now,
     secrets,
     logger,
     tracer,
