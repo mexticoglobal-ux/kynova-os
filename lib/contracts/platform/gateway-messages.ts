@@ -6,17 +6,10 @@ export const DEFAULT_LOCALE: Locale = "es";
 
 const es = {
   errors: {
-    personRequired: "Esto lo decide una persona de la empresa; NEX y los Workers no cambian la configuración de la IA.",
     systemOnly: "Esto lo registra la plataforma, no una persona ni NEX.",
-    forbidden: "Solo quien configuró la IA de la empresa o sus administradores pueden hacer esto.",
+    koeOnly: "Solo KOE llama al gateway: quien necesite una IA se lo pide a KOE, nunca al gateway.",
     invalid: "No es válido: {detail}.",
-    unknownPurpose: "El gateway no conoce el propósito «{detail}»: un módulo pide un propósito, nunca un modelo.",
-    unknownCaller: "«{detail}» no es un llamador conocido del gateway.",
-    moderated: "La solicitud no cumple las reglas de contenido ({detail}).",
-    tooLong: "La solicitud supera el límite de tokens de entrada de la empresa.",
-    rateLimited: "La empresa llegó a su límite de solicitudes por minuto.",
-    overBudget: "La solicitud superaría el presupuesto mensual de IA de la empresa.",
-    noModel: "Ningún modelo permitido cumple la solicitud: {detail}.",
+    noModel: "El gateway no recibió ningún modelo que pueda servir: {detail}.",
     allFailed: "Ningún proveedor pudo responder: {detail}.",
   },
   reasons: {
@@ -30,12 +23,14 @@ const es = {
 export type ErrorCode = keyof typeof es.errors;
 export type ReasonKey = keyof typeof es.reasons;
 
+const fill = (text: string, params: Record<string, string | number>): string => Object.entries(params).reduce((result, [key, value]) => result.replaceAll(`{${key}}`, String(value)), text);
+
 export function message(code: ErrorCode, params: Record<string, string | number> = {}, locale: Locale = DEFAULT_LOCALE): string {
   void locale;
-  return Object.entries(params).reduce((text, [key, value]) => text.replaceAll(`{${key}}`, String(value)), es.errors[code] as string);
+  return fill(es.errors[code], params);
 }
 export function reason(key: ReasonKey, params: Record<string, string | number> = {}, locale: Locale = DEFAULT_LOCALE): string {
   void locale;
-  return Object.entries(params).reduce((text, [name, value]) => text.replaceAll(`{${name}}`, String(value)), es.reasons[key] as string);
+  return fill(es.reasons[key], params);
 }
 export const ERROR_CODES = Object.keys(es.errors) as ErrorCode[];
