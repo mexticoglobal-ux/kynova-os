@@ -32,6 +32,7 @@
 | `components/ui/*`, `config/brand.ts`, `lib/theme.ts`, `lib/nav-memory.ts`, `public/sw.js` | Design System V2: dos temas NOVA, componentes compartidos, marca, navegación con favoritos y búsqueda rápida, y PWA (§20) |
 | `lib/backend/*`, `lib/db/core-clients.ts` | Backend Core v1: entorno, secretos, cifrado, Event Bus, auditoría central, Storage, contratos de datos, RLS preparado sin activar, Auth, observabilidad y rendimiento (§21, ADR-0011) |
 | `ai-decision.ts`, `ai-cost-optimizer.ts`, `ai-model-registry.ts`, `ai-model-performance.ts`, `ai-limits.ts`, `ai-observability.ts`, `koe-ai*.ts`, `gateway-*.ts` | IA: KOE decide el Worker y la política, el AI Cost Optimizer recomienda el modelo y el AI Gateway elige proveedor, fallback y reintentos; todo simulado (§22, ADR-0012) |
+| `agent-catalog.ts`, `agent-runtime.ts`, `agent-center.ts`, `agent-messages.ts` | Runtime de Agentes IA: un plan por pasos que maneja el motor de Workers y la cadena de IA, con límites, reintentos, escalamiento y aprobación humana; todo simulado (§23, ADR-0013) |
 | `automations.ts` | Plantillas y validación anteriores (se conservan): disparador, condiciones, acciones | Validación, acciones externas por aprobación, aviso de bucle, modo de prueba por defecto |
 
 ## 3. Modelos de datos (futuros; ninguno existe aún)
@@ -559,3 +560,32 @@ Módulo → KOE → AI Cost Optimizer → AI Gateway → Proveedor IA (simulado)
 **Reglas que las pruebas mantienen:** KOE no nombra ni importa proveedores ni el registro de modelos; el Gateway no nombra Workers, especialidades, políticas, propósitos ni presupuestos y no importa nada de KOE ni del Optimizer; el Optimizer no conoce prompts, Workers ni proveedores; el flujo va en un solo sentido; sin red, entorno ni claves; los proveedores solo se nombran en el catálogo del Gateway; ningún módulo existente lo importa; sin dependencias nuevas. Una tabla fijada de modelos por propósito y política, capturada con la versión anterior, comprueba que el comportamiento no cambió.
 
 **Pendiente (no se hizo a propósito):** conectar los proveedores reales detrás de `lib/ai/` y AI Gateway (con sus secretos en el Secrets Manager); que el motor de Workers (`koe-engine.ts`) delegue su enrutamiento de modelos en esta cadena (hoy conviven los dos); implementar la caché y `ModelPerformance`; conectar los registros al Event Bus y a la auditoría central; una pantalla de configuración por empresa.
+
+## 23. Runtime de Agentes IA v1
+
+El bucle que convierte a un Worker en un *agente* (ADR-0013). Solo arquitectura, contratos y simulación: no hay IA real, red, dependencia ni pantalla, no se modifica KOE ni el AI Gateway, y ningún módulo existente lo usa todavía. Vive en `lib/contracts/platform/`.
+
+```
+Persona → sesión → plan (pasos) → motor de Workers (herramientas, memoria, aprobaciones)
+                                → KOE ai.request → AI Cost Optimizer → AI Gateway (simulado)
+```
+
+| Archivo | Contenido |
+|---------|-----------|
+| `agent-catalog.ts` | Los planes (`Playbook`) como datos, los tipos de paso, los límites de una sesión (con techos), los motivos de parada y los estados |
+| `agent-runtime.ts` | Reglas puras: validar y previsualizar un plan, límites, reintento, bucle, traza (`explainSession`) y métricas (`agentMetrics`) |
+| `agent-center.ts` | Estado por empresa y `reduceAgent`: iniciar, avanzar, correr, aprobar, cancelar, tomar el control y fallas simuladas |
+| `agent-messages.ts` | Los textos por código |
+
+- **Un agente es un Worker.** Sus herramientas, nivel de datos, memoria y niveles de autonomía vienen del motor de Workers; el plan nunca fija un nivel. Un plan se valida contra el Worker que lo ejecuta al iniciar (herramientas permitidas, datos requeridos, propósitos conocidos, cierre al final).
+- **Pasos**: `think` (pide a la IA un *propósito*, nunca un modelo), `tool`, `remember` y `finish`. Los textos usan `{dato}` que se llena con lo que la persona dio al iniciar. Planes de ejemplo: calificar un prospecto, dar seguimiento, resumen del negocio y recordatorio de cobro (este último pide un enlace de cobro, que siempre espera a una persona).
+- **Sesión**: un plan en marcha, con su ejecución del motor de Workers, su cursor, sus pasos (cada intento queda registrado), el costo gastado y las llamadas a la IA. Estados: en curso, esperando aprobación, escalada, completada, detenida, cancelada y traspasada.
+- **Constitución**: una persona (o la plataforma) inicia; solo una persona aprueba, cancela o toma el control. Una acción de Nivel 3 espera y nada después corre; un rechazo termina la sesión. Quien inició un cobro no lo aprueba.
+- **Límites por sesión**: pasos, llamadas a la IA, presupuesto, tiempo y repeticiones del mismo paso; cada uno con techo. Los interruptores de parada de KOE se revisan antes que cualquier límite.
+- **Fallas**: una falla temporal (de una herramienta o de la IA) se reintenta con espera creciente (se registra, no se espera) y, al agotarse, la sesión se **escala** a una persona, que puede tomar el control. Lo que un reintento no arregla (la IA no tiene un modelo permitido, el motor rechaza una herramienta) escala de inmediato.
+- **La IA, solo por KOE**: el runtime no importa el Optimizer, el Gateway ni el registro de modelos y no nombra modelos ni proveedores. El prompt no se conserva en los registros de KOE.
+- **Multiempresa**: el catálogo de planes es global; sesiones, fallas simuladas y métricas son de cada empresa, y una empresa no ve ni mueve las de otra. Los registros solo crecen.
+
+**Reglas que las pruebas mantienen:** planes válidos para su Worker; el agente no puede más que su Worker; Nivel 3 espera y el rechazo termina; solo personas aprueban, cancelan y toman el control; límites y paradas; reintento y escalamiento; aislamiento entre empresas; sin red, entorno, claves ni dependencias; ningún módulo existente lo importa.
+
+**Pendiente (no se hizo a propósito):** un "cerebro" que planifique y replanifique con un modelo real; delegación y traspaso entre agentes; ejecución asíncrona y reanudación (colas); conectar las sesiones al Event Bus y a la auditoría central; tablas con RLS por empresa; planes escritos por cada empresa; una pantalla para ver y aprobar las sesiones.
