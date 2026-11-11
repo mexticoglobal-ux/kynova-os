@@ -367,7 +367,7 @@ describe("the rules of the Backend Core", () => {
   });
 
   it("keeps the modules as they were: none of them imports the Backend Core yet", () => {
-    const importers = source.filter((file) => !rel(file).startsWith("lib/backend/") && rel(file) !== "lib/db/core-clients.ts" && /from "@\/lib\/backend/.test(text(file))).map(rel);
+    const importers = source.filter((file) => !rel(file).startsWith("lib/backend/") && rel(file) !== "lib/db/core-clients.ts" && !rel(file).startsWith("lib/ai/") && /from "@\/lib\/backend/.test(text(file))).map(rel);
     expect(importers).toEqual(["lib/db/core-clients.ts"].filter(() => false));
   });
 

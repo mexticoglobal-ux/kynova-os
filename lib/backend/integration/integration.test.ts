@@ -465,7 +465,7 @@ describe("the rules of the integration in the code", () => {
 
   it("only reads the modules: it imports their reducers and types, and no module imports the Backend Core", () => {
     expect(files.length).toBeGreaterThanOrEqual(7);
-    const sources = ["app", "components", "lib", "config"].flatMap((dir) => walk(join(ROOT, dir))).filter((file) => /\.(ts|tsx)$/.test(file) && !/\.test\.(ts|tsx)$/.test(file) && !file.replace(/\\/g, "/").includes("/lib/backend/") && !file.replace(/\\/g, "/").endsWith("lib/db/core-clients.ts"));
+    const sources = ["app", "components", "lib", "config"].flatMap((dir) => walk(join(ROOT, dir))).filter((file) => /\.(ts|tsx)$/.test(file) && !/\.test\.(ts|tsx)$/.test(file) && !file.replace(/\\/g, "/").includes("/lib/backend/") && !file.replace(/\\/g, "/").endsWith("lib/db/core-clients.ts") && !file.replace(/\\/g, "/").includes("/lib/ai/"));
     expect(sources.filter((file) => /from "@\/lib\/backend/.test(readFileSync(file, "utf8")))).toEqual([]);
   });
 

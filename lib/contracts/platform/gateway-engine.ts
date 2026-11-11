@@ -86,7 +86,10 @@ export function cacheVerdict(request: Pick<GatewayRequest, "tenantId" | "promptH
 // ---------------------------------------------------------------- the record of a call (observability: everything but the text)
 export type AttemptRecord = { modelId: string; providerId: string; outcome: AttemptOutcome | "skipped"; latencyMs: number; backoffMs: number; note: string };
 export type CallStatus = "ok" | "failed" | "refused";
+/** Where the token counts of a call come from: the provider's own usage, the platform's estimate of the text, or the simulation. */
+export type TokenSource = "provider" | "estimated" | "simulated";
 export type GatewayCall = {
+  tokenSource?: TokenSource;
   id: string; requestId: string; tenantId: string; at: string; status: CallStatus; modelId?: string; providerId?: string; attempts: AttemptRecord[]; fallbackUsed: boolean;
   fallbackReasons: string[]; latencyMs: number; inputTokens: number; outputTokens: number; estimatedCostMicros: number; cache: CacheVerdict["status"]; errorCode?: string;
 };
@@ -129,3 +132,24 @@ export function spentThisMonth(calls: readonly GatewayCall[], tenantId: string, 
   const month = at.slice(0, 7);
   return calls.filter((call) => call.tenantId === tenantId && call.status === "ok" && call.at.slice(0, 7) === month).reduce((sum, call) => sum + call.estimatedCostMicros, 0);
 }
+
+// ---------------------------------------------------------------- what a real provider layer hands back (lib/ai), so the Gateway can record it exactly like a simulated call
+/**
+ * The result of running a GatewayRequest against real providers. It is produced outside the Gateway's pure reducer (a provider call is asynchronous) and then replayed into
+ * it, so the Gateway keeps ONE way to record a call. It carries counts, ids and the decision, never the text of a prompt or an answer.
+ */
+export type DriverOutcome = {
+  status: "ok" | "failed";
+  modelId?: string;
+  providerId?: string;
+  attempts: AttemptRecord[];
+  fallbackUsed: boolean;
+  fallbackReasons: string[];
+  latencyMs: number;
+  inputTokens: number;
+  outputTokens: number;
+  estimatedCostMicros: number;
+  tokenSource: TokenSource;
+  /** The breaker rows after this call, for the company that asked. They replace the rows of the same company and provider. */
+  breakers: BreakerRecord[];
+};

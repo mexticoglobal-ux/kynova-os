@@ -11,11 +11,30 @@ import { validateGatewayLimits, type GatewayLimits } from "./ai-limits";
 import { message, reason, type ErrorCode } from "./gateway-messages";
 import {
   INCIDENT_MODES, RETRYABLE, afterAttempt, attemptsFor, backoffFor, breakerStatus, cacheVerdict, simulateAttempt,
-  type AttemptRecord, type BreakerRecord, type GatewayCall, type GatewayRequest, type Incident, type IncidentMode,
+  type AttemptRecord, type BreakerRecord, type DriverOutcome, type GatewayCall, type GatewayRequest, type Incident, type IncidentMode,
 } from "./gateway-engine";
 import { costOf, modelProfile } from "./ai-model-registry";
 
 export * from "./gateway-catalog";
+
+// ---------------------------------------------------------------- the driver: how a real provider layer joins the Gateway without making it asynchronous
+/**
+ * The Gateway's reducer is pure and synchronous, and a provider call is neither. A provider layer (lib/ai) therefore works in two passes around the SAME reducer:
+ * `capture` runs the request through KOE and the Optimizer as usual and only records the GatewayRequest that reached the Gateway; the layer then runs it against real
+ * providers; `replay` runs it again and the Gateway records the real outcome instead of simulating one. A driver lives only for the synchronous block that sets it,
+ * so nothing leaks between requests, and with no driver the Gateway simulates exactly as before.
+ */
+export type GatewayDriver = { mode: "capture"; requests: GatewayRequest[] } | { mode: "replay"; outcomes: ReadonlyMap<string, DriverOutcome> };
+let activeDriver: GatewayDriver | null = null;
+export function withGatewayDriver<T>(driver: GatewayDriver, work: () => T): T {
+  const previous = activeDriver;
+  activeDriver = driver;
+  try {
+    return work();
+  } finally {
+    activeDriver = previous;
+  }
+}
 
 /** The only caller the Gateway accepts. */
 export const KOE_ACTOR = "koe";
@@ -74,6 +93,24 @@ export function reduceGateway(state: GatewayState, event: GatewayEvent): Gateway
       if (!first) {
         const call = blank({ errorCode: "noModel" });
         return { state: log({ ...state, sequence, calls: append(state.calls, call) }, event, "gateway.refused", `${request.requestId} · noModel`), error: message("noModel", { detail: request.models.join(", ") || "lista vacía" }), errorCode: "noModel", call };
+      }
+
+      const driver = activeDriver;
+      if (driver?.mode === "capture") driver.requests.push(request);
+      if (driver?.mode === "replay") {
+        const outcome = driver.outcomes.get(request.requestId);
+        if (!outcome) return refuse("invalid", { detail: "no hay un resultado real para la solicitud" });
+        const replaced = new Set(outcome.breakers.map((item) => `${item.tenantId}|${item.providerId}`));
+        const kept = state.breakers.filter((item) => !replaced.has(`${item.tenantId}|${item.providerId}`));
+        const call = blank({
+          status: outcome.status, attempts: outcome.attempts, fallbackUsed: outcome.fallbackUsed, fallbackReasons: outcome.fallbackReasons, latencyMs: outcome.latencyMs,
+          inputTokens: outcome.inputTokens, outputTokens: outcome.outputTokens, estimatedCostMicros: outcome.estimatedCostMicros, tokenSource: outcome.tokenSource,
+          cache: cacheVerdict(request, outcome.modelId ?? first).status, ...(outcome.modelId ? { modelId: outcome.modelId } : {}), ...(outcome.providerId ? { providerId: outcome.providerId } : {}),
+          ...(outcome.status === "failed" ? { errorCode: "allFailed" } : {}),
+        });
+        const next = log({ ...state, sequence, breakers: [...kept, ...outcome.breakers], calls: append(state.calls, call) }, event, outcome.status === "ok" ? "gateway.call" : "gateway.failed", `${request.requestId} · ${outcome.modelId ?? outcome.fallbackReasons.join("; ")}${outcome.fallbackUsed ? " (respaldo)" : ""}`);
+        if (outcome.status === "failed") return { state: next, error: message("allFailed", { detail: outcome.fallbackReasons.join("; ") || "sin candidatos" }), errorCode: "allFailed", call };
+        return { state: next, call, output: `[proveedor] respuesta de ${outcome.modelId ?? "?"}` };
       }
 
       // ---- run the list: retry a temporary failure, then fall back to ANOTHER provider, and always keep the reason

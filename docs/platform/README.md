@@ -36,6 +36,7 @@
 | `app/globals.css`, `tailwind.config.ts`, `components/ui/*`, `components/shell/*` | Design System V3 (NOVA): azul muy oscuro, azul y cian eléctricos, vidrio, tipografía premium; sustituye el estilo de §20 sin tocar lógica (§24, `docs/design-system.md`) |
 | `lib/backend/integration/*` | Backend Core Integration v1: un conector que envuelve el reductor de cada módulo y lo lleva al Event Bus, la auditoría, las métricas y las trazas, sin modificar los módulos (§25, ADR-0014) |
 | `supabase/migrations/20261110000100_*`, `lib/backend/identity.ts`, `lib/backend/integration/{persistence,supabase-storage}.ts` | Identidad, autenticación y Supabase v1: tablas del Backend Core con RLS, escritura por funciones, identidad de la sesión y adaptadores; la migración está escrita y probada, no aplicada (§26, ADR-0015) |
+| `lib/ai/` | Capa de proveedores reales del AI Gateway: adaptadores OpenAI, Anthropic, Google y OpenRouter (Grok, DeepSeek, Mistral y Ollama preparados), ejecutor, secretos, streaming | Nadie más llama a un proveedor; KOE y el Gateway no cambian de arquitectura | `adapters.ts`, `executor.ts`, `service.ts`, `secrets.ts`, `providers.ts`, `http.ts` |
 | `automations.ts` | Plantillas y validación anteriores (se conservan): disparador, condiciones, acciones | Validación, acciones externas por aprobación, aviso de bucle, modo de prueba por defecto |
 
 ## 3. Modelos de datos (futuros; ninguno existe aún)
@@ -683,3 +684,16 @@ Conecta el Backend Core con Supabase (ADR-0015). **La autenticación real ya exi
 6. Los datos reales de clientes siguen bloqueados hasta las puertas del ADR-0006 y la aprobación de producción.
 
 **Pendiente (no se hizo a propósito):** aplicar la migración; la ruta que use el adaptador; migraciones para las demás tablas planeadas (Workers, Billing, etc.); el modelo de organización dentro de una empresa; verificar la cadena de autenticación con la sesión real.
+
+## 27. Proveedores de IA reales v1
+
+Flujo: Módulo → KOE → AI Cost Optimizer → AI Gateway → `lib/ai/` → proveedor. Ver ADR-0016.
+
+- **Conectados:** OpenAI, Anthropic, Google Gemini, OpenRouter. **Preparados, nunca llamados:** Grok, DeepSeek, Mistral, Ollama.
+- **Una sola interfaz** (`complete`, `stream`), errores normalizados, `fetch` solo en `lib/ai/http.ts`, sin SDK.
+- **Dos pasadas** del mismo reducer (captura → llamada real → reproducción): KOE no cambia y su registro lleva tokens y costo reales. Sin conductor, el Gateway simula como antes.
+- **Se conservan** las cinco políticas, la privacidad dura, reintentos, backoff, cortacircuitos y fallback a otro proveedor.
+- **Streaming:** fallback solo antes del primer fragmento; un corte a mitad termina como fallido.
+- **Secretos** (solo Wrangler): `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `XAI_API_KEY`, `DEEPSEEK_API_KEY`, `MISTRAL_API_KEY`, `OLLAMA_BASE_URL`.
+- **Verificar antes de usar con tráfico real:** nombres de modelo nativos y precios de referencia (`lib/ai/providers.ts`); nada se ha probado contra una API real.
+- **Uso:** `askAi(state, evento, deps)` y `askAiStream`; ningún módulo ni pantalla los importa todavía.
