@@ -569,7 +569,8 @@ describe("the rules of the runtime in the code", () => {
   it("changes nothing that exists: only the Backend Core's bridges import it (Sprint 30), no module does, and it adds no dependency", () => {
     const sources = ["app", "components", "lib", "config"].flatMap((dir) => walk(join(ROOT, dir))).filter((file) => /\.(ts|tsx)$/.test(file) && !/\.test\.(ts|tsx)$/.test(file) && !/[\\/]agent-(catalog|messages|runtime|center)\.ts$/.test(file));
     const importers = sources.filter((file) => /from "[^"]*agent-(catalog|messages|runtime|center)"/.test(readFileSync(file, "utf8"))).map((file) => file.slice(ROOT.length + 1).split("\\").join("/"));
-    expect(importers).toEqual(["lib/backend/integration/bridges.ts"]);
+    // the Backend Core bridges (Sprint 30) and KYNOVA's own operating script (Sprint 33, it only applies the existing reducers) are the only readers
+    expect(importers).toEqual(["lib/backend/integration/bridges.ts", "lib/contracts/platform/kynova-operation.ts"]);
     const manifest = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")) as { dependencies: Record<string, string>; devDependencies: Record<string, string> };
     expect([...Object.keys(manifest.dependencies), ...Object.keys(manifest.devDependencies)].filter((name) => /openai|anthropic|langchain|ai-sdk|agent/i.test(name))).toEqual([]);
   });

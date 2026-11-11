@@ -37,6 +37,7 @@
 | `lib/backend/integration/*` | Backend Core Integration v1: un conector que envuelve el reductor de cada módulo y lo lleva al Event Bus, la auditoría, las métricas y las trazas, sin modificar los módulos (§25, ADR-0014) |
 | `supabase/migrations/20261110000100_*`, `lib/backend/identity.ts`, `lib/backend/integration/{persistence,supabase-storage}.ts` | Identidad, autenticación y Supabase v1: tablas del Backend Core con RLS, escritura por funciones, identidad de la sesión y adaptadores; la migración está escrita y probada, no aplicada (§26, ADR-0015) |
 | `lib/ai/` | Capa de proveedores reales del AI Gateway: adaptadores OpenAI, Anthropic, Google y OpenRouter (Grok, DeepSeek, Mistral y Ollama preparados), ejecutor, secretos, streaming | Nadie más llama a un proveedor; KOE y el Gateway no cambian de arquitectura | `adapters.ts`, `executor.ts`, `service.ts`, `secrets.ts`, `providers.ts`, `http.ts` |
+| `kynova-operation.ts` | El guion de KYNOVA operando KYNOVA: la empresa, un día de trabajo y el panel operativo, aplicados por los reducers existentes | No añade reglas ni módulos; solo lee y aplica | `kynova-operation.test.ts` |
 | `automations.ts` | Plantillas y validación anteriores (se conservan): disparador, condiciones, acciones | Validación, acciones externas por aprobación, aviso de bucle, modo de prueba por defecto |
 
 ## 3. Modelos de datos (futuros; ninguno existe aún)
@@ -697,3 +698,13 @@ Flujo: Módulo → KOE → AI Cost Optimizer → AI Gateway → `lib/ai/` → pr
 - **Secretos** (solo Wrangler): `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `XAI_API_KEY`, `DEEPSEEK_API_KEY`, `MISTRAL_API_KEY`, `OLLAMA_BASE_URL`.
 - **Verificar antes de usar con tráfico real:** nombres de modelo nativos y precios de referencia (`lib/ai/providers.ts`); nada se ha probado contra una API real.
 - **Uso:** `askAi(state, evento, deps)` y `askAiStream`; ningún módulo ni pantalla los importa todavía.
+
+## 28. KYNOVA opera KYNOVA v1
+
+Objetivo: demostrar que una empresa puede operar usando solo la plataforma. Ver ADR-0017.
+
+- **Empresa interna** `tenant-kynova`: propietario, personas, departamentos, equipos y Workers internos; Billing (plan Business), IA de NEX, automatizaciones, AI Studio, Marketplace y Academy configurados.
+- **Día simulado** (`runKynovaOperation`): prospectos, seguimiento, soporte, facturación, marketing, contenido, métricas, reuniones y tareas, con aprobaciones de personas.
+- **Panel operativo** (`operatingDashboard`): lectura de lo que ya guardan los módulos; no es una pantalla nueva.
+- **Sin tocar** KOE, NEX, AI Gateway ni Runtime; sin WhatsApp, Stripe ni redes sociales; todo simulado.
+- **Pruebas** extremo a extremo en `kynova-operation.test.ts`: ningún paso rechazado, solo personas deciden, determinismo y aislamiento por empresa.
