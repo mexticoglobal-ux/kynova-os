@@ -42,6 +42,7 @@
 | `partners.ts` | Programa oficial de Partners: niveles, código y enlace, seguimiento y conversión, comisiones recurrentes, validación de 15 días, retiro, panel e historiales | Reutiliza Referidos y Billing; no conecta medios de pago | `partners.test.ts` |
 | `financial-router.ts` | KOE Financial Router: la única entrada del dinero; siete adaptadores desconectados con una interfaz; decisión, reintentos, respaldo, idempotencia, costos, monedas, estados, historial | Billing/Marketplace/Partners piden; el Router decide; ningún proveedor conectado | `financial-router.test.ts` |
 | `business-architect.ts` | AI Business Architect: asistente de bienvenida, cuestionario, detección del negocio, recomendación, vista previa e instalación con un clic | Solo elige y escala plantillas y límites de Billing; no usa IA real ni reglas nuevas | `business-architect.test.ts` |
+| `internal-beta.ts` | Beta interna: crea cuatro empresas con el AI Business Architect y configura sus casos de uso; portafolio de KYNOVA | Solo guion sobre módulos existentes; datos de ejemplo; nada conectado | `internal-beta.test.ts` |
 | `automations.ts` | Plantillas y validación anteriores (se conservan): disparador, condiciones, acciones | Validación, acciones externas por aprobación, aviso de bucle, modo de prueba por defecto |
 
 ## 3. Modelos de datos (futuros; ninguno existe aún)
@@ -761,3 +762,19 @@ Ver ADR-0021. El cliente responde unas pocas preguntas y KYNOVA configura su emp
 - **Vista previa exacta** (ejecución de prueba del instalador real) y **un clic** para instalar (`install.confirm`).
 - **Solo el propietario decide;** NEX pregunta. Todo en Nivel 1. Una sesión por empresa, auditada.
 - **No usa IA real** ni agrega reglas de negocio: todo sale de los datos de las plantillas y de Billing.
+
+## 33. KYNOVA Internal Beta v1
+
+Ver ADR-0022. KYNOVA administra cuatro empresas con su propia plataforma.
+
+| Empresa | Plantilla | Casos de uso |
+|---------|-----------|--------------|
+| Nova Marketing Studio | Agencia de Marketing | Captación, seguimiento, SEO, campañas, redes (a mano) |
+| PSI Sostenible | Empresa Genérica | Prospectos B2B, seguimiento, cotizaciones, productos, distribuidores |
+| Real Estate | Bienes Raíces | Propiedades, leads, seguimiento, agenda, cierre |
+| YouTube Studio | YouTube Faceless | Producción, calendario, guiones, miniaturas, publicaciones, analíticas |
+
+- Cada una se crea con el **AI Business Architect** (preguntas, vista previa, un clic) y después se configuran sus casos con CRM, Communications, Billing, Workers, agentes, AI Studio, Automations e Insights.
+- **Datos de ejemplo:** los datos reales siguen bloqueados por las puertas del ADR-0006. **Nada conectado:** ni WhatsApp, ni Stripe, ni MakaPay, ni redes sociales.
+- **Portafolio de KYNOVA** (`portfolio`, `mrrMicros`): lectura de las cuatro empresas.
+- **Pruebas** extremo a extremo (19): sin pasos rechazados, solo personas deciden, aislamiento y cobertura del Event Bus por empresa.
