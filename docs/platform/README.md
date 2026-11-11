@@ -41,6 +41,7 @@
 | `business-templates.ts` | Doce plantillas de negocio (datos), su instalación por los reducers existentes, KPIs y el Revenue Engine (lectura) | No duplica lógica ni crea módulos; instala siempre en Nivel 1 | `business-templates.test.ts` |
 | `partners.ts` | Programa oficial de Partners: niveles, código y enlace, seguimiento y conversión, comisiones recurrentes, validación de 15 días, retiro, panel e historiales | Reutiliza Referidos y Billing; no conecta medios de pago | `partners.test.ts` |
 | `financial-router.ts` | KOE Financial Router: la única entrada del dinero; siete adaptadores desconectados con una interfaz; decisión, reintentos, respaldo, idempotencia, costos, monedas, estados, historial | Billing/Marketplace/Partners piden; el Router decide; ningún proveedor conectado | `financial-router.test.ts` |
+| `business-architect.ts` | AI Business Architect: asistente de bienvenida, cuestionario, detección del negocio, recomendación, vista previa e instalación con un clic | Solo elige y escala plantillas y límites de Billing; no usa IA real ni reglas nuevas | `business-architect.test.ts` |
 | `automations.ts` | Plantillas y validación anteriores (se conservan): disparador, condiciones, acciones | Validación, acciones externas por aprobación, aviso de bucle, modo de prueba por defecto |
 
 ## 3. Modelos de datos (futuros; ninguno existe aún)
@@ -749,3 +750,14 @@ Ver ADR-0020. Billing → KOE Financial Router → Proveedor de Pago. **Solo arq
 - **Monedas:** se liquida en la moneda de la operación; convertir requiere autorización y tasa de la empresa; cripto reservada.
 - **Costos, historial y métricas** por proveedor y moneda; **auditoría** y compatibilidad con el Event Bus; 6 tablas futuras con RLS por empresa (sin migración).
 - **Entradas:** `chargeFromInvoice`, `chargeFromPurchase`, `payoutFromPartner` y, de vuelta a Billing, `billingPaymentFromOperation`.
+
+## 32. Smart Onboarding & AI Business Architect v1
+
+Ver ADR-0021. El cliente responde unas pocas preguntas y KYNOVA configura su empresa en minutos.
+
+- **Cuestionario:** 7 preguntas cortas (8 si el negocio no quedó claro); 4 minutos como máximo.
+- **Detección** del tipo de negocio por palabras clave; el cliente siempre puede elegir.
+- **Recomienda:** plantilla, plan (por los límites de Billing), número de agentes, presupuesto de IA, automatizaciones, Workers, equipos, KPIs y panel.
+- **Vista previa exacta** (ejecución de prueba del instalador real) y **un clic** para instalar (`install.confirm`).
+- **Solo el propietario decide;** NEX pregunta. Todo en Nivel 1. Una sesión por empresa, auditada.
+- **No usa IA real** ni agrega reglas de negocio: todo sale de los datos de las plantillas y de Billing.

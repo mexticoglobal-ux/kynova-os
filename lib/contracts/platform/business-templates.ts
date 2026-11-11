@@ -187,14 +187,18 @@ export function validateTemplate(template: BusinessTemplate): string[] {
 }
 
 // ---------------------------------------------------------------- installing: the template's data goes through the existing reducers
-export type InstallInput = { templateId: string; tenantId: string; companyName: string; owner: { id: string; name: string; email: string }; at: string };
+/** What a company may trim or scale in a template before installing it (the AI Business Architect uses it); everything is validated again against the platform's catalogs. */
+export type TemplateOverrides = Partial<Pick<BusinessTemplate, "agents" | "automations" | "extraAutomations" | "workers" | "teams" | "kpis" | "objectives" | "dashboard" | "planId" | "aiBudgetUsd">>;
+export type InstallInput = { templateId: string; tenantId: string; companyName: string; owner: { id: string; name: string; email: string }; at: string; overrides?: TemplateOverrides };
 export type Installation = { template: BusinessTemplate; tenantId: string; parts: OperationParts; steps: readonly OperationStep[]; errors: string[]; kpis: readonly KpiReading[]; objectives: readonly TemplateObjective[]; dashboard: OperatingDashboard };
 export const emptyParts = (): OperationParts => ({ org: newOrgState(), billing: newBillingState(), comms: newCommsState(), crm: newCrmState(), market: newMarketState([]), academy: newAcademyState([]), studio: newStudioState(), insights: newInsightsState(), automations: newAutomationState(), agent: newAgentState([]) });
 
 /** Installs a template. `base` lets several companies share one set of records (each stays isolated by its tenant); the same company cannot be installed twice. */
 export function installBusinessTemplate(input: InstallInput, base: OperationParts = emptyParts()): Installation | { errors: string[] } {
-  const template = templateById(input.templateId);
-  if (!template) return { errors: [`La plantilla «${input.templateId}» no existe.`] };
+  const original = templateById(input.templateId);
+  if (!original) return { errors: [`La plantilla «${input.templateId}» no existe.`] };
+  const merged: BusinessTemplate = { ...original, ...input.overrides };
+  const template: BusinessTemplate = { ...merged, workflows: fit(original.workflows, merged.workers, merged.automations) };
   const problems = validateTemplate(template);
   if (problems.length) return { errors: problems.map((item) => `plantilla inválida: ${item}`) };
   if (!isPerson(input.owner.id)) return { errors: ["El propietario debe ser una persona."] };
