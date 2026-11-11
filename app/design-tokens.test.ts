@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { THEMES, DEFAULT_THEME, type Theme } from "@/lib/theme";
 
 // The design tokens are the contract between the themes and every component: same names everywhere, readable everywhere.
-const css = readFileSync(join(process.cwd(), "app/globals.css"), "utf8");
+const css = readFileSync(join(process.cwd(), "app/globals.css"), "utf8").replace(/\r\n/g, "\n");
 
 function tokensOf(theme: Theme): Record<string, [number, number, number]> {
   const selector = theme === "nova-dark" ? ':root,\n[data-theme="nova-dark"]' : `[data-theme="${theme}"]`;

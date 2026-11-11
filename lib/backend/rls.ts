@@ -4,8 +4,11 @@
 // Nothing is shared between companies: every policy of a company table filters by its tenant_id.
 import { ENTITIES, type Entity } from "./entities";
 
-/** Activation is a separate decision (ADR-0006, ADR-0010) with its own migration and tests. This module never activates anything. */
-export const RLS_STATE = { activated: false, reason: "Preparado, no activado: la activación es una decisión aparte, con su migración y sus pruebas de aislamiento." } as const;
+/**
+ * Activation is a separate decision (ADR-0006, ADR-0010) with its own migration and tests. This module never activates anything. The tables that already have their
+ * migration (status `existing` in entities.ts, including the three of 20261110000100) have RLS on from the moment the migration is applied; the planned ones do not.
+ */
+export const RLS_STATE = { activated: false, reason: "Preparado para las tablas planeadas: su activación es una decisión aparte, con su migración y sus pruebas de aislamiento. Las tablas con migración ya la traen." } as const;
 
 export type Command = "select" | "insert" | "update" | "delete";
 export type PolicySpec = { table: string; name: string; command: Command; using?: string; withCheck?: string };

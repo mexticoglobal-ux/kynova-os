@@ -8,6 +8,8 @@
 
 import { auditFromModuleEntry, actorKindOf, type Outcome } from "../audit";
 import { eventFromEntry, type ModuleEntry, type ModuleId } from "../events";
+import type { TenantContext } from "../entities";
+import { tenantMismatch } from "../identity";
 import type { BackendCore } from "../index";
 import { randomBytes, toHex } from "../crypto";
 
@@ -54,7 +56,11 @@ export class Connector<S, E, R extends ReduceResult<S> = ReduceResult<S>> {
   constructor(private readonly core: BackendCore, readonly bridge: Bridge<S, E, R>, private readonly stats: IntegrationStats) {}
 
   /** Runs the module's reducer exactly as it is and carries what it recorded into the Backend Core. The result is the module's own, untouched. */
-  async reduce(state: S, event: E): Promise<R> {
+  /**
+   * `context` is the signed-in person's company (from Supabase Auth). When it is given, a call for another company is refused before the module is touched:
+   * the tenant of the call and the tenant of the session must be the same.
+   */
+  async reduce(state: S, event: E, context?: TenantContext | null): Promise<R> {
     const { core, bridge, stats } = this;
     const tenantId = bridge.tenantOf(event);
     const metrics = await core.metrics();
@@ -64,6 +70,15 @@ export class Connector<S, E, R extends ReduceResult<S> = ReduceResult<S>> {
       metrics.inc("kynova_integration_violations_total", { check: "tenant" });
       core.logger.warn("llamada sin empresa", { module: bridge.id, type: bridge.typeOf(event) });
       return { state, error: "Falta la empresa (tenant_id): ninguna operación corre sin ella.", errorCode: "tenantRequired" } as R;
+    }
+    if (context !== undefined) {
+      const mismatch = tenantMismatch(context, tenantId);
+      if (mismatch) {
+        stats.violations += 1;
+        metrics.inc("kynova_integration_violations_total", { check: "tenant" });
+        core.logger.warn("empresa distinta a la de la sesión", { module: bridge.id, type: bridge.typeOf(event) });
+        return { state, error: mismatch, errorCode: "tenantMismatch" } as R;
+      }
     }
     stats.tenants.add(tenantId);
     const type = bridge.typeOf(event);

@@ -61,6 +61,16 @@ export class AuditLog {
     return record;
   }
 
+  /**
+   * Continues the chain of a company from where it was left (the last stored record), so a new instance never restarts at 1 and never breaks the chain.
+   * Only possible while this instance has no record of that company yet.
+   */
+  resume(tenantId: string, tail: { seq: number; hash: string }): void {
+    if (this.counters.has(tenantId)) throw new Error("la cadena de esta empresa ya tiene registros en esta instancia");
+    this.counters.set(tenantId, tail.seq);
+    this.lastHash.set(tenantId, tail.hash);
+  }
+
   /** The records of ONE company, oldest first. Reading always names a company. */
   list(tenantId: string, filter: { module?: ModuleId; actorId?: string; outcome?: Outcome; category?: string } = {}): AuditRecord[] {
     return this.records.filter((item) => item.tenantId === tenantId && (!filter.module || item.module === filter.module) && (!filter.actorId || item.actorId === filter.actorId) && (!filter.outcome || item.outcome === filter.outcome) && (!filter.category || item.category === filter.category));

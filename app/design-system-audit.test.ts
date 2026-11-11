@@ -18,7 +18,7 @@ function walk(dir: string, out: string[] = []): string[] {
 const rel = (file: string) => relative(ROOT, file).split("\\").join("/");
 const source = ["app", "components", "lib", "config"].flatMap((dir) => walk(join(ROOT, dir))).filter((file) => /\.(ts|tsx)$/.test(file) && !/\.test\.(ts|tsx)$/.test(file) && !rel(file).startsWith("app/spike/")); // the spike is a throwaway page, not the product
 const text = (file: string) => readFileSync(file, "utf8");
-const css = readFileSync(join(ROOT, "app/globals.css"), "utf8");
+const css = readFileSync(join(ROOT, "app/globals.css"), "utf8").replace(/\r\n/g, "\n");
 const tailwind = readFileSync(join(ROOT, "tailwind.config.ts"), "utf8");
 
 describe("design system audit", () => {

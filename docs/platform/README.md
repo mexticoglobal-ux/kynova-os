@@ -35,6 +35,7 @@
 | `agent-catalog.ts`, `agent-runtime.ts`, `agent-center.ts`, `agent-messages.ts` | Runtime de Agentes IA: un plan por pasos que maneja el motor de Workers y la cadena de IA, con límites, reintentos, escalamiento y aprobación humana; todo simulado (§23, ADR-0013) |
 | `app/globals.css`, `tailwind.config.ts`, `components/ui/*`, `components/shell/*` | Design System V3 (NOVA): azul muy oscuro, azul y cian eléctricos, vidrio, tipografía premium; sustituye el estilo de §20 sin tocar lógica (§24, `docs/design-system.md`) |
 | `lib/backend/integration/*` | Backend Core Integration v1: un conector que envuelve el reductor de cada módulo y lo lleva al Event Bus, la auditoría, las métricas y las trazas, sin modificar los módulos (§25, ADR-0014) |
+| `supabase/migrations/20261110000100_*`, `lib/backend/identity.ts`, `lib/backend/integration/{persistence,supabase-storage}.ts` | Identidad, autenticación y Supabase v1: tablas del Backend Core con RLS, escritura por funciones, identidad de la sesión y adaptadores; la migración está escrita y probada, no aplicada (§26, ADR-0015) |
 | `automations.ts` | Plantillas y validación anteriores (se conservan): disparador, condiciones, acciones | Validación, acciones externas por aprobación, aviso de bucle, modo de prueba por defecto |
 
 ## 3. Modelos de datos (futuros; ninguno existe aún)
@@ -645,3 +646,40 @@ reductor del módulo (sin cambios) → conector → Event Bus + auditoría centr
 **Reglas que las pruebas mantienen:** los puentes apuntan a la misma función que exporta cada módulo y el resultado con y sin conector es idéntico; cada centro de la plataforma está conectado o declarado (hoy solo los referidos y los pagos quedan fuera); la historia de cada módulo demostrada se reenvía completa y es idempotente; la cobertura del bus se verifica por empresa; aislamiento total de eventos, auditoría, filas, archivos y sellos; sin prompts, credenciales ni datos personales en el bus, la auditoría, los logs ni los spans; nadie se suscribe al bus; ningún módulo importa el Backend Core; sin red, proveedor real ni migraciones.
 
 **Pendiente (no se hizo a propósito):** conectar la base real (hace falta la validación con Supabase real, que sigue bloqueada hasta que haya sesión iniciada) y activar el RLS con sus pruebas de aislamiento; que KOE consuma el bus; eventos de dominio finos para cada módulo; pagos y referidos (necesitan una traza por empresa); un puente para el módulo de usuarios cuando exista su reductor.
+
+## 26. Identidad, autenticación y Supabase v1
+
+Conecta el Backend Core con Supabase (ADR-0015). **La autenticación real ya existía** (OTP, cookie, renovación en el middleware, cierre de sesión, rutas protegidas, membresías y roles): no se tocó. Lo nuevo es la migración de las tablas del Backend Core con RLS, la identidad que une la sesión con `tenant_id` y los permisos, los adaptadores de Supabase y las pruebas de aislamiento.
+
+| Pieza | Dónde |
+|-------|-------|
+| Migración con RLS desde su creación | `supabase/migrations/20261110000100_backend_integration.sql` |
+| Pruebas de aislamiento, roles, cadena y borrado | `supabase/tests/backend_integration.sql` (corre en la CI `rls-isolation`) |
+| De la sesión de Supabase Auth al contexto de empresa y a `canUser` / `canUse` | `lib/backend/identity.ts` |
+| Adaptadores de Supabase (eventos, auditoría, archivos) y `connectSupabasePlatform` | `lib/backend/integration/persistence.ts`, `supabase-storage.ts`, `index.ts` |
+| Salud real y cobertura | `lib/backend/integration/health.ts` |
+
+- **Tablas** (`platform_events`, `platform_audit`, `storage_objects`): RLS activo al crearse; los miembros solo leen; ni `anon` ni la llave de servicio tocan nada; `platform_events` y `platform_audit` son append-only. `platform_audit` es la auditoría central encadenada (la auditoría por fila `audit_log` es otra cosa y no se cambió).
+- **Escritura solo por funciones** (`append_platform_events`, `append_platform_audit`, `register_storage_object`, `retire_storage_object`): comprueban el derecho a escribir en la empresa. La base **exige la continuidad de la cadena de auditoría** (bloqueo por empresa, seq + 1 y hash previo) y la idempotencia de los eventos.
+- **Storage:** un bucket privado `documents` con políticas que atan cada objeto a la carpeta de su empresa (sin actualizar ni borrar; un archivo se retira en el registro).
+- **Borrado de una empresa:** `delete_company` también quita estas filas.
+- **Identidad:** claims verificados + membresía activa → `TenantContext` (`tenant_id`, `organization_id`, `user_id`, `role_id`; la organización aún no está modelada, así que es nula) y `AuthSession`. `canUser` y `canUse` dan las mismas respuestas que la matriz de permisos y que `private.can_write` / `is_admin` (una prueba compara el código con el SQL). Una llamada del conector con el contexto de la sesión se rechaza si es de otra empresa.
+- **Adaptadores:** escriben por las funciones, **como la persona que inició sesión** (RLS aplica a esa persona), sin actualizar ni borrar. No escriben en producción; en desarrollo y vista previa solo admiten datos de demostración; `realData` sigue en `false` en todos los entornos (ADR-0006).
+- **Cadena entre instancias:** `platform.resume(tenantId)` retoma la cadena desde el último registro guardado; sin eso la base rechaza una cadena que reinicia en 1.
+- **Hueco corregido:** el Event Bus identificaba un evento solo por su id, de modo que una empresa podía suprimir el evento de otra eligiendo el mismo id. Ahora la identidad es empresa + id.
+- **Salud real:** `supabase_reachable` pregunta al proyecto con una lectura filtrada a una empresa inexistente (nunca devuelve datos de nadie); en la comprobación de persistencia, el RLS ya figura como activo donde se aplique la migración.
+
+### Cómo se verificó, y qué no
+- **Pruebas unitarias y de integración** (`lib/backend/identity.test.ts`, `integration/supabase.test.ts`): identidad, permisos, cadena completa de rutas, adaptadores con un cliente simulado que imita las funciones, Storage, salud, cadena entre instancias, y que la migración concuerda con el contrato (columnas, RLS, funciones, políticas de Storage).
+- **SQL:** las migraciones y `backend_integration.sql` se ejecutaron en un Postgres efímero (PGlite) y pasan; se comprobó además que las pruebas detectan tres mutaciones (RLS apagado, un `grant insert`, una política abierta). **No es Supabase real:** la CI de GitHub (`rls-isolation`, Postgres real) y la validación en el proyecto de Supabase son la verificación definitiva.
+- **No se aplicó nada a ningún proyecto de Supabase** y no se inició sesión: la verificación de la cadena de autenticación con el proyecto real sigue esperando el inicio de sesión de la persona en `http://localhost:8787/login`.
+
+### Para activarlo en un proyecto real (requiere aprobación explícita; AGENTS.md §7.11)
+1. Revisar y aprobar el ADR-0015 y la migración; confirmar el entorno (desarrollo o vista previa, **nunca producción primero**).
+2. Correr `supabase/tests/backend_integration.sql` (y los dos anteriores) en una base limpia con las migraciones, y la CI en verde.
+3. Aplicar `20261110000100_backend_integration.sql` al proyecto elegido y repetir las pruebas de aislamiento contra él.
+4. Secretos por entorno (solo por Wrangler o los secretos de GitHub, nunca en el repositorio): `SUPABASE_URL` y `SUPABASE_PUBLISHABLE_KEY` (públicas por diseño), `KYNOVA_ENCRYPTION_KEY` (32 bytes en base64) y `KYNOVA_HASH_PEPPER` (mínimo 32 caracteres); la llave de servicio no se usa. El informe del Environment Manager solo dice qué nombres faltan.
+5. Conectar una ruta de servidor que llame a `connectSupabasePlatform(core, cliente de la petición)` y a `resume`: hoy ninguna lo hace.
+6. Los datos reales de clientes siguen bloqueados hasta las puertas del ADR-0006 y la aprobación de producción.
+
+**Pendiente (no se hizo a propósito):** aplicar la migración; la ruta que use el adaptador; migraciones para las demás tablas planeadas (Workers, Billing, etc.); el modelo de organización dentro de una empresa; verificar la cadena de autenticación con la sesión real.

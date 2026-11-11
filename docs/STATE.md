@@ -83,6 +83,10 @@ Hallazgos aceptados de `/code-review` (`ed96ca0`), no son deuda:
 
 ## 5. Trabajo en curso
 
+**ADR-0015 — Identidad, autenticación y Supabase para el Backend Core** (Sprint 31, propuesto)
+- **Hecho:** migración `20261110000100_backend_integration.sql` (tablas con RLS, funciones de escritura, Storage), sus pruebas SQL (en la CI `rls-isolation`), identidad de la sesión, adaptadores de Supabase y salud real, todo en la rama `feat/identity-supabase-integration-v1`. **No se aplicó nada a ningún proyecto de Supabase.**
+- **Pendiente:** aprobar y aplicar la migración (primero en desarrollo o vista previa), conectar una ruta al adaptador y verificar la cadena de autenticación con el inicio de sesión real en `http://localhost:8787/login`; los datos reales de clientes siguen bloqueados por ADR-0006.
+
 **ADR-0002 — OpenNext + Cloudflare Workers**
 - **Hecho:** fases 0–3; preview desplegado y verificado; proyecto de Pages `kynova-os` eliminado.
 - **Pendiente:** fase 4 (dominio y producción); el dominio aún no se ha comprado y no hace falta para desarrollar ni probar la preview.

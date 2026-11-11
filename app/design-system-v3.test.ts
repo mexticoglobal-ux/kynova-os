@@ -7,7 +7,7 @@ import { THEMES, THEME_COLOR, type Theme } from "@/lib/theme";
 // cyan, glass cards, premium type and one gradient for the main action. This file only reads the stylesheet and the config: no logic is involved.
 const ROOT = process.cwd();
 const read = (path: string) => readFileSync(join(ROOT, path), "utf8");
-const css = read("app/globals.css");
+const css = read("app/globals.css").replace(/\r\n/g, "\n");
 const tailwind = read("tailwind.config.ts");
 const layout = read("app/layout.tsx");
 

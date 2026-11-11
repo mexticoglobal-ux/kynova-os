@@ -61,7 +61,11 @@ export async function archiveAudit(core: BackendCore, storage: StorageAdapter, d
   const body = new TextEncoder().encode(envelope);
   const check = validateUpload({ bucket: "documents", mime: "text/plain", bytes: body.byteLength, name });
   if (!check.ok) return { ok: false, reason: check.reason };
-  await storage.put(path, body, { mime: "text/plain" });
+  try {
+    await storage.put(path, body, { mime: "text/plain" });
+  } catch (error) {
+    return { ok: false, reason: error instanceof Error ? error.message : "no se pudo guardar el archivo" };
+  }
   await database.insert("storage_objects", [storageRow({ id: `obj_${tenantId}_${name}`.slice(0, 64), tenantId, bucket: "documents", path, mime: "text/plain", bytes: body.byteLength, at })]);
   return { ok: true, path, records: records.length, bytes: body.byteLength };
 }

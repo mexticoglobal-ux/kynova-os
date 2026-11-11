@@ -62,3 +62,6 @@ jobs:
 
       - name: Run Backend Core tests (roles, commercial flow, isolation, append-only, ingestion)
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/backend_core.sql
+
+      - name: Run Backend Core Integration tests (events, audit chain, storage registry, isolation)
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/backend_integration.sql

@@ -8,7 +8,11 @@ import { PERSISTED_TABLES, persistedTablesReport, type SimulatedDatabase } from 
 import type { IntegrationStats } from "./connector";
 import { verifyCoverage } from "./coverage";
 
-export type HealthContext = { stats: IntegrationStats; bridges: readonly string[]; database: SimulatedDatabase | { sizes?: () => Record<string, number> }; storagePaths: () => string[] };
+export type HealthContext = {
+  stats: IntegrationStats; bridges: readonly string[]; database: SimulatedDatabase | { sizes?: () => Record<string, number> }; storagePaths: () => string[];
+  /** Present when the platform is connected to Supabase: whether the project is configured and a probe that asks it something harmless (a read that RLS answers with nothing). */
+  supabase?: { configured: boolean; probe: () => Promise<boolean> };
+};
 
 export function integrationChecks(core: BackendCore, context: HealthContext): HealthCheck[] {
   return [
@@ -46,7 +50,16 @@ export function integrationChecks(core: BackendCore, context: HealthContext): He
         const report = persistedTablesReport();
         const sizes: Record<string, number> = context.database.sizes?.() ?? {};
         const bad = report.filter((item) => !item.tenantScoped || item.policies === 0);
-        return bad.length === 0 ? { status: "ok", detail: `${PERSISTED_TABLES.length} tablas con política por empresa (${Object.values(sizes).reduce((sum, value) => sum + value, 0)} filas simuladas); RLS preparado, no activado` } : { status: "degraded", detail: `sin política: ${bad.map((item) => item.table).join(", ")}` };
+        const live = report.every((item) => item.existing);
+        return bad.length === 0 ? { status: "ok", detail: `${PERSISTED_TABLES.length} tablas con política por empresa${live ? " (RLS en la migración 20261110000100: activo donde se aplique)" : ""}; ${Object.values(sizes).reduce((sum, value) => sum + value, 0)} filas simuladas` } : { status: "degraded", detail: `sin política: ${bad.map((item) => item.table).join(", ")}` };
+      },
+    },
+    {
+      name: "supabase_reachable", critical: false,
+      run: async () => {
+        if (!context.supabase) return { status: "degraded", detail: "la plataforma no está conectada a Supabase en este proceso" };
+        if (!context.supabase.configured) return { status: "degraded", detail: "Supabase no está configurado en este entorno" };
+        return (await context.supabase.probe()) ? { status: "ok", detail: "el proyecto responde (lectura de prueba filtrada por empresa)" } : { status: "down", detail: "el proyecto no responde" };
       },
     },
     { name: "file_storage", critical: false, run: async () => ({ status: "ok", detail: `${context.storagePaths().length} archivos; cada ruta bajo su empresa` }) },

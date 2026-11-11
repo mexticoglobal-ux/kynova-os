@@ -19,15 +19,12 @@ import { demoOk as demoMarketOk } from "@/lib/contracts/platform/marketplace-dem
 import { demoOrgOk } from "@/lib/contracts/platform/org-demo";
 import { demoStudioOk } from "@/lib/contracts/platform/studio-demo";
 import { decrypt, generateEncryptionKey } from "../crypto";
-import { ENTITIES } from "../entities";
 import { MODULE_IDS } from "../events";
 import { createBackendCore, koeView } from "../index";
 import { ALLOWED_LABELS } from "../observability";
-import { RLS_STATE } from "../rls";
 import { canAccessPath } from "../storage";
 import {
-  BRIDGES, BRIDGE_IDS, Connector, NOT_CONNECTED, PERSISTED_TABLES, SimulatedDatabase, SupabasePersistence, auditRow, connectPlatform, eventRow, newStats, outcomeOfAction, persistedTablesReport,
-  storageRow, validateRow, verifyCoverage, type Bridge, type DatabaseClient, type Row,
+  BRIDGES, BRIDGE_IDS, Connector, NOT_CONNECTED, connectPlatform, newStats, outcomeOfAction, validateRow, verifyCoverage, type Bridge,
 } from "./index";
 
 const NOVA = "tenant-nova";
@@ -363,7 +360,7 @@ describe("total isolation between companies", () => {
     expect(written.audit.inserted).toBeGreaterThan(0);
     await platform.persist(VIDA);
     for (const tenantId of [NOVA, VIDA]) {
-      for (const table of ["platform_events", "audit_log"] as const) {
+      for (const table of ["platform_events", "platform_audit"] as const) {
         const rows = await platform.database.select(table, tenantId);
         expect(rows.length, `${table}/${tenantId}`).toBeGreaterThan(0);
         expect(rows.every((row) => row["tenant_id"] === tenantId)).toBe(true);
@@ -448,72 +445,7 @@ describe("coverage and health", () => {
     expect(report.status).not.toBe("down");
     const gauges = (await core.metrics()).snapshot().filter((item) => item.name === "kynova_health_ok");
     expect(gauges.length).toBe(names.length);
-    expect(report.checks.find((item) => item.name === "persistence")?.detail).toMatch(/no activado/);
-  });
-});
-
-// ================================================================ prepared Supabase and RLS
-describe("Supabase and RLS, prepared and never used", () => {
-  const row: Row = eventRow({ id: "e1", type: "crm.audit.recorded", version: 1, module: "crm", tenantId: NOVA, actor: ANA, at: "2026-11-10T12:00:00.000Z", payload: { action: "x", category: "y" }, seq: 1 });
-  const fake = () => {
-    const calls: string[] = [];
-    const client: DatabaseClient = {
-      from: (table) => ({
-        insert: async (rows) => { calls.push(`insert:${table}:${rows.length}`); return { error: null }; },
-        select: () => ({ eq: async (column, value) => { calls.push(`select:${table}:${column}=${value}`); return { data: [], error: null }; } }),
-      }),
-    };
-    return { calls, client };
-  };
-
-  it("writes nothing while no environment admits real data, and never even loads the client", async () => {
-    for (const environment of ["development", "preview", "production"] as const) {
-      let loaded = false;
-      const adapter = new SupabasePersistence({ environment, client: async () => { loaded = true; return fake().client; } });
-      const written = await adapter.insert("platform_events", [row]);
-      expect(written).toMatchObject({ inserted: 0, skipped: 1 });
-      expect(written.blocked).toMatch(/datos reales/);
-      expect(await adapter.select("platform_events", NOVA)).toEqual([]);
-      expect(loaded, environment).toBe(false);
-    }
-  });
-
-  it("when real data is allowed (a test says so), reads only by company, inserts only into the three append-only tables, and checks every row first", async () => {
-    const { calls, client } = fake();
-    const adapter = new SupabasePersistence({ environment: "development", client: async () => client, policy: { realData: true } });
-    expect(await adapter.insert("platform_events", [row])).toMatchObject({ inserted: 1 });
-    await adapter.select("audit_log", NOVA);
-    expect(calls).toEqual(["insert:platform_events:1", `select:audit_log:tenant_id=${NOVA}`]);
-    await expect(adapter.insert("platform_events", [{ ...row, tenant_id: null }])).rejects.toThrow(/fila no válida/);
-    await expect(adapter.insert("users" as never, [row])).rejects.toThrow();
-    expect(Object.getOwnPropertyNames(SupabasePersistence.prototype).filter((name) => /update|delete|remove|upsert/i.test(name))).toEqual([]);
-    expect(Object.getOwnPropertyNames(SimulatedDatabase.prototype).filter((name) => /update|delete|remove|upsert/i.test(name))).toEqual([]);
-  });
-
-  it("shapes its rows by the data contract: complete, typed, and nothing the table does not have", () => {
-    expect(validateRow("platform_events", row)).toEqual([]);
-    expect(validateRow("platform_events", { ...row, extra: "x" })).toEqual(["la columna extra no existe en platform_events"]);
-    const { id: _id, ...withoutId } = row;
-    expect(validateRow("platform_events", withoutId)).toContain("falta la columna id");
-    expect(validateRow("audit_log", auditRow({ id: "a1", seq: 1, prevHash: "0", hash: "h", tenantId: NOVA, actorId: ANA, actorKind: "person", module: "crm", action: "a", category: "c", outcome: "success", at: "2026-11-10T12:00:00.000Z" }))).toEqual([]);
-    expect(validateRow("storage_objects", storageRow({ id: "o1", tenantId: NOVA, bucket: "documents", path: `${NOVA}/documents/system/x.txt`, mime: "text/plain", bytes: 10, at: "2026-11-10T12:00:00.000Z" }))).toEqual([]);
-  });
-
-  it("uses the policies already written: every table it touches is per company and has them, and none is activated", () => {
-    const report = persistedTablesReport();
-    expect(report.map((item) => item.table)).toEqual([...PERSISTED_TABLES]);
-    for (const item of report) {
-      expect(item.tenantScoped, item.table).toBe(true);
-      expect(item.policies, item.table).toBeGreaterThan(0);
-      expect(item.activated).toBe(false);
-    }
-    expect(report.find((item) => item.table === "platform_events")?.appendOnly).toBe(true);
-    expect(RLS_STATE.activated).toBe(false);
-    const migrations = join(process.cwd(), "supabase", "migrations");
-    const sql = readdirSync(migrations).map((name) => readFileSync(join(migrations, name), "utf8")).join("\n");
-    for (const table of PERSISTED_TABLES) expect(ENTITIES.some((item) => item.table === table), table).toBe(true);
-    expect(sql).not.toMatch(/platform_events|storage_objects/);
-    expect(readdirSync(migrations)).toHaveLength(6);
+    expect(report.checks.find((item) => item.name === "persistence")?.detail).toMatch(/RLS/);
   });
 });
 

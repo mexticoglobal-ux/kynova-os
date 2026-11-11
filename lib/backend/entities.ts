@@ -85,9 +85,9 @@ export const ENTITIES: readonly Entity[] = [
   entity("communications", "messages", "Mensajes de una conversación.", ["conversation_id:uuid->conversations.id", "direction:text", "body:text*"], { status: "existing", appendOnly: true }),
   entity("communications", "integration_accounts", "Las cuentas de canales conectadas.", ["provider:text", "status:text"], { status: "existing", rls: "admin" }),
   // ---- the platform itself
-  entity("organizations", "audit_log", "La auditoría central: solo crece.", ["actor_id:text", "module:text", "action:text", "category:text", "outcome:text", "prev_hash:text", "hash:text"], { status: "existing", appendOnly: true }),
-  entity("koe", "platform_events", "El Event Bus: lo que publica cada módulo y KOE leerá.", ["type:text", "module:text", "actor:text", "payload:jsonb", "seq:bigint"], { appendOnly: true }),
-  entity("organizations", "storage_objects", "Los archivos de la empresa: ruta, tipo y tamaño.", ["bucket:text", "path:text", "mime:text", "bytes:bigint", "scanned:bool"], { rls: "rw" }),
+  entity("organizations", "platform_audit", "La auditoría central encadenada: solo crece; la base exige la continuidad de la cadena.", ["record_id:text", "seq:int", "actor_id:text", "actor_kind:text", "module:text", "action:text", "category:text", "target:text?", "detail:text?", "outcome:text", "request_id:text?", "prev_hash:text", "hash:text"], { status: "existing", appendOnly: true }),
+  entity("koe", "platform_events", "El Event Bus: lo que publica cada módulo y KOE leerá.", ["event_id:text", "type:text", "module:text", "actor:text", "correlation_id:text?", "payload:jsonb", "seq:bigint"], { status: "existing", appendOnly: true }),
+  entity("organizations", "storage_objects", "Los archivos de la empresa: ruta, tipo y tamaño. Un archivo se retira, no se borra.", ["bucket:text", "path:text", "mime:text", "bytes:bigint", "scanned:bool", "retired_at:timestamptz?"], { status: "existing" }),
 ];
 
 export const entityOf = (table: string): Entity | undefined => ENTITIES.find((item) => item.table === table);
