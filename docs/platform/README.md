@@ -38,6 +38,7 @@
 | `supabase/migrations/20261110000100_*`, `lib/backend/identity.ts`, `lib/backend/integration/{persistence,supabase-storage}.ts` | Identidad, autenticación y Supabase v1: tablas del Backend Core con RLS, escritura por funciones, identidad de la sesión y adaptadores; la migración está escrita y probada, no aplicada (§26, ADR-0015) |
 | `lib/ai/` | Capa de proveedores reales del AI Gateway: adaptadores OpenAI, Anthropic, Google y OpenRouter (Grok, DeepSeek, Mistral y Ollama preparados), ejecutor, secretos, streaming | Nadie más llama a un proveedor; KOE y el Gateway no cambian de arquitectura | `adapters.ts`, `executor.ts`, `service.ts`, `secrets.ts`, `providers.ts`, `http.ts` |
 | `kynova-operation.ts` | El guion de KYNOVA operando KYNOVA: la empresa, un día de trabajo y el panel operativo, aplicados por los reducers existentes | No añade reglas ni módulos; solo lee y aplica | `kynova-operation.test.ts` |
+| `business-templates.ts` | Doce plantillas de negocio (datos), su instalación por los reducers existentes, KPIs y el Revenue Engine (lectura) | No duplica lógica ni crea módulos; instala siempre en Nivel 1 | `business-templates.test.ts` |
 | `automations.ts` | Plantillas y validación anteriores (se conservan): disparador, condiciones, acciones | Validación, acciones externas por aprobación, aviso de bucle, modo de prueba por defecto |
 
 ## 3. Modelos de datos (futuros; ninguno existe aún)
@@ -708,3 +709,14 @@ Objetivo: demostrar que una empresa puede operar usando solo la plataforma. Ver 
 - **Panel operativo** (`operatingDashboard`): lectura de lo que ya guardan los módulos; no es una pantalla nueva.
 - **Sin tocar** KOE, NEX, AI Gateway ni Runtime; sin WhatsApp, Stripe ni redes sociales; todo simulado.
 - **Pruebas** extremo a extremo en `kynova-operation.test.ts`: ningún paso rechazado, solo personas deciden, determinismo y aislamiento por empresa.
+
+## 29. Business Templates & Revenue Engine v1
+
+Ver ADR-0018.
+
+- **Doce plantillas:** Agencia de Marketing, Bienes Raíces, Restaurante, Clínica, Abogado, Contador, Constructora, E-commerce, YouTube Faceless, Consultor, Educación y Empresa Genérica.
+- **Cada una trae:** roles, equipos, Workers, agentes de IA recomendados, automatizaciones, flujos, KPIs, objetivos, panel, plan, presupuesto de IA y configuración inicial de CRM y comunicaciones.
+- **Instalar** (`installBusinessTemplate`) aplica los datos por Organization, KOE, la IA de NEX, Billing, AI Studio, Automations e Insights; tarda milisegundos y no concede autonomía (Nivel 1).
+- **Revenue Engine** (`revenueEngine`, `readKpis`): lecturas de CRM e Insights; muestran lo que falta para la meta mensual.
+- **Una sola fuente:** las automatizaciones se escriben una vez y cambian de palabras según el negocio.
+- **Sin tocar** KOE, NEX, Gateway, Runtime ni Backend Core.

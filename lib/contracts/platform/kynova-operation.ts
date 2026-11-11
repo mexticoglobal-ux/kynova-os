@@ -78,7 +78,7 @@ export type KynovaOperation = {
 };
 
 /** A reducer plus the list of what it refused. Every step of the scenario goes through one of these, so a step the platform cannot do is an error, never a silent skip. */
-function track<S, E extends { type: string }>(module: string, initial: S, reduce: (state: S, event: E) => { state: S; error?: string }, steps: OperationStep[], errors: string[], phase: () => string, clock: () => string) {
+export function track<S, E extends { type: string }>(module: string, initial: S, reduce: (state: S, event: E) => { state: S; error?: string }, steps: OperationStep[], errors: string[], phase: () => string, clock: () => string) {
   const box = { state: initial };
   const send = (event: E & { at?: string }) => {
     const result = reduce(box.state, event);
