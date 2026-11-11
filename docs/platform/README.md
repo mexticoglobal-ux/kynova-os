@@ -39,6 +39,7 @@
 | `lib/ai/` | Capa de proveedores reales del AI Gateway: adaptadores OpenAI, Anthropic, Google y OpenRouter (Grok, DeepSeek, Mistral y Ollama preparados), ejecutor, secretos, streaming | Nadie más llama a un proveedor; KOE y el Gateway no cambian de arquitectura | `adapters.ts`, `executor.ts`, `service.ts`, `secrets.ts`, `providers.ts`, `http.ts` |
 | `kynova-operation.ts` | El guion de KYNOVA operando KYNOVA: la empresa, un día de trabajo y el panel operativo, aplicados por los reducers existentes | No añade reglas ni módulos; solo lee y aplica | `kynova-operation.test.ts` |
 | `business-templates.ts` | Doce plantillas de negocio (datos), su instalación por los reducers existentes, KPIs y el Revenue Engine (lectura) | No duplica lógica ni crea módulos; instala siempre en Nivel 1 | `business-templates.test.ts` |
+| `partners.ts` | Programa oficial de Partners: niveles, código y enlace, seguimiento y conversión, comisiones recurrentes, validación de 15 días, retiro, panel e historiales | Reutiliza Referidos y Billing; no conecta medios de pago | `partners.test.ts` |
 | `automations.ts` | Plantillas y validación anteriores (se conservan): disparador, condiciones, acciones | Validación, acciones externas por aprobación, aviso de bucle, modo de prueba por defecto |
 
 ## 3. Modelos de datos (futuros; ninguno existe aún)
@@ -720,3 +721,17 @@ Ver ADR-0018.
 - **Revenue Engine** (`revenueEngine`, `readKpis`): lecturas de CRM e Insights; muestran lo que falta para la meta mensual.
 - **Una sola fuente:** las automatizaciones se escriben una vez y cambian de palabras según el negocio.
 - **Sin tocar** KOE, NEX, Gateway, Runtime ni Backend Core.
+
+## 30. Partners & Referral Engine v1
+
+Ver ADR-0019. Programa oficial de Partners de KYNOVA, multiempresa y auditable.
+
+- **Niveles:** Registered 7 %, Silver 9 %, Gold 12 %. Platinum, Diamond y Elite están definidos y **bloqueados**.
+- **Partner:** registro (pendiente) → aprobación de una persona → activo, suspendido o cerrado; código único y enlace de referido.
+- **Referidos:** clic, registro, conversión con el primer pago; autorreferido y mismo correo se rechazan.
+- **Comisión:** porcentaje sobre la membresía **pagada** (Billing), cada mes mientras el cliente esté activo; se recalcula al cambiar de plan y se **pausa** si deja de pagar.
+- **Validación:** 15 días para reembolsos, fraude y contracargos; después queda en el saldo.
+- **Retiro:** mínimo USD 100; una persona solicita, otra aprueba y una tercera registra el pago con referencia externa.
+- **Medios de pago:** MakaPay, Payoneer, PayPal, Stripe y Osmo solo como interfaces desconectadas.
+- **Panel e historiales:** `partnerDashboard` y `programSummary` (clientes y su estado, comisiones, pagos).
+- **Auditoría, Event Bus y RLS:** cada evento deja su entrada de auditoría (probado con el conector del Backend Core); las 8 tablas futuras pasan la auditoría de políticas. Sin migración aplicada.
