@@ -40,6 +40,7 @@
 | `kynova-operation.ts` | El guion de KYNOVA operando KYNOVA: la empresa, un día de trabajo y el panel operativo, aplicados por los reducers existentes | No añade reglas ni módulos; solo lee y aplica | `kynova-operation.test.ts` |
 | `business-templates.ts` | Doce plantillas de negocio (datos), su instalación por los reducers existentes, KPIs y el Revenue Engine (lectura) | No duplica lógica ni crea módulos; instala siempre en Nivel 1 | `business-templates.test.ts` |
 | `partners.ts` | Programa oficial de Partners: niveles, código y enlace, seguimiento y conversión, comisiones recurrentes, validación de 15 días, retiro, panel e historiales | Reutiliza Referidos y Billing; no conecta medios de pago | `partners.test.ts` |
+| `financial-router.ts` | KOE Financial Router: la única entrada del dinero; siete adaptadores desconectados con una interfaz; decisión, reintentos, respaldo, idempotencia, costos, monedas, estados, historial | Billing/Marketplace/Partners piden; el Router decide; ningún proveedor conectado | `financial-router.test.ts` |
 | `automations.ts` | Plantillas y validación anteriores (se conservan): disparador, condiciones, acciones | Validación, acciones externas por aprobación, aviso de bucle, modo de prueba por defecto |
 
 ## 3. Modelos de datos (futuros; ninguno existe aún)
@@ -735,3 +736,16 @@ Ver ADR-0019. Programa oficial de Partners de KYNOVA, multiempresa y auditable.
 - **Medios de pago:** MakaPay, Payoneer, PayPal, Stripe y Osmo solo como interfaces desconectadas.
 - **Panel e historiales:** `partnerDashboard` y `programSummary` (clientes y su estado, comisiones, pagos).
 - **Auditoría, Event Bus y RLS:** cada evento deja su entrada de auditoría (probado con el conector del Backend Core); las 8 tablas futuras pasan la auditoría de políticas. Sin migración aplicada.
+
+## 31. KOE Financial Router v1
+
+Ver ADR-0020. Billing → KOE Financial Router → Proveedor de Pago. **Solo arquitectura: ningún proveedor está conectado.**
+
+- **Operaciones:** cobros de membresía y Marketplace, renovaciones, suscripciones, cambios de plan, pagos a partners, reembolsos, créditos, comisiones y facturas.
+- **Adaptadores** (misma interfaz, todos desconectados): MakaPay, PayPal, Payoneer, Stripe, Apple Pay, Google Pay y Osmo.
+- **Decisión automática** por operación, moneda, método, política de la empresa (costo, fiabilidad, velocidad, balanceada) y su historial.
+- **Reintentos, tiempos y cortacircuitos;** respaldo a otro proveedor, salvo en reembolsos, que vuelven al proveedor que cobró.
+- **Idempotencia** por clave y empresa. **Solo personas deciden el dinero:** pagos, reembolsos y créditos piden una segunda persona.
+- **Monedas:** se liquida en la moneda de la operación; convertir requiere autorización y tasa de la empresa; cripto reservada.
+- **Costos, historial y métricas** por proveedor y moneda; **auditoría** y compatibilidad con el Event Bus; 6 tablas futuras con RLS por empresa (sin migración).
+- **Entradas:** `chargeFromInvoice`, `chargeFromPurchase`, `payoutFromPartner` y, de vuelta a Billing, `billingPaymentFromOperation`.
