@@ -44,6 +44,7 @@
 | `business-architect.ts` | AI Business Architect: asistente de bienvenida, cuestionario, detección del negocio, recomendación, vista previa e instalación con un clic | Solo elige y escala plantillas y límites de Billing; no usa IA real ni reglas nuevas | `business-architect.test.ts` |
 | `internal-beta.ts` | Beta interna: crea cuatro empresas con el AI Business Architect y configura sus casos de uso; portafolio de KYNOVA | Solo guion sobre módulos existentes; datos de ejemplo; nada conectado | `internal-beta.test.ts` |
 | `connectors.ts` | Real World Integrations: 12 conectores con una interfaz, OAuth preparado, sincronización, permisos, salud y el camino Agente → Worker → Conector → Proveedor | Adaptadores simulados; credenciales por Secrets Manager; nada real conectado | `connectors.test.ts` |
+| `lib/integrations/google/` | Google Workspace: OAuth real (PKCE, refresh, revocación), Gmail, Calendar y Drive por Workers, sincronización, salud | Único lugar que habla con Google; secretos por nombre; tokens cifrados; probado contra un Google simulado | `google.test.ts` |
 | `automations.ts` | Plantillas y validación anteriores (se conservan): disparador, condiciones, acciones | Validación, acciones externas por aprobación, aviso de bucle, modo de prueba por defecto |
 
 ## 3. Modelos de datos (futuros; ninguno existe aún)
@@ -804,3 +805,15 @@ Ver ADR-0024. La arquitectura para trabajar sobre las herramientas de los client
 - **Pantalla Connected Apps** (`/platform/connected-apps`, simulada) y **salud** de Google, Microsoft, Meta, YouTube, WhatsApp, LinkedIn, TikTok y Drive.
 - **Valores de referencia:** endpoints, permisos y requisitos de revisión de cada proveedor, a verificar en su sprint.
 - **Pruebas:** conexión, desconexión, renovación, errores, multiempresa, OAuth, secretos y permisos.
+
+## 35. Google Workspace Integration
+
+Ver ADR-0025. El primer proveedor real sobre la arquitectura de conectores (§34), sin cambiarla. **Probado contra un Google simulado: ninguna llamada a Google real se ha hecho todavía.**
+
+- **OAuth real:** PKCE `S256`, `state` de un solo uso por empresa, `refresh token`, renovación automática y anticipada, revocación en Google y en la bóveda. Las credenciales de KYNOVA (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`) se leen por nombre del Secrets Manager; los tokens viven cifrados en una bóveda y el estado solo guarda `secret:oauth-...`.
+- **Camino único:** Worker → Conector → Google. Leer corre al instante con el permiso encendido; enviar, crear, cambiar, cancelar, subir, mover y compartir esperan a una persona.
+- **Gmail:** buscar, leer, adjuntos, etiquetas (lectura), enviar y responder en el hilo. **Calendar:** leer, crear, actualizar, cancelar, invitados y disponibilidad. **Drive:** buscar, leer, crear carpetas, subir, mover y compartir con una persona.
+- **Scopes mínimos:** borradores y cambios de etiquetas necesitan `gmail.compose`/`gmail.modify`, que el manifiesto del Sprint 40 no pide: están implementados y la operación se rechaza hasta ampliar el manifiesto (con aprobación).
+- **Una cuenta de Google, una sola empresa;** tokens separados por empresa.
+- **Connected Apps:** panel con cuenta, estado, última sincronización, último correo, último evento, último archivo y Health Score (datos de ejemplo en la pantalla; nunca contenido).
+- **Para conectar de verdad:** crear la aplicación en Google Cloud, pasar la verificación de scopes restringidos, poner las credenciales en Wrangler y cablear las rutas `start` y `callback` con el Backend Core.

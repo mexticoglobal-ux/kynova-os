@@ -55,6 +55,25 @@ describe("ConnectedApps", () => {
     expect(screen.getByText(/Los Agentes IA no hablan con ningún proveedor/)).toBeTruthy();
   });
 
+  it("shows the Google Workspace panel: account, state, last sync, last email, event and file, and a health score that rises with a sync", () => {
+    render(<ConnectedApps />);
+    const panel = screen.getByRole("table", { name: "Google Workspace" });
+    for (const header of ["Cuenta", "Estado", "Última sincronización", "Último correo", "Último evento", "Último archivo", "Health Score"]) expect(within(panel).getByRole("columnheader", { name: header })).toBeTruthy();
+    expect(within(panel).getByText("Gmail")).toBeTruthy();
+    expect(within(panel).getByText("Google Calendar")).toBeTruthy();
+    expect(within(panel).getByText("Google Drive")).toBeTruthy();
+    expect(within(panel).getByLabelText("Health Score de Gmail").textContent).toBe("0");
+    fireEvent.click(screen.getByRole("button", { name: "Conectar Gmail" }));
+    expect(within(panel).getByText("cuenta-de-ejemplo@gmail.test")).toBeTruthy();
+    expect(within(panel).getByLabelText("Health Score de Gmail").textContent).toBe("70");
+    fireEvent.click(within(panel).getByRole("button", { name: "Sincronizar Gmail (ejemplo)" }));
+    expect(within(panel).getByLabelText("Health Score de Gmail").textContent).toBe("100");
+    expect(within(panel).queryAllByText("—").length).toBeGreaterThan(0);
+    expect(screen.getByText(/nunca se muestra el contenido de un correo/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Desconectar Gmail" }));
+    expect(within(panel).getByLabelText("Health Score de Gmail").textContent).toBe("0");
+  });
+
   it("is registered as a platform section with its own address", () => {
     expect(sectionInfo("connectedApps")).toMatchObject({ href: "/platform/connected-apps", title: "Apps conectadas" });
     expect(PLATFORM_SECTIONS.map((item) => item.key)).toContain("connectedApps");

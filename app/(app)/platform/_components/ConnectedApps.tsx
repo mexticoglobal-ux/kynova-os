@@ -8,6 +8,8 @@ import {
   CONNECTORS, PROVIDER_FAMILIES, applyConnectorsEvents, connectedApps, connectorHealth, newConnectorsState, reduceConnectors,
   type ConnectorEnv, type ConnectorId, type ConnectorsEvent, type DisplayStatus, type HealthStatus,
 } from "@/lib/contracts/platform/connectors";
+import { workspaceView } from "@/lib/integrations/google/view";
+import type { ConnectionActivity } from "@/lib/integrations/google/workspace";
 
 const TENANT = "tenant-demo";
 const OWNER = "demo-owner";
@@ -30,6 +32,7 @@ export function ConnectedApps() {
   const [state, setState] = useState(() => applyConnectorsEvents(newConnectorsState(), [{ tenantId: TENANT, actor: OWNER, at: AT, type: "tenant.enable" }], ENV).state);
   const [counter, setCounter] = useState(1);
   const [message, setMessage] = useState<string | null>(null);
+  const [activities, setActivities] = useState<readonly ConnectionActivity[]>([]);
 
   const run = (events: ConnectorsEvent[]) => {
     let current = state;
@@ -51,10 +54,24 @@ export function ConnectedApps() {
       { tenantId: TENANT, actor: "system", at: AT, type: "oauth.callback", connectorId: id, state: nonce(code), code: "simulated-code", accountId: `${id}-demo-account`, accountLabel: `cuenta-de-ejemplo@${id}.test`, grantedScopes: reads },
     ]);
   };
-  const disconnect = (connectionId: string) => run([{ tenantId: TENANT, actor: OWNER, at: AT, type: "connection.disconnect", connectionId }]);
+  const disconnect = (connectionId: string) => { run([{ tenantId: TENANT, actor: OWNER, at: AT, type: "connection.disconnect", connectionId }]); setActivities((current) => current.filter((item) => item.connectionId !== connectionId)); };
+  // The example sync turns the read permission on and records a run with example items (opaque ids): no Google call is made here.
+  const syncExample = (connectionId: string, connectorId: ConnectorId) => {
+    const connection = state.connections.find((row) => row.id === connectionId);
+    if (!connection) return;
+    const reads = CONNECTORS[connectorId].scopes.filter((scope) => scope.effect === "read" && connection.grantedScopes.includes(scope.id));
+    run([
+      ...reads.map((scope): ConnectorsEvent => ({ tenantId: TENANT, actor: OWNER, at: AT, type: "permissions.set", connectionId, scope: scope.id, grant: "auto" })),
+      ...CONNECTORS[connectorId].syncKinds.map((kind): ConnectorsEvent => ({ tenantId: TENANT, actor: "system", at: AT, type: "sync.run", connectionId, kind })),
+    ]);
+    const seen = { id: `ejemplo-${connectorId}`, at: AT };
+    setActivities((current) => [...current.filter((item) => item.connectionId !== connectionId), { connectionId, tenantId: TENANT, lastSyncAt: AT, recent: ["ok"], consecutiveFailures: 0, needsReauthorization: false, ...(connectorId === "gmail" ? { lastEmail: seen } : connectorId === "googleCalendar" ? { lastEvent: seen } : { lastFile: seen }) }]);
+  };
 
   const rows = connectedApps(state, TENANT, ENV, AT);
   const health = connectorHealth(state, ENV, TENANT);
+  const google = workspaceView(state, activities, TENANT, AT);
+  const when = (value?: string) => (value ? new Date(value).toLocaleString("es-CR") : "—");
   const connected = rows.filter((row) => row.display === "Connected").length;
 
   return (
@@ -98,6 +115,32 @@ export function ConnectedApps() {
             </tbody>
           </table>
         </div>
+      </Card>
+      <Card className="space-y-3 p-5">
+        <h2 className="font-semibold">Google Workspace</h2>
+        <div className="overflow-x-auto">
+          <table className="w-full" aria-label="Google Workspace">
+            <thead>
+              <tr><th className={th}>Aplicación</th><th className={th}>Cuenta</th><th className={th}>Estado</th><th className={th}>Última sincronización</th><th className={th}>Último correo</th><th className={th}>Último evento</th><th className={th}>Último archivo</th><th className={th}>Health Score</th><th className={th}><span className="sr-only">Acción</span></th></tr>
+            </thead>
+            <tbody>
+              {google.map((row) => (
+                <tr key={row.connectorId} className="border-t border-line">
+                  <td className={td}>{row.label}</td>
+                  <td className={td}>{row.account ?? "—"}</td>
+                  <td className={td}><Badge tone={STATUS_TONE[row.display]}>{STATUS_LABEL[row.display]}</Badge></td>
+                  <td className={td}>{when(row.lastSyncAt)}</td>
+                  <td className={td}>{when(row.lastEmail?.at)}</td>
+                  <td className={td}>{when(row.lastEvent?.at)}</td>
+                  <td className={td}>{when(row.lastFile?.at)}</td>
+                  <td className={td}><span aria-label={`Health Score de ${row.label}`}>{row.healthScore}</span></td>
+                  <td className={td}>{row.connectionId && row.display === "Connected" ? <Button size="sm" variant="secondary" onClick={() => syncExample(row.connectionId as string, row.connectorId)} aria-label={`Sincronizar ${row.label} (ejemplo)`}>Sincronizar (ejemplo)</Button> : null}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="text-xs text-ink-muted">Datos de ejemplo: la conexión real con Google se activa con las credenciales de la aplicación en Wrangler. Aquí nunca se muestra el contenido de un correo, un evento o un archivo.</p>
       </Card>
       <p className="text-xs text-ink-muted">Cada empresa autoriza solo sus cuentas. Los Agentes IA no hablan con ningún proveedor: piden a un Worker, y el conector ejecuta. Lo que sale de la plataforma siempre lo aprueba una persona.</p>
     </div>
