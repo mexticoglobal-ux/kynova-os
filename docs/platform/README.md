@@ -46,6 +46,7 @@
 | `connectors.ts` | Real World Integrations: 12 conectores con una interfaz, OAuth preparado, sincronización, permisos, salud y el camino Agente → Worker → Conector → Proveedor | Adaptadores simulados; credenciales por Secrets Manager; nada real conectado | `connectors.test.ts` |
 | `lib/integrations/google/` | Google Workspace: OAuth real (PKCE, refresh, revocación), Gmail, Calendar y Drive por Workers, sincronización, salud | Único lugar que habla con Google; secretos por nombre; tokens cifrados; probado contra un Google simulado | `google.test.ts` |
 | `lib/integrations/hub/` | Integration Hub: un contrato para cualquier proveedor (conectar, renovar, sincronizar, ejecutar, validar), registro, reintentos con disyuntor, límites de uso, salud 0–100, eventos y workflows | Capa nueva; el núcleo no nombra proveedores; solo un Worker llega al Hub; lo que sale espera a una persona; probado con proveedores simulados | `hub.test.ts` |
+| `lib/nex/memory/` | NEX Memory Engine: memoria útil por empresa (nueve tipos), búsqueda, ranking, retención, seguridad, aprendizaje y observabilidad | Capa nueva; reductores puros sin reloj ni base de datos; nunca guarda conversaciones, prompts ni credenciales; una empresa nunca lee a otra | `memory.test.ts` |
 | `automations.ts` | Plantillas y validación anteriores (se conservan): disparador, condiciones, acciones | Validación, acciones externas por aprobación, aviso de bucle, modo de prueba por defecto |
 
 ## 3. Modelos de datos (futuros; ninguno existe aún)
@@ -832,3 +833,18 @@ Ver ADR-0026. Una capa nueva (`lib/integrations/hub/`) por la que pasa **cualqui
 - **Workflows:** sync, push, pull, webhook, manual y programado; los pasos corren como el Worker del flujo; un webhook solo dispara tras validar la firma.
 - **Eventos sin contenido** (ni credenciales ni correos), con traza por solicitud y forma de auditoría de la plataforma.
 - **Para conectar de verdad:** un adaptador por proveedor, el puente al Event Bus, persistencia con RLS, rutas HTTP y un planificador; cada uno con aprobación propia.
+
+## 37. NEX Memory Engine
+
+Ver ADR-0027. NEX deja de responder solo con el contexto inmediato: tiene memoria **organizada por empresa**. Capa nueva en `lib/nex/memory/`, sin pantallas, sin IA real y sin base de datos: reductores puros y arquitectura determinista. **Probado con estado en memoria; la búsqueda es léxica y aún no hay embeddings.**
+
+- **Conocimiento, no conversaciones:** una memoria es un resumen corto; el texto largo se resume y se descarta, y una transcripción se rechaza. Nueve tipos: conversación, negocio, cliente, documento, flujo, decisión, preferencia, aprendizaje y sistema.
+- **Nunca se guarda:** prompts, tokens, secretos, credenciales, OAuth, claves de API, cookies, contraseñas, tarjetas ni datos restringidos. Se rechaza el texto entero y no queda ni en el registro.
+- **Multiempresa:** la empresa se verifica primero; una empresa nunca lee, busca, vota, archiva ni borra la memoria de otra. Permisos por empresa, usuario, worker y rol (`tenant`, `restricted`, `private`).
+- **Nivel 3:** un worker prepara; solo una persona archiva, borra, fija, confirma o vota. La memoria del sistema solo la escribe el sistema.
+- **Ranking 0–100:** importancia, uso, recencia, frecuencia, feedback y confiabilidad.
+- **Búsqueda:** texto, etiquetas, categoría, empresa, worker, tipo, fecha y ranking; mismo estado y misma consulta, mismo orden.
+- **Retención:** TTL (se extiende con el uso), archivo, expiración, eliminación tras la gracia, compresión y resumen automático. **Una memoria importante nunca se borra: se archiva.**
+- **Aprendizaje:** preferencias, decisiones, procesos y formas de trabajar como memorias consultivas (confianza que crece con la repetición, tope más alto si una persona confirma). Nunca cambia una regla del sistema; el texto que lo intenta se rechaza.
+- **Observabilidad por empresa:** creadas, usadas, búsquedas, aciertos, fallos, latencia, ranking, TTL y expiraciones, sin el conocimiento dentro de los eventos.
+- **Para usarla de verdad:** persistencia con RLS, puente al Event Bus, integración con NEX y el Runtime, planificador de limpieza, embeddings detrás de `lib/ai/` y pantallas; cada uno con aprobación propia.
