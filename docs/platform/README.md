@@ -47,6 +47,7 @@
 | `lib/integrations/google/` | Google Workspace: OAuth real (PKCE, refresh, revocación), Gmail, Calendar y Drive por Workers, sincronización, salud | Único lugar que habla con Google; secretos por nombre; tokens cifrados; probado contra un Google simulado | `google.test.ts` |
 | `lib/integrations/hub/` | Integration Hub: un contrato para cualquier proveedor (conectar, renovar, sincronizar, ejecutar, validar), registro, reintentos con disyuntor, límites de uso, salud 0–100, eventos y workflows | Capa nueva; el núcleo no nombra proveedores; solo un Worker llega al Hub; lo que sale espera a una persona; probado con proveedores simulados | `hub.test.ts` |
 | `lib/nex/memory/` | NEX Memory Engine: memoria útil por empresa (nueve tipos), búsqueda, ranking, retención, seguridad, aprendizaje y observabilidad | Capa nueva; reductores puros sin reloj ni base de datos; nunca guarda conversaciones, prompts ni credenciales; una empresa nunca lee a otra | `memory.test.ts` |
+| `lib/nex/knowledge/` | NEX Knowledge Graph: relaciona el conocimiento de la empresa (20 tipos de nodo, 16 relaciones) con recorridos, búsqueda, ranking, seguridad y un constructor que solo lee | Capa nueva; reductores puros sin reloj ni base de datos; el grafo solo referencia, nunca copia; sin ciclos inválidos; una empresa nunca se relaciona con otra | `knowledge.test.ts` |
 | `automations.ts` | Plantillas y validación anteriores (se conservan): disparador, condiciones, acciones | Validación, acciones externas por aprobación, aviso de bucle, modo de prueba por defecto |
 
 ## 3. Modelos de datos (futuros; ninguno existe aún)
@@ -848,3 +849,18 @@ Ver ADR-0027. NEX deja de responder solo con el contexto inmediato: tiene memori
 - **Aprendizaje:** preferencias, decisiones, procesos y formas de trabajar como memorias consultivas (confianza que crece con la repetición, tope más alto si una persona confirma). Nunca cambia una regla del sistema; el texto que lo intenta se rechaza.
 - **Observabilidad por empresa:** creadas, usadas, búsquedas, aciertos, fallos, latencia, ranking, TTL y expiraciones, sin el conocimiento dentro de los eventos.
 - **Para usarla de verdad:** persistencia con RLS, puente al Event Bus, integración con NEX y el Runtime, planificador de limpieza, embeddings detrás de `lib/ai/` y pantallas; cada uno con aprobación propia.
+
+## 38. NEX Knowledge Graph
+
+Ver ADR-0028. El Knowledge Graph relaciona toda la memoria de una empresa sin depender de IA. Capa nueva en `lib/nex/knowledge/`, sin pantallas, sin IA real y sin base de datos: reductores puros y arquitectura determinista. **Probado con estado en memoria; la memoria real encaja, las demás fuentes se probaron con registros de ejemplo.**
+
+- **Referencia, no copia:** un nodo lleva el id de lo que representa (`referenceId`), su tipo, confianza, importancia y permisos; nunca texto, nombres ni el resumen de una memoria. Veinte tipos (empresa, persona, cliente, lead, worker, agente, documento, proyecto, proceso, producto, servicio, propiedad, campaña, conversación, decisión, preferencia, automatización, evento, tarea, KPI).
+- **Dieciséis relaciones** (created, owns, belongsTo, assignedTo, worksWith, references, dependsOn, relatedTo, generated, approved, rejected, learned, uses, contains, mentions, participatesIn), cada una con los tipos que puede unir.
+- **Sin duplicados ni ciclos inválidos:** un nodo es único por tipo y referencia, una relación por origen, tipo y destino (verla otra vez la refuerza); la jerarquía y las dependencias no admiten bucles ni un nodo consigo mismo.
+- **Multiempresa:** nunca hay relaciones entre empresas; una relación solo es visible si lo son sus dos extremos y los recorridos no atraviesan lo oculto. Permisos por empresa, usuario, worker y rol.
+- **Nivel 3:** solo una persona aprueba o rechaza; un worker prepara; solo un gestor quita; solo el sistema o un administrador construye.
+- **Recorridos:** anchura, profundidad, camino más corto, vecindad y conocimiento relacionado; mismo grafo, mismo recorrido.
+- **Búsqueda y ranking (0–100):** por nodo, relación, tipo, worker, categoría, etiquetas, texto y profundidad; el ranking suma importancia, confianza, uso, frecuencia, profundidad y centralidad.
+- **Knowledge Builder:** construye desde memoria, organización, CRM, plantillas, arquitecto, workers, automatizaciones, insights, facturación, marketplace y academia. Solo lee; cada fuente solo habla de sus tipos de nodo; lo inválido se salta y se cuenta; construir dos veces no cambia nada; con `replace`, lo que la fuente ya no dice sale del grafo.
+- **Observabilidad por empresa:** nodos, relaciones, búsquedas, recorridos, ranking, latencia, aciertos y fallos, sin conocimiento dentro de los eventos.
+- **Para usarlo de verdad:** persistencia con RLS, puente al Event Bus, adaptadores de lectura por módulo, integración con NEX y el Runtime, planificador de reconstrucción y pantallas; cada uno con aprobación propia.
