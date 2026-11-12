@@ -1,10 +1,11 @@
-import { BarChart3, BookOpen, Blocks, Building2, CreditCard, Gift, Handshake, Inbox, Plug, Receipt, Sparkles, Code2, Store, UserCog, Workflow, type LucideIcon } from "lucide-react";
+import { BarChart3, BookOpen, Blocks, Building2, CreditCard, Gift, Handshake, Inbox, Link2, Plug, Receipt, Sparkles, Code2, Store, UserCog, Workflow, type LucideIcon } from "lucide-react";
 
 // Base screens of the platform modules. Everything here is a preview of what will be connected: nothing is live.
-export type PlatformSectionKey = "integrations" | "payments" | "referrals" | "store" | "academy" | "workers" | "automations" | "studio" | "insights" | "crm" | "comms" | "org" | "billing" | "developers";
+export type PlatformSectionKey = "integrations" | "connectedApps" | "payments" | "referrals" | "store" | "academy" | "workers" | "automations" | "studio" | "insights" | "crm" | "comms" | "org" | "billing" | "developers";
 
 export const PLATFORM_SECTIONS: ReadonlyArray<{ key: PlatformSectionKey; href: string; icon: LucideIcon; title: string; summary: string }> = [
   { key: "integrations", href: "/platform/integrations", icon: Plug, title: "Centro de Integraciones", summary: "Canales, pagos y calendario de la empresa, con el estado de cada conexión." },
+  { key: "connectedApps", href: "/platform/connected-apps", icon: Link2, title: "Apps conectadas", summary: "Gmail, Outlook, calendarios, Drive, WhatsApp, redes y video: estado, permisos y salud de cada app. Cada empresa autoriza solo sus cuentas." },
   { key: "payments", href: "/platform/payments", icon: CreditCard, title: "Pagos", summary: "Enlaces de cobro, estados y conciliación. Cada cobro lo aprueba una persona." },
   { key: "referrals", href: "/platform/referrals", icon: Gift, title: "Referidos", summary: "Programa, atribución y recompensas con revisión antes de pagar." },
   { key: "store", href: "/platform/store", icon: Store, title: "Marketplace", summary: "Productos, servicios, cursos, agentes IA, automatizaciones y apps; toda publicación se aprueba antes de salir." },

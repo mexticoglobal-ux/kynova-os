@@ -43,6 +43,7 @@
 | `financial-router.ts` | KOE Financial Router: la única entrada del dinero; siete adaptadores desconectados con una interfaz; decisión, reintentos, respaldo, idempotencia, costos, monedas, estados, historial | Billing/Marketplace/Partners piden; el Router decide; ningún proveedor conectado | `financial-router.test.ts` |
 | `business-architect.ts` | AI Business Architect: asistente de bienvenida, cuestionario, detección del negocio, recomendación, vista previa e instalación con un clic | Solo elige y escala plantillas y límites de Billing; no usa IA real ni reglas nuevas | `business-architect.test.ts` |
 | `internal-beta.ts` | Beta interna: crea cuatro empresas con el AI Business Architect y configura sus casos de uso; portafolio de KYNOVA | Solo guion sobre módulos existentes; datos de ejemplo; nada conectado | `internal-beta.test.ts` |
+| `connectors.ts` | Real World Integrations: 12 conectores con una interfaz, OAuth preparado, sincronización, permisos, salud y el camino Agente → Worker → Conector → Proveedor | Adaptadores simulados; credenciales por Secrets Manager; nada real conectado | `connectors.test.ts` |
 | `automations.ts` | Plantillas y validación anteriores (se conservan): disparador, condiciones, acciones | Validación, acciones externas por aprobación, aviso de bucle, modo de prueba por defecto |
 
 ## 3. Modelos de datos (futuros; ninguno existe aún)
@@ -778,3 +779,28 @@ Ver ADR-0022. KYNOVA administra cuatro empresas con su propia plataforma.
 - **Datos de ejemplo:** los datos reales siguen bloqueados por las puertas del ADR-0006. **Nada conectado:** ni WhatsApp, ni Stripe, ni MakaPay, ni redes sociales.
 - **Portafolio de KYNOVA** (`portfolio`, `mrrMicros`): lectura de las cuatro empresas.
 - **Pruebas** extremo a extremo (19): sin pasos rechazados, solo personas deciden, aislamiento y cobertura del Event Bus por empresa.
+
+## 34. Real World Integrations
+
+Ver ADR-0024. La arquitectura para trabajar sobre las herramientas de los clientes, **sin conectar ninguna API real**: cada proveedor se conectará en un sprint propio sin cambiar esta arquitectura.
+
+| Conector | Proveedor | Sincroniza |
+|----------|-----------|------------|
+| Gmail, Outlook | Google, Microsoft | Correos |
+| Google Calendar, Microsoft Calendar | Google, Microsoft | Eventos |
+| Google Drive, OneDrive | Google, Microsoft | Archivos |
+| WhatsApp Business | Meta | Mensajes, leads |
+| Facebook Pages | Meta | Mensajes, publicaciones, comentarios, leads |
+| Instagram Business | Meta | Mensajes, publicaciones, comentarios |
+| LinkedIn Company | LinkedIn | Publicaciones, comentarios, leads |
+| YouTube | Google | Videos, comentarios |
+| TikTok Business | TikTok | Videos, comentarios, leads |
+
+- **Una interfaz** (`ConnectorAdapter`) y **cuatro estados**: Connected, Disconnected, Pending Authorization y Error. Cada conector muestra nombre, proveedor, última sincronización, estado, permisos y empresa propietaria.
+- **OAuth preparado:** PKCE, `state` de un solo uso atado a la empresa, retorno seguro. **No se guardan credenciales a mano:** los tokens solo existen como referencia `secret:...` y las credenciales de la app de KYNOVA se leen por nombre del Secrets Manager (`GOOGLE_*`, `MICROSOFT_*`, `META_*`, `LINKEDIN_*`, `TIKTOK_*`).
+- **Multiempresa:** cada empresa autoriza solo sus cuentas; una cuenta pertenece a una empresa a la vez.
+- **Agente IA → Worker → Conector → Proveedor:** solo un Worker pide la acción; lo que sale de la plataforma espera a una persona.
+- **Sincronización** de correos, eventos, archivos, mensajes, videos, publicaciones, leads y comentarios (cuentas y cursores, nunca contenido), renovación de tokens y reintentos.
+- **Pantalla Connected Apps** (`/platform/connected-apps`, simulada) y **salud** de Google, Microsoft, Meta, YouTube, WhatsApp, LinkedIn, TikTok y Drive.
+- **Valores de referencia:** endpoints, permisos y requisitos de revisión de cada proveedor, a verificar en su sprint.
+- **Pruebas:** conexión, desconexión, renovación, errores, multiempresa, OAuth, secretos y permisos.
