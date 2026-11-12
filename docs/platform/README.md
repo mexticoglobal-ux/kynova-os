@@ -45,6 +45,7 @@
 | `internal-beta.ts` | Beta interna: crea cuatro empresas con el AI Business Architect y configura sus casos de uso; portafolio de KYNOVA | Solo guion sobre módulos existentes; datos de ejemplo; nada conectado | `internal-beta.test.ts` |
 | `connectors.ts` | Real World Integrations: 12 conectores con una interfaz, OAuth preparado, sincronización, permisos, salud y el camino Agente → Worker → Conector → Proveedor | Adaptadores simulados; credenciales por Secrets Manager; nada real conectado | `connectors.test.ts` |
 | `lib/integrations/google/` | Google Workspace: OAuth real (PKCE, refresh, revocación), Gmail, Calendar y Drive por Workers, sincronización, salud | Único lugar que habla con Google; secretos por nombre; tokens cifrados; probado contra un Google simulado | `google.test.ts` |
+| `lib/integrations/hub/` | Integration Hub: un contrato para cualquier proveedor (conectar, renovar, sincronizar, ejecutar, validar), registro, reintentos con disyuntor, límites de uso, salud 0–100, eventos y workflows | Capa nueva; el núcleo no nombra proveedores; solo un Worker llega al Hub; lo que sale espera a una persona; probado con proveedores simulados | `hub.test.ts` |
 | `automations.ts` | Plantillas y validación anteriores (se conservan): disparador, condiciones, acciones | Validación, acciones externas por aprobación, aviso de bucle, modo de prueba por defecto |
 
 ## 3. Modelos de datos (futuros; ninguno existe aún)
@@ -817,3 +818,17 @@ Ver ADR-0025. El primer proveedor real sobre la arquitectura de conectores (§34
 - **Una cuenta de Google, una sola empresa;** tokens separados por empresa.
 - **Connected Apps:** panel con cuenta, estado, última sincronización, último correo, último evento, último archivo y Health Score (datos de ejemplo en la pantalla; nunca contenido).
 - **Para conectar de verdad:** crear la aplicación en Google Cloud, pasar la verificación de scopes restringidos, poner las credenciales en Wrangler y cablear las rutas `start` y `callback` con el Backend Core.
+
+## 36. Universal Integration Hub & Workflow Engine
+
+Ver ADR-0026. Una capa nueva (`lib/integrations/hub/`) por la que pasa **cualquier** servicio externo: Worker → Conector → Hub → Proveedor. **Probado con proveedores simulados y con Google Workspace simulado; ningún proveedor real se ha conectado todavía.**
+
+- **Un contrato:** `connect`, `disconnect`, `refresh`, `health`, `sync`, `execute`, `validate`, `capabilities`. Un proveedor nuevo se inscribe con un manifiesto (id, nombre, categoría, permisos, scopes, límites, salud, capacidades, tipo, versión) y un adaptador; el núcleo no cambia.
+- **Registro:** Google Workspace (adaptador real sobre su capa, sin tocarla) y catorce proveedores declarados sin adaptador (Outlook, WhatsApp, Meta, Stripe, MakaPay, PayPal, LinkedIn, TikTok, YouTube, Slack, Discord, Shopify, HubSpot, Salesforce): existen en el registro pero no se pueden conectar. Sus límites son valores de referencia por confirmar.
+- **Camino único:** solo un Worker activo (o el sistema para sincronizar y renovar) llega al Hub. Todo lo que sale de la plataforma espera la aprobación de una persona administradora de esa empresa; una escritura no se reenvía a otro proveedor salvo que se permita, una lectura sí cae al siguiente.
+- **Reintentos:** retroceso exponencial con jitter, `retry-after`, disyuntor, conector muerto, recuperación solo por una persona, y timeout en toda llamada.
+- **Límites:** minuto, hora, día y ráfaga con lo que queda y cuándo se libera; cubeta por conexión y cubeta compartida del proveedor; nunca se excede.
+- **Salud 0–100:** latencia, errores, timeouts, token, última sincronización, OAuth, límites y disyuntor.
+- **Workflows:** sync, push, pull, webhook, manual y programado; los pasos corren como el Worker del flujo; un webhook solo dispara tras validar la firma.
+- **Eventos sin contenido** (ni credenciales ni correos), con traza por solicitud y forma de auditoría de la plataforma.
+- **Para conectar de verdad:** un adaptador por proveedor, el puente al Event Bus, persistencia con RLS, rutas HTTP y un planificador; cada uno con aprobación propia.
