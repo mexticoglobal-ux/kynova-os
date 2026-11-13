@@ -48,6 +48,7 @@
 | `lib/integrations/hub/` | Integration Hub: un contrato para cualquier proveedor (conectar, renovar, sincronizar, ejecutar, validar), registro, reintentos con disyuntor, límites de uso, salud 0–100, eventos y workflows | Capa nueva; el núcleo no nombra proveedores; solo un Worker llega al Hub; lo que sale espera a una persona; probado con proveedores simulados | `hub.test.ts` |
 | `lib/nex/memory/` | NEX Memory Engine: memoria útil por empresa (nueve tipos), búsqueda, ranking, retención, seguridad, aprendizaje y observabilidad | Capa nueva; reductores puros sin reloj ni base de datos; nunca guarda conversaciones, prompts ni credenciales; una empresa nunca lee a otra | `memory.test.ts` |
 | `lib/nex/knowledge/` | NEX Knowledge Graph: relaciona el conocimiento de la empresa (20 tipos de nodo, 16 relaciones) con recorridos, búsqueda, ranking, seguridad y un constructor que solo lee | Capa nueva; reductores puros sin reloj ni base de datos; el grafo solo referencia, nunca copia; sin ciclos inválidos; una empresa nunca se relaciona con otra | `knowledge.test.ts` |
+| `lib/nex/rag/` | NEX RAG Engine: recupera el mejor contexto antes de responder (analizador de consultas, recuperación por palabras, tipo, grafo y relacionada, ranking, contexto compacto, caché y observabilidad) | Capa nueva; solo lectura sobre el Memory Engine y el Knowledge Graph; permisos antes de recuperar; sin secretos en el contexto; sin IA, embeddings ni base de datos | `rag.test.ts` |
 | `automations.ts` | Plantillas y validación anteriores (se conservan): disparador, condiciones, acciones | Validación, acciones externas por aprobación, aviso de bucle, modo de prueba por defecto |
 
 ## 3. Modelos de datos (futuros; ninguno existe aún)
@@ -864,3 +865,17 @@ Ver ADR-0028. El Knowledge Graph relaciona toda la memoria de una empresa sin de
 - **Knowledge Builder:** construye desde memoria, organización, CRM, plantillas, arquitecto, workers, automatizaciones, insights, facturación, marketplace y academia. Solo lee; cada fuente solo habla de sus tipos de nodo; lo inválido se salta y se cuenta; construir dos veces no cambia nada; con `replace`, lo que la fuente ya no dice sale del grafo.
 - **Observabilidad por empresa:** nodos, relaciones, búsquedas, recorridos, ranking, latencia, aciertos y fallos, sin conocimiento dentro de los eventos.
 - **Para usarlo de verdad:** persistencia con RLS, puente al Event Bus, adaptadores de lectura por módulo, integración con NEX y el Runtime, planificador de reconstrucción y pantallas; cada uno con aprobación propia.
+
+## 39. NEX RAG Engine
+
+Ver ADR-0029. Antes de responder, NEX recupera el mejor contexto disponible: solo lo relevante, solo lo que quien pregunta puede ver, nunca toda la memoria. Capa nueva en `lib/nex/rag/` que reutiliza únicamente el Memory Engine y el Knowledge Graph, sin pantallas, sin IA, sin embeddings y sin base de datos. **Probado con los motores reales sobre estado en memoria; la relevancia es léxica y nadie consume todavía el contexto.**
+
+- **Pipeline:** pregunta → analizador → recuperación en memoria → recuperación en el grafo → ranking → constructor de contexto. Solo lectura: no escribe nada en memoria ni en el grafo. Organización, workers, plantillas, arquitecto, insights, CRM, facturación, marketplace, academia y automatizaciones llegan a través del grafo.
+- **Analizador:** once clases (información, cliente, empresa, documento, workflow, finanzas, ventas, marketing, operaciones, preferencias, histórico); mismo análisis sin importar mayúsculas, acentos ni orden.
+- **Recuperación:** por palabras clave, por tipo de memoria, por grafo, relacionada (hasta dos saltos) e híbrida, con Top K (8 por defecto, máximo 25). Una memoria que también es nodo es un solo elemento.
+- **Ranking 0–100:** relevancia, confianza, importancia, recencia, frecuencia, centralidad, distancia en el grafo y feedback.
+- **Contexto compacto:** por prioridad, sin duplicados, dentro de un presupuesto de caracteres, y nunca con secretos, tokens, credenciales, OAuth, claves, cookies, contraseñas, datos restringidos ni instrucciones disfrazadas; una pregunta con una credencial se rechaza.
+- **Caché determinista:** clave con empresa, quien pregunta, términos, filtros, Top K y una huella del conocimiento (contenido y permisos); TTL configurable; calificar un elemento descarta las respuestas que lo usaron.
+- **Seguridad:** permisos antes de recuperar (lo que no puedes ver no existe), un guardia final por empresa, y nada se mezcla entre empresas. Un worker solo pregunta; solo una persona o el sistema califica.
+- **Observabilidad por empresa:** consultas, aciertos y fallos, caché, latencia, memorias y nodos usados, ranking y Top K, sin la pregunta ni el conocimiento dentro de los eventos.
+- **Para usarlo de verdad:** conectarlo a NEX y al Runtime, marcar como usadas las memorias devueltas, puente al Event Bus, persistencia, embeddings detrás de `lib/ai/` y pantallas; cada uno con aprobación propia.
