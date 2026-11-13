@@ -49,6 +49,7 @@
 | `lib/nex/memory/` | NEX Memory Engine: memoria útil por empresa (nueve tipos), búsqueda, ranking, retención, seguridad, aprendizaje y observabilidad | Capa nueva; reductores puros sin reloj ni base de datos; nunca guarda conversaciones, prompts ni credenciales; una empresa nunca lee a otra | `memory.test.ts` |
 | `lib/nex/knowledge/` | NEX Knowledge Graph: relaciona el conocimiento de la empresa (20 tipos de nodo, 16 relaciones) con recorridos, búsqueda, ranking, seguridad y un constructor que solo lee | Capa nueva; reductores puros sin reloj ni base de datos; el grafo solo referencia, nunca copia; sin ciclos inválidos; una empresa nunca se relaciona con otra | `knowledge.test.ts` |
 | `lib/nex/rag/` | NEX RAG Engine: recupera el mejor contexto antes de responder (analizador de consultas, recuperación por palabras, tipo, grafo y relacionada, ranking, contexto compacto, caché y observabilidad) | Capa nueva; solo lectura sobre el Memory Engine y el Knowledge Graph; permisos antes de recuperar; sin secretos en el contexto; sin IA, embeddings ni base de datos | `rag.test.ts` |
+| `lib/nex/copilot/` | NEX Executive Copilot: entiende la empresa (RAG, memoria, grafo, KOE), encuentra problemas, oportunidades y riesgos, arma planes, clasifica recomendaciones y PREPARA acciones que solo una persona aprueba | Capa nueva; reductores puros sin IA ni base de datos; solo lectura; nunca ejecuta una acción; permisos antes de construir el contexto | `copilot.test.ts` |
 | `automations.ts` | Plantillas y validación anteriores (se conservan): disparador, condiciones, acciones | Validación, acciones externas por aprobación, aviso de bucle, modo de prueba por defecto |
 
 ## 3. Modelos de datos (futuros; ninguno existe aún)
@@ -879,3 +880,18 @@ Ver ADR-0029. Antes de responder, NEX recupera el mejor contexto disponible: sol
 - **Seguridad:** permisos antes de recuperar (lo que no puedes ver no existe), un guardia final por empresa, y nada se mezcla entre empresas. Un worker solo pregunta; solo una persona o el sistema califica.
 - **Observabilidad por empresa:** consultas, aciertos y fallos, caché, latencia, memorias y nodos usados, ranking y Top K, sin la pregunta ni el conocimiento dentro de los eventos.
 - **Para usarlo de verdad:** conectarlo a NEX y al Runtime, marcar como usadas las memorias devueltas, puente al Event Bus, persistencia, embeddings detrás de `lib/ai/` y pantallas; cada uno con aprobación propia.
+
+## 40. NEX Executive Copilot
+
+Ver ADR-0030. NEX como el director ejecutivo digital de cada empresa: antes de responder o proponer algo consulta el RAG (memoria y grafo) y KOE, entiende el negocio, arma un plan y prepara acciones. Capa nueva en `lib/nex/copilot/`, sin pantallas, sin IA, sin base de datos y **sin ejecutar nada**. **Probado con los motores reales y con registros reales de KOE sobre estado en memoria; las reglas y sus umbrales son valores de partida por revisar.**
+
+- **Pipeline:** usuario → Copilot → RAG → memoria → grafo → KOE → plan → respuesta. Nunca responde solo con la pregunta. Solo lectura: no escribe en memoria, grafo, KOE ni en ningún módulo.
+- **Comprende la empresa:** 18 reglas deterministas dan problemas, oportunidades y riesgos con números como evidencia; los objetivos salen de la persona, de lo que la empresa escribió y de uno por defecto.
+- **Recomendaciones:** Critical / High / Medium / Low, cada una con motivo, beneficio, impacto, riesgo y módulos involucrados.
+- **Planes deterministas** de diez tipos (ventas, marketing, finanzas, operaciones, CRM, automatizaciones, IA, crecimiento, soporte, organización), con pasos, objetivo y horizonte.
+- **Acciones: se sugieren, nunca se ejecutan.** Vienen del catálogo existente de la plataforma, con su nivel; todas requieren aprobación humana (nivel 1 un miembro, 2 un gestor, 3 un administrador), caducan a las 72 h y aprobar solo registra quién estuvo de acuerdo.
+- **Sesión sin conversación:** recuerda tema, objetivo, empresa, quién preguntó, últimas decisiones y recomendaciones; no guarda preguntas ni respuestas.
+- **Datos para un dashboard futuro:** KPIs, riesgos, oportunidades, alertas, prioridades, resumen ejecutivo y estado general. Sin pantallas.
+- **Seguridad:** permisos antes de construir el contexto; el dinero solo para gestores y superiores, las cifras operativas para miembros y superiores; lo oculto no existe (ni hallazgo, ni recomendación, ni acción). Sin secretos ni credenciales.
+- **Observabilidad por empresa:** consultas, contextos, planes, recomendaciones, acciones sugeridas, latencia, ranking y módulos consultados, sin la pregunta ni el contexto en los eventos.
+- **Para usarlo de verdad:** conectarlo a NEX y al Runtime, conectar las acciones aprobadas con KOE, puente al Event Bus, persistencia con RLS, pantallas y más reglas; cada uno con aprobación propia.
