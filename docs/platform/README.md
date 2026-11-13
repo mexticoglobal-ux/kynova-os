@@ -51,6 +51,7 @@
 | `lib/nex/rag/` | NEX RAG Engine: recupera el mejor contexto antes de responder (analizador de consultas, recuperación por palabras, tipo, grafo y relacionada, ranking, contexto compacto, caché y observabilidad) | Capa nueva; solo lectura sobre el Memory Engine y el Knowledge Graph; permisos antes de recuperar; sin secretos en el contexto; sin IA, embeddings ni base de datos | `rag.test.ts` |
 | `lib/nex/copilot/` | NEX Executive Copilot: entiende la empresa (RAG, memoria, grafo, KOE), encuentra problemas, oportunidades y riesgos, arma planes, clasifica recomendaciones y PREPARA acciones que solo una persona aprueba | Capa nueva; reductores puros sin IA ni base de datos; solo lectura; nunca ejecuta una acción; permisos antes de construir el contexto | `copilot.test.ts` |
 | `lib/nex/execution/` | NEX Autonomous Execution Engine: convierte las recomendaciones del Copilot en Execution Plans (DAG de pasos con autorizaciones, workers, conectores, rollback, costos y tiempo), listos para aprobar | Capa nueva; reductores puros sin reloj, red ni IA; no ejecuta nada ni llama a Runtime, Workers o Connectors; permisos antes de construir; aislado por empresa | `execution.test.ts` |
+| `lib/nex/runtime-orchestrator/` | NEX Autonomous Runtime Orchestration: toma un Execution Plan aprobado, arma la cola de ejecución (once estados), respeta DAG, prioridades y autorizaciones, asigna workers elegibles y detecta bloqueos, reintentos y timeouts | Capa nueva; reductores puros sin reloj, red, IA ni base de datos; no ejecuta nada ni llama a Runtime, Workers o Connectors; permisos antes de asignar; aislado por empresa | `runtime-orchestrator.test.ts` |
 | `automations.ts` | Plantillas y validación anteriores (se conservan): disparador, condiciones, acciones | Validación, acciones externas por aprobación, aviso de bucle, modo de prueba por defecto |
 
 ## 3. Modelos de datos (futuros; ninguno existe aún)
@@ -911,3 +912,19 @@ Ver ADR-0031. Convierte automáticamente las recomendaciones del Copilot en **Ex
 - **Datos para un dashboard futuro:** planes por estado, workers requeridos y disponibles, utilización, tiempos, costos, cuellos de botella y dependencias. Sin pantallas.
 - **Observabilidad por empresa:** solo ids y métricas; nunca prompts, respuestas, contexto, correos, teléfonos, tokens ni contenido.
 - **Para usarlo de verdad:** un runtime que reporte resultados, conectarlo con KOE y los workers, puente al Event Bus, persistencia con RLS y pantallas; cada uno con aprobación propia.
+
+## 42. NEX Autonomous Runtime Orchestration
+
+Ver ADR-0032. Conecta los Execution Plans aprobados (ADR-0031) con un runtime futuro: construye la cola, asigna workers y deja todo listo, de forma determinista y auditable. Capa nueva en `lib/nex/runtime-orchestrator/`, sin pantallas, sin IA, sin red y sin base de datos. **No ejecuta ninguna acción, no llama a APIs, a Workers ni a Conectores, y no los modifica.** Probado con planes de ejemplo y rosters de ejemplo.
+
+- **Pipeline:** Execution Plan aprobado → Runtime Orchestrator → Runtime → Execution Queue → Worker Assignment.
+- **Cola de ejecución:** un elemento por paso, con once estados (Pending, Assigned, WaitingDependencies, WaitingApproval, Ready, Running, Paused, Completed, Failed, Cancelled, Expired) y una tabla cerrada de cambios.
+- **Autorización antes que nada:** el aprobador debe tener el rol del nivel de cada paso (1 miembro, 2 gestor, 3 administrador); un rol desconocido no autoriza. Un paso sin autorización no recibe worker ni puede iniciar.
+- **DAG:** ningún paso inicia hasta que todas sus dependencias (de pasos y de planes) estén Completed; se rechazan ciclos.
+- **Asignación:** worker de la misma empresa, activo, con la especialidad, con permiso para la acción y con capacidad; gana el de menor carga. Nunca uno inactivo ni de otra empresa.
+- **Planificador:** prioridad, impacto, antigüedad e id; reintentos con backoff exponencial (el nivel 3 no se reintenta); timeouts; bloqueos (dependencia fallida o no encolada, sin worker posible, aprobación que no llega, ciclo).
+- **Runtime Adapter:** `prepareExecution`, `assignWorker`, `startExecution`, `pauseExecution`, `resumeExecution`, `cancelExecution` y `finishExecution`, todas puras. Running, Completed y Failed son solo lo que reporta el sistema.
+- **Pausar, reanudar y cancelar** una corrida (gestor o sistema); idempotente: encolar o tickear de nuevo no cambia nada.
+- **Auditoría y observabilidad por empresa:** solo ids y métricas (asignación, inicio, pausa, reanudación, timeout, reintento, cancelación, fin, fallo); nunca prompts, respuestas, contexto, secretos, OAuth, tokens ni contenido.
+- **Datos para un dashboard futuro:** planes activos y completados, workers activos y libres, cola, throughput, utilización, tiempo promedio, reintentos, fallos, cuellos de botella y dependencias. Sin pantallas.
+- **Para usarlo de verdad:** un runtime que consuma la lista y reporte resultados, conectarlo con KOE y los workers, puente al Event Bus, persistencia con RLS y pantallas; cada uno con aprobación propia.
