@@ -53,6 +53,7 @@
 | `lib/nex/execution/` | NEX Autonomous Execution Engine: convierte las recomendaciones del Copilot en Execution Plans (DAG de pasos con autorizaciones, workers, conectores, rollback, costos y tiempo), listos para aprobar | Capa nueva; reductores puros sin reloj, red ni IA; no ejecuta nada ni llama a Runtime, Workers o Connectors; permisos antes de construir; aislado por empresa | `execution.test.ts` |
 | `lib/nex/runtime-orchestrator/` | NEX Autonomous Runtime Orchestration: toma un Execution Plan aprobado, arma la cola de ejecución (once estados), respeta DAG, prioridades y autorizaciones, asigna workers elegibles y detecta bloqueos, reintentos y timeouts | Capa nueva; reductores puros sin reloj, red, IA ni base de datos; no ejecuta nada ni llama a Runtime, Workers o Connectors; permisos antes de asignar; aislado por empresa | `runtime-orchestrator.test.ts` |
 | `lib/nex/worker-runtime/` | NEX Worker Runtime Engine: el ciclo de vida de cada Worker (catorce estados con tabla cerrada de transiciones, heartbeat, salud 0–100, capacidad, reintentos, planificador, mantenimiento, pausa y parada) | Capa nueva; reductores puros sin reloj, red, IA ni base de datos; no ejecuta nada; Nivel 3 solo personas; aislado por empresa | `worker-runtime.test.ts` |
+| `lib/nex/worker-os/` | NEX Worker Operating System: qué es capaz de hacer un Worker (especialidad, capacidades, skills 0–100, herramientas, permisos, límites, versiones, compatibilidad, upgrade y rollback) y la política que decide si se le puede dar algo | Capa nueva; reductores puros sin reloj, red, IA ni base de datos; no ejecuta nada ni instala; Nivel 3 solo personas administradoras; aislado por empresa | `worker-os.test.ts` |
 | `automations.ts` | Plantillas y validación anteriores (se conservan): disparador, condiciones, acciones | Validación, acciones externas por aprobación, aviso de bucle, modo de prueba por defecto |
 
 ## 3. Modelos de datos (futuros; ninguno existe aún)
@@ -946,3 +947,21 @@ Ver ADR-0033. El Runtime Orchestrator (§42) decide **qué** ejecutar; esta capa
 - **Observabilidad por empresa:** solo ids y métricas; nunca prompts, contexto, memoria ni respuestas.
 - **Preparado, no construido:** mensajes para el Event Bus (`toBusMessage`) y las tablas futuras con RLS (`FUTURE_TABLES`); no se tocó el Backend Core y no hay migraciones.
 - **Para usarlo de verdad:** conectar el Orchestrator, Runtime y Workers reales, Event Bus, persistencia con RLS y pantallas; cada uno con aprobación propia.
+
+## 44. NEX Worker Operating System
+
+Ver ADR-0034. El Worker Runtime (§43) administra cómo **vive** un Worker; esta capa administra **qué es capaz de hacer**. Capa nueva en `lib/nex/worker-os/`, sin pantallas, sin IA, sin red y sin base de datos. **No ejecuta tareas ni herramientas y no instala nada.** Probada con Workers de ejemplo.
+
+- **Esquema cerrado:** `workerId`, `companyId`, `version`, `build`, `runtimeVersion`, `platformVersion`, `status`, `specialty`, `capabilities`, `skills`, `tools`, `permissions`, `limits` y `health`; nada fuera del esquema y sin texto libre.
+- **Un solo catálogo global** (sin repetir datos): quince especialidades, catorce capacidades con la versión de su contrato, doce herramientas, skills y versiones.
+- **Capacidades, herramientas y permisos nunca se mezclan:** cada lista se valida aparte y un permiso no puede llamarse como una capacidad o una herramienta. Las capacidades se declaran, nunca se asumen.
+- **Skills 0–100** sin duplicados; **herramientas** solo registradas, nunca ejecutadas.
+- **Compatibilidad:** versión del Worker, del runtime, de la plataforma y de cada capacidad; una incompatibilidad **bloquea** al Worker.
+- **Upgrade:** `upgradeRequested` → `upgradeApproved` → `upgradeInstalled`, siempre por personas y nunca automático. **Rollback** exacto al release anterior (versión, build, runtime y plataforma).
+- **Políticas:** `evaluateRequest` reúne todas las violaciones (empresa, estado, versión, capacidad, skill, herramienta, permiso) y solo responde; no ejecuta.
+- **Nivel 3, solo personas administradoras:** crear, actualizar, cambiar capacidades, permisos o herramientas, upgrade y rollback. Los Workers, el sistema y NEX nunca; solo reportan su salud.
+- **Auditoría** de creación, actualización, upgrade, rollback, cambios de permisos y de capacidades (y de herramientas), con solo ids y números.
+- **Dashboard (solo datos):** workers, versiones, especialidades, capacidades, skills, herramientas, compatibilidad, upgrades pendientes, rollbacks disponibles y salud, de una sola empresa.
+- **Multiempresa y observabilidad:** Workers nunca compartidos; métricas por empresa sin prompts, contexto ni memoria.
+- **Preparado, no construido:** mensajes para el Event Bus (`toBusMessage`) y tablas futuras con RLS (`FUTURE_TABLES`); no se tocó el Backend Core y no hay migraciones.
+- **Para usarlo de verdad (Sprint 51):** conectarlo con la ejecución real y los conectores externos, el Worker Runtime y el Orchestrator, Event Bus, persistencia con RLS y pantallas; cada uno con aprobación propia.
