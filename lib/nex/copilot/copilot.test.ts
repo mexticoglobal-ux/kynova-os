@@ -783,7 +783,7 @@ describe("the layer is new, read only and connected to nothing but the layers it
         if (["node_modules", ".next", ".git", ".open-next"].includes(entry.name)) continue;
         const path = join(dir, entry.name);
         if (entry.isDirectory()) walk(path);
-        else if (/\.(ts|tsx)$/.test(entry.name) && !path.includes(join("lib", "nex", "copilot")) && /lib\/nex\/copilot/.test(readFileSync(path, "utf8"))) importers.push(path);
+        else if (/\.(ts|tsx)$/.test(entry.name) && !path.includes(join("lib", "nex", "copilot")) && !path.includes(join("lib", "nex", "execution")) && /lib\/nex\/copilot/.test(readFileSync(path, "utf8"))) importers.push(path);
       }
     };
     for (const dir of ["app", "lib", "components"]) walk(join(process.cwd(), dir));

@@ -50,6 +50,7 @@
 | `lib/nex/knowledge/` | NEX Knowledge Graph: relaciona el conocimiento de la empresa (20 tipos de nodo, 16 relaciones) con recorridos, búsqueda, ranking, seguridad y un constructor que solo lee | Capa nueva; reductores puros sin reloj ni base de datos; el grafo solo referencia, nunca copia; sin ciclos inválidos; una empresa nunca se relaciona con otra | `knowledge.test.ts` |
 | `lib/nex/rag/` | NEX RAG Engine: recupera el mejor contexto antes de responder (analizador de consultas, recuperación por palabras, tipo, grafo y relacionada, ranking, contexto compacto, caché y observabilidad) | Capa nueva; solo lectura sobre el Memory Engine y el Knowledge Graph; permisos antes de recuperar; sin secretos en el contexto; sin IA, embeddings ni base de datos | `rag.test.ts` |
 | `lib/nex/copilot/` | NEX Executive Copilot: entiende la empresa (RAG, memoria, grafo, KOE), encuentra problemas, oportunidades y riesgos, arma planes, clasifica recomendaciones y PREPARA acciones que solo una persona aprueba | Capa nueva; reductores puros sin IA ni base de datos; solo lectura; nunca ejecuta una acción; permisos antes de construir el contexto | `copilot.test.ts` |
+| `lib/nex/execution/` | NEX Autonomous Execution Engine: convierte las recomendaciones del Copilot en Execution Plans (DAG de pasos con autorizaciones, workers, conectores, rollback, costos y tiempo), listos para aprobar | Capa nueva; reductores puros sin reloj, red ni IA; no ejecuta nada ni llama a Runtime, Workers o Connectors; permisos antes de construir; aislado por empresa | `execution.test.ts` |
 | `automations.ts` | Plantillas y validación anteriores (se conservan): disparador, condiciones, acciones | Validación, acciones externas por aprobación, aviso de bucle, modo de prueba por defecto |
 
 ## 3. Modelos de datos (futuros; ninguno existe aún)
@@ -895,3 +896,18 @@ Ver ADR-0030. NEX como el director ejecutivo digital de cada empresa: antes de r
 - **Seguridad:** permisos antes de construir el contexto; el dinero solo para gestores y superiores, las cifras operativas para miembros y superiores; lo oculto no existe (ni hallazgo, ni recomendación, ni acción). Sin secretos ni credenciales.
 - **Observabilidad por empresa:** consultas, contextos, planes, recomendaciones, acciones sugeridas, latencia, ranking y módulos consultados, sin la pregunta ni el contexto en los eventos.
 - **Para usarlo de verdad:** conectarlo a NEX y al Runtime, conectar las acciones aprobadas con KOE, puente al Event Bus, persistencia con RLS, pantallas y más reglas; cada uno con aprobación propia.
+
+## 41. NEX Autonomous Execution Engine
+
+Ver ADR-0031. Convierte automáticamente las recomendaciones del Copilot en **Execution Plans** completos, deterministas y auditables, listos para que una persona los apruebe. Capa nueva en `lib/nex/execution/`, sin pantallas, sin IA, sin red y sin base de datos. **No ejecuta ninguna acción, no llama al Runtime, a un Worker ni a un Conector.** Probado con el Copilot real de entrada y con rosters y conectores de ejemplo.
+
+- **Pipeline:** Copilot → RAG → Memoria → Knowledge → KOE → Execution Engine → Execution Plan.
+- **Un plan por recomendación:** id, empresa, objetivo, prioridad, severidad, impacto, riesgo, beneficio, módulos, workers y conectores requeridos, autorizaciones, dependencias, pasos, rollback, costo de IA y de API, tiempo estimado, estado, `createdAt`, `expiresAt` e historial.
+- **Pasos en un DAG sin ciclos:** cada paso trae acción, módulo, worker, nivel de autorización, timeout, reintentos, política de rollback, acción de compensación y estado. El nivel sale del catálogo de la plataforma, nunca de lo que traiga la entrada.
+- **Nueve estados** (Draft, WaitingApproval, Approved, Rejected, Running, Paused, Completed, Cancelled, Expired) con una tabla cerrada de cambios. Solo una persona con el rol del nivel más alto del plan aprueba (1 miembro, 2 gestor, 3 administrador). Running, Paused y Completed son solo lo que un runtime futuro reporta, y solo el sistema puede reportarlo.
+- **Reintentos y rollback:** un paso que falla se reintenta según su nivel (el nivel 3 no se reintenta); agotado, pausa el plan. Cancelar un plan en marcha devuelve, preparadas y en orden inverso, las compensaciones de lo ya hecho.
+- **Runtime Adapter:** `prepareExecution`, `validateExecution`, `assignWorkers` y `scheduleExecution`, todas puras.
+- **Seguridad:** permisos antes de construir (lo que no ves no existe en tu plan) y aislamiento por empresa de planes, workers, métricas e historial. Idempotente: preparar lo mismo no duplica.
+- **Datos para un dashboard futuro:** planes por estado, workers requeridos y disponibles, utilización, tiempos, costos, cuellos de botella y dependencias. Sin pantallas.
+- **Observabilidad por empresa:** solo ids y métricas; nunca prompts, respuestas, contexto, correos, teléfonos, tokens ni contenido.
+- **Para usarlo de verdad:** un runtime que reporte resultados, conectarlo con KOE y los workers, puente al Event Bus, persistencia con RLS y pantallas; cada uno con aprobación propia.
