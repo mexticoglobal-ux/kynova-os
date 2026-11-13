@@ -54,6 +54,7 @@
 | `lib/nex/runtime-orchestrator/` | NEX Autonomous Runtime Orchestration: toma un Execution Plan aprobado, arma la cola de ejecución (once estados), respeta DAG, prioridades y autorizaciones, asigna workers elegibles y detecta bloqueos, reintentos y timeouts | Capa nueva; reductores puros sin reloj, red, IA ni base de datos; no ejecuta nada ni llama a Runtime, Workers o Connectors; permisos antes de asignar; aislado por empresa | `runtime-orchestrator.test.ts` |
 | `lib/nex/worker-runtime/` | NEX Worker Runtime Engine: el ciclo de vida de cada Worker (catorce estados con tabla cerrada de transiciones, heartbeat, salud 0–100, capacidad, reintentos, planificador, mantenimiento, pausa y parada) | Capa nueva; reductores puros sin reloj, red, IA ni base de datos; no ejecuta nada; Nivel 3 solo personas; aislado por empresa | `worker-runtime.test.ts` |
 | `lib/nex/worker-os/` | NEX Worker Operating System: qué es capaz de hacer un Worker (especialidad, capacidades, skills 0–100, herramientas, permisos, límites, versiones, compatibilidad, upgrade y rollback) y la política que decide si se le puede dar algo | Capa nueva; reductores puros sin reloj, red, IA ni base de datos; no ejecuta nada ni instala; Nivel 3 solo personas administradoras; aislado por empresa | `worker-os.test.ts` |
+| `lib/nex/execution-gateway/` | NEX Execution Gateway: la última capa antes de ejecutar; valida empresa, worker, versión, permisos, capacidades, herramientas, aprobación, dependencias, timeout, reintentos y política, y construye una Execution Request | Capa nueva; reductores puros sin reloj, red, IA ni base de datos; no ejecuta, no aprueba ni cambia autorizaciones; se detiene en la solicitud; aislado por empresa | `execution-gateway.test.ts` |
 | `automations.ts` | Plantillas y validación anteriores (se conservan): disparador, condiciones, acciones | Validación, acciones externas por aprobación, aviso de bucle, modo de prueba por defecto |
 
 ## 3. Modelos de datos (futuros; ninguno existe aún)
@@ -965,3 +966,19 @@ Ver ADR-0034. El Worker Runtime (§43) administra cómo **vive** un Worker; esta
 - **Multiempresa y observabilidad:** Workers nunca compartidos; métricas por empresa sin prompts, contexto ni memoria.
 - **Preparado, no construido:** mensajes para el Event Bus (`toBusMessage`) y tablas futuras con RLS (`FUTURE_TABLES`); no se tocó el Backend Core y no hay migraciones.
 - **Para usarlo de verdad (Sprint 51):** conectarlo con la ejecución real y los conectores externos, el Worker Runtime y el Orchestrator, Event Bus, persistencia con RLS y pantallas; cada uno con aprobación propia.
+
+## 45. NEX Execution Gateway
+
+Ver ADR-0035. Recibe lo que dicen el Runtime Orchestrator (§42), el Worker Runtime (§43) y el Worker OS (§44), **valida absolutamente todo** y construye una **Execution Request**. Capa nueva en `lib/nex/execution-gateway/`, sin pantallas, sin IA, sin red y sin base de datos. **No ejecuta, no llama a APIs, Connectors, Runtime ni Workers, no aprueba y no cambia autorizaciones.** Probada con hechos de ejemplo.
+
+- **Flujo:** plan aprobado → Orchestrator → Worker Runtime → Worker OS → Gateway → Execution Request → **STOP**. No hay estado «enviado»: `dispatch` solo lista las solicitudes Ready.
+- **Ocho estados:** Pending, Validated, WaitingApproval, Ready, Blocked, Rejected, Cancelled y Expired, con tabla cerrada; solo se llega a Ready pasando por Validated.
+- **Execution Request:** `requestId`, `companyId`, `workerId`, `planId`, `stepId`, `actionId`, `priority`, `requestedAt`, `approvedBy`, `timeout`, `retryPolicy`, `executionPolicy`, `toolRequirements` y `capabilityRequirements`; nunca prompts, contexto ni memoria.
+- **Validaciones:** empresa, worker, versión, estado, permisos, capacidades, herramientas, compatibilidad, aprobación, prioridad, dependencias, timeout, reintentos y política. Una sola fallida bloquea y se reportan todas por código; lo que nunca se arreglará (dependencia fallida, plan cerrado, reintento de errores fatales) rechaza.
+- **Aprobación leída, nunca concedida:** solo cuenta una **persona** con el rol del nivel (1 miembro, 2 gestor, 3 administrador); el sistema, un worker o NEX no tienen rol y no cuentan.
+- **Prioridades:** critical, high, normal, low y background, deterministas; nunca se sube por encima de la del plan. **Dependencias:** solo si terminaron correctamente. **Timeout:** mínimo, máximo, empresa, plan y worker. **Reintentos:** solo `retryable`, nunca fatal.
+- **Motor de políticas:** empresa, worker, plan, acción, herramienta, capacidad y rol; solo evalúa.
+- **Seguridad, auditoría y observabilidad:** solo el sistema o un gestor operan el gateway; workers y NEX nunca. Se audita creación, validación, rechazo, cancelación y expiración con solo ids y números.
+- **Dashboard (solo datos):** solicitudes, Ready, Blocked, Rejected, pendientes, tiempo promedio, prioridades, errores y versiones, de una sola empresa.
+- **Preparado, no construido:** mensajes para el Event Bus (`toBusMessage`) y tablas futuras con RLS (`FUTURE_TABLES`); no se tocó el Backend Core y no hay migraciones.
+- **Para usarlo de verdad (Sprint 52):** adaptador de hechos desde las otras capas, conexión con el Runtime real y los Connectors, Event Bus, persistencia con RLS y pantallas; cada uno con aprobación propia.
