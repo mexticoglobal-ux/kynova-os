@@ -52,6 +52,7 @@
 | `lib/nex/copilot/` | NEX Executive Copilot: entiende la empresa (RAG, memoria, grafo, KOE), encuentra problemas, oportunidades y riesgos, arma planes, clasifica recomendaciones y PREPARA acciones que solo una persona aprueba | Capa nueva; reductores puros sin IA ni base de datos; solo lectura; nunca ejecuta una acción; permisos antes de construir el contexto | `copilot.test.ts` |
 | `lib/nex/execution/` | NEX Autonomous Execution Engine: convierte las recomendaciones del Copilot en Execution Plans (DAG de pasos con autorizaciones, workers, conectores, rollback, costos y tiempo), listos para aprobar | Capa nueva; reductores puros sin reloj, red ni IA; no ejecuta nada ni llama a Runtime, Workers o Connectors; permisos antes de construir; aislado por empresa | `execution.test.ts` |
 | `lib/nex/runtime-orchestrator/` | NEX Autonomous Runtime Orchestration: toma un Execution Plan aprobado, arma la cola de ejecución (once estados), respeta DAG, prioridades y autorizaciones, asigna workers elegibles y detecta bloqueos, reintentos y timeouts | Capa nueva; reductores puros sin reloj, red, IA ni base de datos; no ejecuta nada ni llama a Runtime, Workers o Connectors; permisos antes de asignar; aislado por empresa | `runtime-orchestrator.test.ts` |
+| `lib/nex/worker-runtime/` | NEX Worker Runtime Engine: el ciclo de vida de cada Worker (catorce estados con tabla cerrada de transiciones, heartbeat, salud 0–100, capacidad, reintentos, planificador, mantenimiento, pausa y parada) | Capa nueva; reductores puros sin reloj, red, IA ni base de datos; no ejecuta nada; Nivel 3 solo personas; aislado por empresa | `worker-runtime.test.ts` |
 | `automations.ts` | Plantillas y validación anteriores (se conservan): disparador, condiciones, acciones | Validación, acciones externas por aprobación, aviso de bucle, modo de prueba por defecto |
 
 ## 3. Modelos de datos (futuros; ninguno existe aún)
@@ -928,3 +929,20 @@ Ver ADR-0032. Conecta los Execution Plans aprobados (ADR-0031) con un runtime fu
 - **Auditoría y observabilidad por empresa:** solo ids y métricas (asignación, inicio, pausa, reanudación, timeout, reintento, cancelación, fin, fallo); nunca prompts, respuestas, contexto, secretos, OAuth, tokens ni contenido.
 - **Datos para un dashboard futuro:** planes activos y completados, workers activos y libres, cola, throughput, utilización, tiempo promedio, reintentos, fallos, cuellos de botella y dependencias. Sin pantallas.
 - **Para usarlo de verdad:** un runtime que consuma la lista y reporte resultados, conectarlo con KOE y los workers, puente al Event Bus, persistencia con RLS y pantallas; cada uno con aprobación propia.
+
+## 43. NEX Worker Runtime Engine
+
+Ver ADR-0033. El Runtime Orchestrator (§42) decide **qué** ejecutar; esta capa decide **cómo vive** cada Worker. Capa nueva en `lib/nex/worker-runtime/`, sin pantallas, sin IA, sin red y sin base de datos. **No ejecuta ninguna acción: no hay Workers ni Runtime reales.** Probada con workers y tareas de ejemplo.
+
+- **Catorce estados y nada más:** Created, Starting, Idle, Reserved, Busy, Paused, WaitingApproval, Retrying, Recovering, Stopping, Stopped, Failed, Offline y Maintenance, con una tabla cerrada de transiciones (Busy → Created, Offline → Busy, Stopped → Busy, Failed → Busy y Maintenance → Busy se rechazan). Toda transición válida queda en la auditoría.
+- **Nivel 3, solo personas:** registrar, iniciar, detener, pausar, reanudar, mantenimiento, recuperar, aprobar y rechazar. Los Workers, el sistema y NEX nunca; solo reportan.
+- **Heartbeat:** worker, empresa, timestamp, cpu, memoria, cola, tareas en ejecución y versión. Nunca se lee un reloj: el timestamp llega con el reporte, y se validan empresa, fecha, vigencia, orden y números.
+- **Timeout:** Idle → Offline. Busy nunca pasa a Offline directamente: sus tareas vuelven al pool y el worker pasa a Recovering. **Recuperación:** una persona ordena Offline/Failed → Recovering y solo un heartbeat válido lo deja en Idle.
+- **Reintentos:** solo errores retryable, con backoff exponencial; un error fatal nunca se reintenta y deja el worker en Failed.
+- **Planificador:** respeta empresa, especialidad, permisos, prioridad, capacidad (`maxConcurrent`, `current`, `queueLimit`), estado y versión (`version`, `build`, `capabilities`). Nunca asigna a Offline, Failed, Maintenance, Paused ni Stopped.
+- **Mantenimiento, pausa y parada:** el mantenimiento y la pausa no aceptan trabajo nuevo y terminan solo la tarea en curso; detener espera la cola vacía antes de llegar a Stopped.
+- **Salud 0–100:** heartbeat reciente, errores, reintentos, tareas activas, tiempo activo, capacidad libre y recuperaciones.
+- **Dashboard (solo datos):** workers totales, Idle, Busy, Offline, Failed, Maintenance, salud promedio, capacidad utilizada, colas y versiones, de una sola empresa.
+- **Observabilidad por empresa:** solo ids y métricas; nunca prompts, contexto, memoria ni respuestas.
+- **Preparado, no construido:** mensajes para el Event Bus (`toBusMessage`) y las tablas futuras con RLS (`FUTURE_TABLES`); no se tocó el Backend Core y no hay migraciones.
+- **Para usarlo de verdad:** conectar el Orchestrator, Runtime y Workers reales, Event Bus, persistencia con RLS y pantallas; cada uno con aprobación propia.
