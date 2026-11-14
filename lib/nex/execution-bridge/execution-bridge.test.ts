@@ -502,6 +502,115 @@ describe("approved plan → … → Gateway → Google Workspace (Gmail, Calenda
       expect(JSON.stringify([state.audit, w.ws.executions])).not.toContain(mailTask.draft.slice(0, 24));
     });
   });
+
+  describe("YouTube Faceless, end to end: video idea → CRM tasks → Orchestrator → Worker Runtime/OS → Gateway → Approval Center → sponsor email + recording date → CRM", () => {
+    const crmEvent = (type: string, actor: string, extra: Record<string, unknown> = {}, minute = 0, tenantId = T1) => ({ type, tenantId, actor, at: iso(minute), ...extra }) as CrmEvent;
+    const apply = (state: CrmState, event: CrmEvent): CrmState => { const result = reduceCrm(state, event); expect(result.error, `${event.type}: ${result.error}`).toBeUndefined(); return result.state; };
+    const osys = { kind: "system" as const, tenantId: T1 };
+    const T2 = "tenant-vida";
+
+    /** The whole flow, once. It returns a summary made only of ids, states and counts, so two runs can be compared. */
+    async function flow() {
+      // 1–3. CRM: the sponsor lead with the video idea, KOE's tasks, a person accepts them
+      let crm = apply(newCrmState(), crmEvent("lead.create", "worker:w1", { input: { name: "Equipo de Patrocinios", company: "Marca Verde", email: "patrocinios@marcaverde.test", source: "youtube-faceless", estimatedValueMicros: 12_000_000_000, fit: 70 } }));
+      const lead = crm.leads[0]!;
+      crm = apply(crm, crmEvent("interaction.record", "ana", { subject: { kind: "lead", id: lead.id }, kind: "note", summary: "Idea de video: los cinco errores al invertir en bienes raíces" }, 1));
+      crm = apply(crm, crmEvent("analysis.refresh", "worker:w1", { leadId: lead.id }, 2));
+      crm = apply(crm, crmEvent("task.generate", "worker:w1", { leadId: lead.id }, 3));
+      const mailTask = crm.tasks.find((row) => row.kind === "email") ?? crm.tasks[0]!;
+      const taskIds = [...new Set([mailTask.id, (crm.tasks.find((row) => row.id !== mailTask.id) ?? mailTask).id])];
+      for (const taskId of taskIds) crm = apply(crm, crmEvent("task.accept", "ana", { taskId }, 4));
+      expect(reduceCrm(crm, crmEvent("task.complete", "ana", { taskId: mailTask.id }, 5, T2)).error).toBeDefined(); // another company's person cannot touch this company's task
+
+      // 4–5. the plan (sponsor email, then the recording date) enters the Orchestrator, and the Worker Runtime/OS provide the worker
+      const parts = layers();
+      expect(parts.os.setPermissions(adela, T1, "w1", ["calendar.write", "followup.send"]).ok).toBe(true);
+      expect(parts.os.setTools(adela, T1, "w1", ["Calendar", "Email"]).ok).toBe(true);
+      const planId = `xp:${lead.id}`;
+      const step = (id: string, action: string, connector: ConnectorId, dependsOn: string[] = []) => ({ id, action, authorizationLevel: 3, approverRole: "admin", worker: { specialty: "sales" }, timeoutMs: 60_000, estimatedMs: 10_000, retry: { maxAttempts: 1, backoffMs: 1_000 }, dependsOn, state: "pending", connector });
+      const approved = plan({ id: planId, needs: "general", expectedImpact: { level: "medium", score: 55 }, createdAt: iso(0), expiresAt: iso(7 * 24 * 60), steps: [step("sponsor", "followup.send", "gmail"), step("recording", "calendar.write", "googleCalendar", ["sponsor"])] });
+      const orch = new OrchestratorEngine({
+        env: { isWorkerActive: () => true }, now: () => parts.clock.t, roleOf: (_tenantId, personId) => ROLES[personId],
+        workers: () => [{ id: "w1", tenantId: T1, name: "Ventas", specialty: "sales", status: "active", capacity: 2, permissions: ["*"] }],
+      });
+      expect(orch.enqueue(osys, T1, approved).ok).toBe(true);
+      expect(orch.tick(osys, T1).ok).toBe(true);
+      expect(orch.queueFor(osys).map((row) => `${row.id}:${row.state}:${row.workerId ?? "-"}`)).toEqual(["sponsor:Assigned:w1", "recording:WaitingDependencies:-"]);
+
+      // 6. the Gateway: the sponsor email is Ready, the recording date waits for it
+      const gw = new ExecutionGateway({ now: () => parts.clock.t, sources: () => gatewaySources({ plans: [withQueueStates(approved, orch.queueFor(osys))], runtimeWorkers: parts.runtime.workersFor(adela), osWorkers: parts.os.workersFor(adela), roleOf: (id) => ROLES[id] }) });
+      for (const stepId of ["sponsor", "recording"]) expect(gw.submit(system, T1, { planId, stepId, workerId: "w1" }).ok).toBe(true);
+      const mailReady = gw.validate(system, T1, requestIdFor(planId, "sponsor")).record!;
+      expect(mailReady.state).toBe("Ready");
+      expect(gw.validate(system, T1, requestIdFor(planId, "recording")).record).toMatchObject({ state: "Blocked", reasons: ["dependency.pending"] });
+
+      // 7–9. Gmail prepares the sponsor email; the Approval Center holds it; no Worker, agent, system, NEX or non-administrator can approve
+      const w = google();
+      let state = await authorized(w);
+      const held = await holdForApproval(w.ws, state, w.env, mailReady, mailParams(lead, mailTask), w.at());
+      expect("status" in held && held.status).toBe("awaitingApproval");
+      state = (held as { state: ConnectorsState }).state;
+      const mailAction = (held as { action: { id: string } }).action.id;
+      for (const actor of ["worker:w1", "agent:comercial", "system", "nex", "marta"]) {
+        expect((await approveAction(w.ws, state, w.env, { tenantId: T1, actor, actionId: mailAction, at: w.at() })).ok, actor).toBe(false);
+        expect((await rejectAction(w.ws, state, w.env, { tenantId: T1, actor, actionId: mailAction, reason: "x", at: w.at() })).ok, actor).toBe(false);
+      }
+      expect(w.fake.sent).toHaveLength(0);
+      // another company sees nothing and decides nothing
+      expect(approvalInbox(state, T2, w.at())).toEqual([]);
+      expect((await approveAction(w.ws, state, w.env, { tenantId: T2, actor: "luis", actionId: mailAction, at: w.at() })).ok).toBe(false);
+      expect(gw.dashboard({ kind: "system", tenantId: T2 }).requests.total).toBe(0);
+      expect(orch.queueFor({ kind: "system", tenantId: T2 })).toEqual([]);
+
+      // 10. an administrator approves: the (fake) Gmail sends; the Orchestrator is told the step ran
+      const sent = await approveAction(w.ws, state, w.env, { tenantId: T1, actor: "ana", actionId: mailAction, at: w.at() });
+      expect(sent.ok, sent.code).toBe(true);
+      state = sent.state;
+      expect(w.fake.sent[0]!.raw).toContain(`To: ${lead.email!}`);
+      expect(orch.start(osys, T1, "sponsor").ok).toBe(true);
+      parts.clock.advance(5_000);
+      expect(orch.finish(osys, T1, "sponsor", "completed").ok).toBe(true);
+      expect(orch.tick(osys, T1).ok).toBe(true);
+
+      // 11. the recording and publication date: Ready now, held, and created by Calendar on approval
+      const recordingReady = gw.validate(system, T1, requestIdFor(planId, "recording")).record!;
+      expect(recordingReady.state).toBe("Ready");
+      const date = { title: "Grabación y publicación del video", start: "2026-11-20T15:00:00Z", end: "2026-11-20T16:00:00Z", location: "Estudio remoto" };
+      const heldDate = await holdForApproval(w.ws, state, w.env, recordingReady, visitParams(lead, date), w.at());
+      expect("status" in heldDate && heldDate.status).toBe("awaitingApproval");
+      expect(Object.keys(w.fake.events)).toHaveLength(0);
+      const booked = await approveAction(w.ws, (heldDate as { state: ConnectorsState }).state, w.env, { tenantId: T1, actor: "ana", actionId: (heldDate as { action: { id: string } }).action.id, at: w.at() });
+      expect(booked.ok, booked.code).toBe(true);
+      state = booked.state;
+      expect(orch.start(osys, T1, "recording").ok).toBe(true);
+      parts.clock.advance(5_000);
+      expect(orch.finish(osys, T1, "recording", "completed").ok).toBe(true);
+
+      // 12. the CRM records: email sent, sponsor contacted, calendar created, tasks completed
+      for (const event of crmRecordsAfterApproval({ tenantId: T1, leadId: lead.id, taskIds, approver: "ana", at: iso(30), mailRequestId: requestIdFor(planId, "sponsor"), visit: { title: date.title, scheduledFor: date.start } })) crm = apply(crm, event);
+      crm = apply(crm, crmEvent("interaction.record", "ana", { subject: { kind: "lead", id: lead.id }, kind: "email", direction: "out", summary: "Patrocinador contactado" }, 31));
+      expect(crm.meetings).toEqual([expect.objectContaining({ leadId: lead.id, title: date.title })]);
+      expect(crm.tasks.filter((row) => taskIds.includes(row.id)).every((row) => row.status === "done")).toBe(true);
+
+      // nothing sensitive outside the CRM (the record of the lead itself)
+      expect(JSON.stringify([state.audit, w.ws.executions, gw.exportState().audit, gw.log.all(), orch.audit(T1), orch.log.all()])).not.toMatch(/patrocinios@marcaverde|Marca Verde|Equipo de Patrocinios|bienes ra|Estudio remoto/);
+      return {
+        connectors: state.audit.map((row) => `${row.actor}:${row.action}`).filter((row) => /action\./.test(row)), gateway: gw.audit(T1).map((row) => row.action), orchestrator: orch.audit(T1).map((row) => row.action),
+        executions: w.ws.executions.map((row) => `${row.operation}:${row.outcome}`), crm: crm.timeline.filter((row) => row.subject.id === lead.id).map((row) => `${row.kind}:${row.summary}`), tasks: crm.tasks.map((row) => `${row.id}:${row.status}`),
+        gatewayStates: gw.dashboard(system).requests.byState, run: orch.runsFor(osys)[0]!.status, sent: w.fake.sent.length, events: Object.keys(w.fake.events).length, inbox: approvalInbox(state, T1, w.at()).length,
+      };
+    }
+
+    it("a sponsor email and a recording date, held for an administrator, sent and booked with Google simulated, recorded by the CRM; the whole run is deterministic", async () => {
+      const first = await flow();
+      expect(first).toMatchObject({ connectors: ["worker:w1:action.request", "ana:action.approve", "worker:w1:action.request", "ana:action.approve"], executions: ["gmail.send:ok", "calendar.create:ok"], run: "Completed", sent: 1, events: 1, inbox: 0 });
+      expect(first.gatewayStates).toMatchObject({ Ready: 2, Blocked: 0 });
+      expect(first.crm.some((row) => row.startsWith("worker:Correo enviado por Gmail"))).toBe(true);
+      expect(first.crm.some((row) => row.includes("Patrocinador contactado"))).toBe(true);
+      expect(first.tasks.every((row) => row.endsWith(":done") || row.endsWith(":proposed"))).toBe(true);
+      expect(await flow()).toEqual(first);
+    });
+  });
 });
 
 describe("the bridge is glue only", () => {
