@@ -11,6 +11,7 @@ import type { ExecutionPlan } from "@/lib/nex/execution";
 import { ExecutionGateway, requestIdFor, type GatewayRecord } from "@/lib/nex/execution-gateway";
 import { WorkerOsEngine, type Principal as OsPrincipal } from "@/lib/nex/worker-os";
 import { WorkerRuntimeEngine, type Principal as RuntimePrincipal } from "@/lib/nex/worker-runtime";
+import { EXPIRED_REASON, approvalInbox, approveAction, expireDue, holdForApproval, rejectAction } from "./approval-center";
 import { GOOGLE_OPERATION_OF_ACTION, TOOL_OF_CONNECTOR, connectorAction, gatewaySources, googleOperationOf, googleRequest, osFact, planFact, runtimeFact } from "./execution-bridge";
 
 const T1 = "tenant-nova";
@@ -235,6 +236,84 @@ describe("approved plan → … → Gateway → Google Workspace (Gmail, Calenda
     const otherCompany = { ...state, connections: state.connections.map((row) => ({ ...row, tenantId: "tenant-vida" })) };
     expect(googleRequest(records["mail"]!, otherCompany, {}, w.at())).toEqual({ ok: false, reason: "notConnected" }); // another company's connection is never used
   });
+
+  describe("Approval Center: one inbox, approve, reject, expire", () => {
+    /** A Ready request for an email, held in the inbox. */
+    async function held() {
+      const w = google();
+      const state = await authorized(w);
+      const result = await holdForApproval(w.ws, state, w.env, readyRecords()["mail"]!, PARAMS.mail, w.at());
+      expect("status" in result && result.status).toBe("awaitingApproval");
+      return { w, state: (result as { state: ConnectorsState }).state, actionId: (result as { action: { id: string } }).action.id };
+    }
+    const HOUR = 3_600_000;
+
+    it("a Ready request waits in the inbox, with its deadline, and nothing leaves the platform", async () => {
+      const { w, state, actionId } = await held();
+      const inbox = approvalInbox(state, T1, w.at());
+      expect(inbox).toEqual([expect.objectContaining({ actionId, connectorId: "gmail", workerId: "w1", operation: "gmail.send", status: "pending", summary: "Enviar un correo" })]);
+      expect(Date.parse(inbox[0]!.expiresAt) - Date.parse(inbox[0]!.requestedAt)).toBe(24 * HOUR);
+      expect(w.fake.sent).toHaveLength(0);
+      expect(JSON.stringify(inbox)).not.toMatch(/cliente@x\.test|Propuesta|Hola/);
+      expect(approvalInbox(state, "tenant-vida", w.at())).toEqual([]); // another company's inbox is empty
+      expect(await holdForApproval(w.ws, state, w.env, { ...readyRecords()["mail"]!, state: "Blocked" }, {}, w.at())).toEqual({ ok: false, reason: "notReady" });
+    });
+    it("a person who administers the company approves: the connector continues and Google is called once, and the audit trail has it", async () => {
+      const { w, state, actionId } = await held();
+      const approved = await approveAction(w.ws, state, w.env, { tenantId: T1, actor: "ana", actionId, at: w.at() });
+      expect(approved.ok, approved.code).toBe(true);
+      expect(approved.status).toBe("done");
+      expect(w.fake.sent).toHaveLength(1);
+      expect(approvalInbox(approved.state, T1, w.at())).toEqual([]);
+      expect(approved.state.audit.map((row) => `${row.actor}:${row.action}`).slice(-2)).toEqual(["worker:w1:action.request", "ana:action.approve"]);
+      expect((await approveAction(w.ws, approved.state, w.env, { tenantId: T1, actor: "ana", actionId, at: w.at() })).ok).toBe(false); // it cannot be approved twice
+      expect(w.fake.sent).toHaveLength(1);
+    });
+    it("a person rejects it with a reason: nothing is sent and it cannot be approved afterwards", async () => {
+      const { w, state, actionId } = await held();
+      const rejected = await rejectAction(w.ws, state, w.env, { tenantId: T1, actor: "ana", actionId, reason: "No es el cliente correcto", at: w.at() });
+      expect(rejected.status).toBe("rejected");
+      expect(rejected.state.actions.find((row) => row.id === actionId)).toMatchObject({ status: "rejected", decidedBy: "ana", failure: "No es el cliente correcto" });
+      expect((await approveAction(w.ws, rejected.state, w.env, { tenantId: T1, actor: "ana", actionId, at: w.at() })).ok).toBe(false);
+      expect(w.fake.sent).toHaveLength(0);
+      expect(approvalInbox(rejected.state, T1, w.at())).toEqual([]);
+    });
+    it("only a person who administers the company decides: a Worker, the system, NEX and a non-administrator never do", async () => {
+      const { w, state, actionId } = await held();
+      for (const actor of ["worker:w1", "system", "nex", "agent:comercial", "marta"]) {
+        const approve = await approveAction(w.ws, state, w.env, { tenantId: T1, actor, actionId, at: w.at() });
+        const reject = await rejectAction(w.ws, state, w.env, { tenantId: T1, actor, actionId, reason: "x", at: w.at() });
+        expect(approve.ok, actor).toBe(false);
+        expect(reject.ok, actor).toBe(false);
+      }
+      expect((await approveAction(w.ws, state, w.env, { tenantId: "tenant-vida", actor: "luis", actionId, at: w.at() })).ok).toBe(false); // nor another company's
+      expect(w.fake.sent).toHaveLength(0);
+      expect(approvalInbox(state, T1, w.at())).toHaveLength(1);
+    });
+    it("a request past its deadline expires: it shows as expired, cannot be approved, and is closed by a person's rejection as expirada", async () => {
+      const { w, state, actionId } = await held();
+      w.fake.setClock(w.fake.now() + 25 * HOUR);
+      expect(approvalInbox(state, T1, w.at()).map((row) => row.status)).toEqual(["expired"]);
+      const late = await approveAction(w.ws, state, w.env, { tenantId: T1, actor: "ana", actionId, at: w.at() });
+      expect(late).toMatchObject({ ok: false, status: "refused", code: "expired" });
+      expect(w.fake.sent).toHaveLength(0);
+      const system = await expireDue(w.ws, state, w.env, { tenantId: T1, actor: "system", at: w.at() });
+      expect(system).toMatchObject({ expired: [], refused: [actionId] }); // the system cannot reject: nothing changes
+      expect(system.state.actions.find((row) => row.id === actionId)!.status).toBe("awaitingApproval");
+      const swept = await expireDue(w.ws, state, w.env, { tenantId: T1, actor: "ana", at: w.at() });
+      expect(swept.expired).toEqual([actionId]);
+      expect(swept.state.actions.find((row) => row.id === actionId)).toMatchObject({ status: "rejected", failure: EXPIRED_REASON });
+      expect(approvalInbox(swept.state, T1, w.at())).toEqual([]);
+      expect(w.fake.sent).toHaveLength(0);
+    });
+    it("the deadline is configurable, and a request inside it can still be approved", async () => {
+      const { w, state, actionId } = await held();
+      w.fake.setClock(w.fake.now() + 30 * 60_000);
+      expect(approvalInbox(state, T1, w.at(), 60)[0]!.status).toBe("pending");
+      expect(approvalInbox(state, T1, w.at(), 20)[0]!.status).toBe("expired");
+      expect((await approveAction(w.ws, state, w.env, { tenantId: T1, actor: "ana", actionId, at: w.at(), ttlMinutes: 60 })).ok).toBe(true);
+    });
+  });
 });
 
 describe("the bridge is glue only", () => {
@@ -243,5 +322,10 @@ describe("the bridge is glue only", () => {
     expect(source).not.toMatch(/Date\.now|new Date\(\)|Math\.random|\bfetch\(|process\.env|ADAPTERS|\.perform\(|\.sync\(|\.exchangeCode\(|action\.approve|reduceConnectors|reduceGateway/);
     expect(source).toMatch(/import type/);
     expect(source.match(/^import (?!type)/gm)).toBeNull(); // type-only imports: nothing of the other layers runs through here
+  });
+  it("the Approval Center reads no clock, creates no event, decides nobody's approval and reaches no provider directly", () => {
+    const source = readFileSync(join(process.cwd(), "lib", "nex", "execution-bridge", "approval-center.ts"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|\s)\/\/.*$/gm, "");
+    expect(source).not.toMatch(/Date\.now|new Date\(\)|Math\.random|\bfetch\(|process\.env|ADAPTERS|\.perform\(|reduceConnectors|reduceGateway|type: "action\./);
+    expect(source.match(/^import (?!type)/gm)).toEqual(["import "]); // the one runtime import is the bridge's own `googleRequest`
   });
 });
