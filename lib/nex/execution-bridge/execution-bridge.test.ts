@@ -644,6 +644,113 @@ describe("approved plan → … → Gateway → Google Workspace (Gmail, Calenda
       expect(await flow()).toEqual(first);
     });
   });
+
+  describe("PSI Sostenible, end to end: B2B prospect → ORWAK quote request → KOE tasks → adapter plan → Orchestrator → Gateway → Approval Center → quote email + commercial visit → execution sync → CRM", () => {
+    const crmEvent = (type: string, actor: string, extra: Record<string, unknown> = {}, minute = 0, tenantId = T1) => ({ type, tenantId, actor, at: iso(minute), ...extra }) as CrmEvent;
+    const apply = (state: CrmState, event: CrmEvent): CrmState => { const result = reduceCrm(state, event); expect(result.error, `${event.type}: ${result.error}`).toBeUndefined(); return result.state; };
+    const osys = { kind: "system" as const, tenantId: T1 };
+    const T2 = "tenant-vida";
+
+    /** The whole flow, once, with no step done by hand: the plan comes from the adapter and the Orchestrator is updated by the adapter. It returns only ids, states and counts. */
+    async function flow() {
+      // 1–4. CRM: the B2B prospect, the quote request, KOE's tasks, a person accepts them (and a worker proposes the visit)
+      let crm = apply(newCrmState(), crmEvent("lead.create", "worker:w1", { input: { name: "Compras Industriales", company: "Planta Recicladora SA", email: "compras@planta.test", source: "b2b", estimatedValueMicros: 25_000_000_000, fit: 75 } }));
+      const lead = crm.leads[0]!;
+      crm = apply(crm, crmEvent("interaction.record", "ana", { subject: { kind: "lead", id: lead.id }, kind: "email", direction: "in", summary: "Solicitud de cotización ORWAK: prensa compactadora" }, 1));
+      crm = apply(crm, crmEvent("analysis.refresh", "worker:w1", { leadId: lead.id }, 2));
+      crm = apply(crm, crmEvent("task.generate", "worker:w1", { leadId: lead.id }, 3));
+      const quoteTask = crm.tasks.find((row) => row.kind === "email") ?? crm.tasks[0]!;
+      crm = apply(crm, crmEvent("task.propose", "worker:w1", { leadId: lead.id, kind: "meeting", title: "Visita comercial", draft: "Coordinar la visita", dueInDays: 6 }, 4));
+      const visitTask = crm.tasks.find((row) => row.kind === "meeting")!;
+      const taskIds = [quoteTask.id, visitTask.id];
+      for (const taskId of taskIds) crm = apply(crm, crmEvent("task.accept", "ana", { taskId }, 5));
+      expect(reduceCrm(crm, crmEvent("task.complete", "ana", { taskId: quoteTask.id }, 6, T2)).error).toBeDefined(); // another company's person cannot touch this company's task
+
+      // 5–8. the CRM tasks become the plan through the adapter; the Orchestrator takes it and assigns the workers; the Gateway reads the facts
+      const parts = layers();
+      equip(parts);
+      const { plan: approved, mail: quote, meet: visit } = crmPlan(parts, crm, lead.id, quoteTask.id, visitTask.id);
+      const planId = approved.id;
+      const orch = newOrchestrator(parts);
+      expect(orch.enqueue(osys, T1, approved).ok).toBe(true);
+      expect(orch.tick(osys, T1).ok).toBe(true);
+      expect(orch.queueFor(osys).map((row) => `${approved.steps.find((entry) => entry.id === row.id)!.action}:${row.state}:${row.workerId ?? "-"}`).sort()).toEqual(["calendar.write:WaitingDependencies:-", "followup.send:Assigned:w1"]);
+      const gw = new ExecutionGateway({ now: () => parts.clock.t, sources: () => gatewaySources({ plans: [withQueueStates(approved, orch.queueFor(osys))], runtimeWorkers: parts.runtime.workersFor(adela), osWorkers: parts.os.workersFor(adela), roleOf: (id) => ROLES[id] }) });
+      for (const [entry, workerId] of [[quote, "w1"], [visit, "w2"]] as const) expect(gw.submit(system, T1, { planId, stepId: entry.id, workerId }).ok).toBe(true);
+      const quoteReady = gw.validate(system, T1, requestIdFor(planId, quote.id)).record!;
+      expect(quoteReady.state).toBe("Ready");
+      expect(gw.validate(system, T1, requestIdFor(planId, visit.id)).record).toMatchObject({ state: "Blocked", reasons: ["dependency.pending"] });
+
+      // 9–11. Gmail prepares the quote; the Approval Center holds it; nobody but an administrator can approve
+      const w = google();
+      let state = await authorized(w);
+      const held = await holdForApproval(w.ws, state, w.env, quoteReady, { ...mailParams(lead, quoteTask), subject: "Cotización ORWAK" }, w.at());
+      expect("status" in held && held.status).toBe("awaitingApproval");
+      state = (held as { state: ConnectorsState }).state;
+      const quoteAction = (held as { action: { id: string } }).action.id;
+      for (const actor of ["worker:w1", "agent:comercial", "system", "nex", "marta"]) {
+        expect((await approveAction(w.ws, state, w.env, { tenantId: T1, actor, actionId: quoteAction, at: w.at() })).ok, actor).toBe(false);
+        expect((await rejectAction(w.ws, state, w.env, { tenantId: T1, actor, actionId: quoteAction, reason: "x", at: w.at() })).ok, actor).toBe(false);
+      }
+      expect(w.fake.sent).toHaveLength(0);
+      // another company sees nothing and decides nothing
+      expect(approvalInbox(state, T2, w.at())).toEqual([]);
+      expect((await approveAction(w.ws, state, w.env, { tenantId: T2, actor: "luis", actionId: quoteAction, at: w.at() })).ok).toBe(false);
+      expect(gw.dashboard({ kind: "system", tenantId: T2 }).requests.total).toBe(0);
+      expect(orch.queueFor({ kind: "system", tenantId: T2 })).toEqual([]);
+
+      // 12, 14. the administrator approves: the (fake) Gmail sends, and the sync updates the Orchestrator by itself
+      const quoteSync = syncTo(orch, planId, quote.id);
+      const sent = await approveAction(w.ws, state, w.env, { tenantId: T1, actor: "ana", actionId: quoteAction, at: w.at(), after: quoteSync.after });
+      expect(sent.ok, sent.code).toBe(true);
+      state = sent.state;
+      expect(w.fake.sent[0]!.raw).toContain(`To: ${lead.email!}`);
+      expect(quoteSync.seen).toEqual([{ outcome: "completed", item: "Completed" }]);
+
+      // 13–14. the commercial visit: Ready now, held, created by Calendar on approval, and synced
+      const visitReady = gw.validate(system, T1, requestIdFor(planId, visit.id)).record!;
+      expect(visitReady.state).toBe("Ready");
+      const meeting = { title: "Visita comercial a la planta", start: "2026-11-24T15:00:00Z", end: "2026-11-24T16:30:00Z", location: "Planta del cliente" };
+      const heldVisit = await holdForApproval(w.ws, state, w.env, visitReady, visitParams(lead, meeting), w.at());
+      expect("status" in heldVisit && heldVisit.status).toBe("awaitingApproval");
+      expect(Object.keys(w.fake.events)).toHaveLength(0);
+      const visitSync = syncTo(orch, planId, visit.id);
+      const booked = await approveAction(w.ws, (heldVisit as { state: ConnectorsState }).state, w.env, { tenantId: T1, actor: "ana", actionId: (heldVisit as { action: { id: string } }).action.id, at: w.at(), after: visitSync.after });
+      expect(booked.ok, booked.code).toBe(true);
+      state = booked.state;
+      expect(visitSync.seen).toEqual([{ outcome: "completed", item: "Completed" }]);
+
+      // 15. the CRM records: quote sent, email sent, visit scheduled, follow-up created, tasks completed
+      for (const event of crmRecordsAfterApproval({ tenantId: T1, leadId: lead.id, taskIds, approver: "ana", at: iso(30), mailRequestId: requestIdFor(planId, quote.id), visit: { title: meeting.title, scheduledFor: meeting.start } })) crm = apply(crm, event);
+      crm = apply(crm, crmEvent("interaction.record", "ana", { subject: { kind: "lead", id: lead.id }, kind: "email", direction: "out", summary: "Cotización ORWAK enviada" }, 31));
+      crm = apply(crm, crmEvent("task.propose", "worker:w1", { leadId: lead.id, kind: "followup", title: "Seguimiento de la cotización", draft: "Preguntar si la cotización fue revisada", dueInDays: 7 }, 32));
+      expect(crm.meetings).toEqual([expect.objectContaining({ leadId: lead.id, title: meeting.title })]);
+      expect(crm.tasks.filter((row) => taskIds.includes(row.id)).every((row) => row.status === "done")).toBe(true);
+      expect(crm.tasks.filter((row) => row.kind === "followup" && row.status === "proposed")).toHaveLength(1);
+
+      // the run is done, and nothing sensitive is outside the CRM (the record of the lead itself)
+      expect(orch.runsFor(osys)[0]).toMatchObject({ planId, status: "Completed" });
+      expect(JSON.stringify([state.audit, w.ws.executions, gw.exportState().audit, gw.log.all(), orch.audit(T1), orch.log.all()])).not.toMatch(/compras@planta|Planta Recicladora|Compras Industriales|ORWAK|prensa|Planta del cliente/);
+      return {
+        connectors: state.audit.map((row) => `${row.actor}:${row.action}`).filter((row) => /action\./.test(row)), gateway: gw.audit(T1).map((row) => row.action), orchestrator: orch.audit(T1).map((row) => row.action),
+        executions: w.ws.executions.map((row) => `${row.operation}:${row.outcome}`), crm: crm.timeline.filter((row) => row.subject.id === lead.id).map((row) => `${row.kind}:${row.summary}`), tasks: crm.tasks.map((row) => `${row.id}:${row.kind}:${row.status}`),
+        gatewayStates: gw.dashboard(system).requests.byState, run: orch.runsFor(osys)[0]!.status, sent: w.fake.sent.length, events: Object.keys(w.fake.events).length, inbox: approvalInbox(state, T1, w.at()).length,
+        dashboard: orch.dashboard(osys).plans.completed,
+      };
+    }
+
+    it("a B2B quote request becomes an approved quote email and a commercial visit, with no manual step, and the whole run is deterministic", async () => {
+      const first = await flow();
+      expect(first).toMatchObject({ connectors: ["worker:w1:action.request", "ana:action.approve", "worker:w2:action.request", "ana:action.approve"], executions: ["gmail.send:ok", "calendar.create:ok"], run: "Completed", sent: 1, events: 1, inbox: 0 });
+      expect(first.gatewayStates).toMatchObject({ Ready: 2, Blocked: 0 });
+      expect(first.dashboard).toHaveLength(1);
+      expect(first.crm.some((row) => row.startsWith("worker:Correo enviado por Gmail"))).toBe(true);
+      expect(first.crm.some((row) => row.includes("Cotización ORWAK enviada"))).toBe(true);
+      expect(first.crm.some((row) => row.startsWith("meeting:"))).toBe(true);
+      expect(first.tasks.some((row) => row.includes(":followup:proposed"))).toBe(true);
+      expect(await flow()).toEqual(first);
+    });
+  });
 });
 
 /** The adapter wired to one step: the Approval Center hands every decision's result to it, so nobody tells the Orchestrator by hand. */
