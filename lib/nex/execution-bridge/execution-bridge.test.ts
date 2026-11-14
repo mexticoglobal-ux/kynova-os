@@ -10,10 +10,11 @@ import { EncryptedMemoryVault, GoogleWorkspace, workspaceView, type GoogleDeps }
 import { fakeGoogle } from "@/lib/integrations/google/fake-google";
 import type { ExecutionPlan } from "@/lib/nex/execution";
 import { ExecutionGateway, requestIdFor, type GatewayRecord } from "@/lib/nex/execution-gateway";
+import { OrchestratorEngine } from "@/lib/nex/runtime-orchestrator";
 import { WorkerOsEngine, type Principal as OsPrincipal } from "@/lib/nex/worker-os";
 import { WorkerRuntimeEngine, type Principal as RuntimePrincipal } from "@/lib/nex/worker-runtime";
 import { EXPIRED_REASON, approvalInbox, approveAction, expireDue, holdForApproval, rejectAction } from "./approval-center";
-import { GOOGLE_OPERATION_OF_ACTION, TOOL_OF_CONNECTOR, connectorAction, gatewaySources, googleOperationOf, googleRequest, osFact, planFact, runtimeFact } from "./execution-bridge";
+import { GOOGLE_OPERATION_OF_ACTION, TOOL_OF_CONNECTOR, connectorAction, crmRecordsAfterApproval, gatewaySources, googleOperationOf, googleRequest, mailParams, osFact, planFact, runtimeFact, visitParams, withQueueStates } from "./execution-bridge";
 
 const T1 = "tenant-nova";
 const START = Date.parse("2026-11-13T10:00:00.000Z");
@@ -398,6 +399,107 @@ describe("approved plan → … → Gateway → Google Workspace (Gmail, Calenda
       expect(rows.map((row) => `${row.connectorId}:${row.display}`)).toEqual(["gmail:Connected", "googleCalendar:Connected", "googleDrive:Connected"]);
       // no content of the lead or the email in any trail
       expect(JSON.stringify([state.audit, w.ws.executions, gw.exportState().audit, gw.log.all()])).not.toMatch(/laura@aurora\.test|Clínica Aurora|Laura Gómez/);
+    });
+  });
+
+  describe("Real Estate, end to end: lead → opportunity → tasks → Orchestrator → Worker Runtime/OS → Gateway → Approval Center → Gmail + Calendar visit → CRM", () => {
+    const crmEvent = (type: string, actor: string, extra: Record<string, unknown> = {}, minute = 0) => ({ type, tenantId: T1, actor, at: iso(minute), ...extra }) as CrmEvent;
+    const apply = (state: CrmState, event: CrmEvent): CrmState => { const result = reduceCrm(state, event); expect(result.error, `${event.type}: ${result.error}`).toBeUndefined(); return result.state; };
+    const osys = { kind: "system" as const, tenantId: T1 };
+
+    it("a buyer's lead gets an email and a property visit, nothing leaves until an administrator approves, and the CRM records it all", async () => {
+      // 1. CRM: a Worker registers the lead, a person qualifies it (the opportunity), KOE analyses it and prepares the commercial tasks; a person accepts them
+      let crm = apply(newCrmState(), crmEvent("lead.create", "worker:w1", { input: { name: "Mariana Solís", company: "Solís Inversiones", email: "mariana@solis.test", source: "referido", estimatedValueMicros: 450_000_000_000, fit: 85 } }));
+      const lead = crm.leads[0]!;
+      crm = apply(crm, crmEvent("stage.move", "ana", { leadId: lead.id, to: "qualified", note: "Busca casa en Escazú" }, 1));
+      crm = apply(crm, crmEvent("analysis.refresh", "worker:w1", { leadId: lead.id }, 2));
+      crm = apply(crm, crmEvent("task.generate", "worker:w1", { leadId: lead.id }, 3));
+      expect(crm.leads[0]!.stage).toBe("qualified");
+      expect(crm.analyses.at(-1)).toMatchObject({ leadId: lead.id, trigger: "refresh" });
+      expect(crm.tasks.length).toBeGreaterThan(0);
+      const mailTask = crm.tasks.find((row) => row.kind === "email") ?? crm.tasks[0]!;
+      const visitTask = crm.tasks.find((row) => row.kind === "meeting" && row.id !== mailTask.id) ?? crm.tasks.find((row) => row.id !== mailTask.id) ?? mailTask;
+      const taskIds = [...new Set([mailTask.id, visitTask.id])];
+      for (const taskId of taskIds) crm = apply(crm, crmEvent("task.accept", "ana", { taskId }, 4));
+
+      // 2. the approved plan (send the email, then the property visit) enters the Runtime Orchestrator, which assigns the worker
+      const parts = layers();
+      expect(parts.os.setPermissions(adela, T1, "w1", ["calendar.write", "followup.send"]).ok).toBe(true);
+      expect(parts.os.setTools(adela, T1, "w1", ["Calendar", "Email"]).ok).toBe(true);
+      const planId = `xp:${lead.id}`;
+      const step = (id: string, action: string, connector: ConnectorId, dependsOn: string[] = []) => ({ id, action, authorizationLevel: 3, approverRole: "admin", worker: { specialty: "sales" }, timeoutMs: 60_000, estimatedMs: 10_000, retry: { maxAttempts: 1, backoffMs: 1_000 }, dependsOn, state: "pending", connector });
+      const approved = plan({ id: planId, needs: "general", expectedImpact: { level: "high", score: 70 }, createdAt: iso(0), expiresAt: iso(7 * 24 * 60), steps: [step("mail", "followup.send", "gmail"), step("visit", "calendar.write", "googleCalendar", ["mail"])] });
+      const orch = new OrchestratorEngine({
+        env: { isWorkerActive: () => true }, now: () => parts.clock.t, roleOf: (_tenantId, personId) => ROLES[personId],
+        workers: () => [{ id: "w1", tenantId: T1, name: "Ventas", specialty: "sales", status: "active", capacity: 2, permissions: ["*"] }],
+      });
+      expect(orch.enqueue(osys, T1, approved).ok).toBe(true);
+      expect(orch.tick(osys, T1).ok).toBe(true);
+      expect(orch.queueFor(osys).map((row) => `${row.id}:${row.state}:${row.workerId ?? "-"}`)).toEqual(["mail:Assigned:w1", "visit:WaitingDependencies:-"]);
+
+      // 3. the Gateway reads the plan with the Orchestrator's own step states: the email is Ready, the visit waits for it
+      const gw = new ExecutionGateway({ now: () => parts.clock.t, sources: () => gatewaySources({ plans: [withQueueStates(approved, orch.queueFor(osys))], runtimeWorkers: parts.runtime.workersFor(adela), osWorkers: parts.os.workersFor(adela), roleOf: (id) => ROLES[id] }) });
+      for (const stepId of ["mail", "visit"]) expect(gw.submit(system, T1, { planId, stepId, workerId: "w1" }).ok).toBe(true);
+      const mailReady = gw.validate(system, T1, requestIdFor(planId, "mail")).record!;
+      expect(mailReady.state).toBe("Ready");
+      expect(gw.validate(system, T1, requestIdFor(planId, "visit")).record).toMatchObject({ state: "Blocked", reasons: ["dependency.pending"] });
+
+      // 4. the bridge and the Approval Center: the email waits for an administrator; nobody else can release it
+      const w = google();
+      let state = await authorized(w);
+      const held = await holdForApproval(w.ws, state, w.env, mailReady, mailParams(lead, mailTask), w.at());
+      expect("status" in held && held.status).toBe("awaitingApproval");
+      state = (held as { state: ConnectorsState }).state;
+      const mailAction = (held as { action: { id: string } }).action.id;
+      expect(w.fake.sent).toHaveLength(0);
+      expect((await approveAction(w.ws, state, w.env, { tenantId: T1, actor: "marta", actionId: mailAction, at: w.at() })).ok).toBe(false);
+      expect((await approveAction(w.ws, state, w.env, { tenantId: T1, actor: "worker:w1", actionId: mailAction, at: w.at() })).ok).toBe(false);
+      expect(w.fake.sent).toHaveLength(0);
+
+      // 5. the administrator approves: Gmail sends (simulated); the Orchestrator is told the step ran
+      const sent = await approveAction(w.ws, state, w.env, { tenantId: T1, actor: "ana", actionId: mailAction, at: w.at() });
+      expect(sent.ok, sent.code).toBe(true);
+      state = sent.state;
+      expect(w.fake.sent).toHaveLength(1);
+      expect(w.fake.sent[0]!.raw).toContain(`To: ${lead.email!}`);
+      expect(orch.start(osys, T1, "mail").ok).toBe(true);
+      parts.clock.advance(5_000);
+      expect(orch.finish(osys, T1, "mail", "completed").ok).toBe(true);
+      expect(orch.tick(osys, T1).ok).toBe(true);
+
+      // 6. the visit is Ready now; it waits for the administrator too, and Calendar creates it on approval
+      const visitReady = gw.validate(system, T1, requestIdFor(planId, "visit")).record!;
+      expect(visitReady.state).toBe("Ready");
+      const visit = { title: "Visita a la propiedad de Escazú", start: "2026-11-17T16:00:00Z", end: "2026-11-17T17:00:00Z", location: "Escazú, San José" };
+      const heldVisit = await holdForApproval(w.ws, state, w.env, visitReady, visitParams(lead, visit), w.at());
+      expect("status" in heldVisit && heldVisit.status).toBe("awaitingApproval");
+      expect(Object.keys(w.fake.events)).toHaveLength(0);
+      const booked = await approveAction(w.ws, (heldVisit as { state: ConnectorsState }).state, w.env, { tenantId: T1, actor: "ana", actionId: (heldVisit as { action: { id: string } }).action.id, at: w.at() });
+      expect(booked.ok, booked.code).toBe(true);
+      state = booked.state;
+      expect(Object.values(w.fake.events)).toHaveLength(1);
+      expect(JSON.stringify(Object.values(w.fake.events)[0])).toContain("Escazú, San José");
+      expect(orch.start(osys, T1, "visit").ok).toBe(true);
+      parts.clock.advance(5_000);
+      expect(orch.finish(osys, T1, "visit", "completed").ok).toBe(true);
+
+      // 7. the CRM records it automatically: email sent, visit scheduled, timeline, tasks done
+      for (const event of crmRecordsAfterApproval({ tenantId: T1, leadId: lead.id, taskIds, approver: "ana", at: iso(30), mailRequestId: requestIdFor(planId, "mail"), visit: { title: visit.title, scheduledFor: visit.start } })) crm = apply(crm, event);
+      expect(crm.meetings).toEqual([expect.objectContaining({ leadId: lead.id, title: visit.title, scheduledBy: "ana" })]);
+      expect(crm.timeline.filter((row) => row.subject.id === lead.id).map((row) => row.kind)).toEqual(expect.arrayContaining(["worker", "meeting"]));
+      expect(crm.tasks.filter((row) => taskIds.includes(row.id)).every((row) => row.status === "done")).toBe(true);
+
+      // 8. audit and dashboards: each layer's own trail, and nothing sensitive outside the CRM (which is the record of the lead itself)
+      expect(state.audit.map((row) => `${row.actor}:${row.action}`).filter((row) => /action\./.test(row))).toEqual(["worker:w1:action.request", "ana:action.approve", "worker:w1:action.request", "ana:action.approve"]);
+      expect(w.ws.executions.map((row) => `${row.operation}:${row.outcome}`)).toEqual(["gmail.send:ok", "calendar.create:ok"]);
+      expect(gw.audit(T1).filter((row) => row.action === "request.created")).toHaveLength(2);
+      expect(orch.runsFor(osys)[0]).toMatchObject({ planId, status: "Completed" });
+      expect(orch.dashboard(osys).plans.completed).toEqual([planId]);
+      expect(gw.dashboard(system).requests.byState).toMatchObject({ Ready: 2, Blocked: 0 });
+      expect(approvalInbox(state, T1, w.at())).toEqual([]);
+      expect(crm.audit.map((row) => row.action)).toEqual(expect.arrayContaining(["lead.create", "stage.move", "task.generate", "task.accept", "meeting.schedule", "task.complete"]));
+      expect(JSON.stringify([state.audit, w.ws.executions, gw.exportState().audit, gw.log.all(), orch.audit(T1), orch.log.all()])).not.toMatch(/mariana@solis|Mariana|Solís|Escazú|Busca casa/);
+      expect(JSON.stringify([state.audit, w.ws.executions])).not.toContain(mailTask.draft.slice(0, 24));
     });
   });
 });

@@ -3,9 +3,11 @@
 // no rule and no state: it validates nothing, approves nothing and calls no provider, and the Connectors module is the one that decides (write actions still wait for a person). Pure.
 
 import type { ConnectorId, ConnectorsEvent, ConnectorsState } from "@/lib/contracts/platform/connectors";
+import type { CrmEvent } from "@/lib/contracts/platform/crm-center";
 import type { GoogleOperationId, GoogleWorkspace } from "@/lib/integrations/google";
 import type { ExecutionPlan } from "@/lib/nex/execution";
 import type { GatewayRecord, GatewaySources, OsWorkerFact, PlanFact, RuntimeWorkerFact, StepFact } from "@/lib/nex/execution-gateway";
+import type { QueueItem } from "@/lib/nex/runtime-orchestrator";
 import type { WorkerRecord as OsWorker } from "@/lib/nex/worker-os";
 import type { WorkerRecord as RuntimeWorker } from "@/lib/nex/worker-runtime";
 
@@ -52,6 +54,34 @@ export function googleRequest(record: GatewayRecord, state: ConnectorsState, par
   const connection = state.connections.find((row) => row.tenantId === record.request.companyId && row.connectorId === connectorId && (row.status === "active" || row.status === "degraded"));
   if (!connection) return { ok: false, reason: "notConnected" };
   return { ok: true, input: { tenantId: record.request.companyId, workerId: record.request.workerId, connectionId: connection.id, operation, params, at } };
+}
+
+// ---------------------------------------------------------------------------------------------- small adapters for the CRM flows (Sprint 56)
+const STEP_STATE_OF_ITEM: Readonly<Record<string, ExecutionPlan["steps"][number]["state"]>> = { Completed: "completed", Running: "running", Failed: "failed", Cancelled: "failed", Expired: "failed", Assigned: "ready", Ready: "ready" };
+/** The Runtime Orchestrator keeps the truth about each step in its queue; the plan the Gateway reads says the same (a step it does not know stays as it was). */
+export const withQueueStates = (plan: ExecutionPlan, queue: readonly QueueItem[]): ExecutionPlan => ({
+  ...plan,
+  steps: plan.steps.map((step) => {
+    const item = queue.find((row) => row.tenantId === plan.tenantId && row.planId === plan.id && row.stepId === step.id);
+    return item ? { ...step, state: STEP_STATE_OF_ITEM[item.state] ?? "pending" } : step;
+  }),
+});
+/** The content of the email and of the visit comes from the CRM's own record, not from the request. */
+export const mailParams = (lead: { email?: string }, task: { title: string; draft: string }): Record<string, unknown> => ({ to: lead.email ? [lead.email] : [], subject: task.title, text: task.draft });
+export const visitParams = (lead: { email?: string }, visit: { title: string; start: string; end: string; location: string }): Record<string, unknown> => ({
+  summary: visit.title, start: visit.start, end: visit.end, location: visit.location, ...(lead.email ? { attendees: [lead.email] } : {}),
+});
+/**
+ * What the CRM records once the approved actions have run: the email sent (the system reports it), the visit booked and the task done (a person's events: the one who approved). They are CRM events
+ * for the existing reducer, which keeps its own timeline and audit; nothing is added to it.
+ */
+export function crmRecordsAfterApproval(input: { tenantId: string; leadId: string; taskIds: readonly string[]; approver: string; at: string; mailRequestId?: string; visit?: { title: string; scheduledFor: string } }): CrmEvent[] {
+  const base = { tenantId: input.tenantId, at: input.at };
+  const events: CrmEvent[] = [];
+  if (input.mailRequestId) events.push({ ...base, actor: "system", type: "timeline.record", subject: { kind: "lead", id: input.leadId }, kind: "worker", summary: "Correo enviado por Gmail", ref: input.mailRequestId });
+  if (input.visit) events.push({ ...base, actor: input.approver, type: "meeting.schedule", leadId: input.leadId, scheduledFor: input.visit.scheduledFor, title: input.visit.title });
+  for (const taskId of input.taskIds) events.push({ ...base, actor: input.approver, type: "task.complete", taskId, note: "Hecha por el flujo aprobado" });
+  return events;
 }
 
 /** Which connection, scope and operation a request goes through: the caller knows its company's connection; this bridge invents none. */
