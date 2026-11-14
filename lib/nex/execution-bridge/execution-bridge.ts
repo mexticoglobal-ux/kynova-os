@@ -3,10 +3,11 @@
 // no rule and no state: it validates nothing, approves nothing and calls no provider, and the Connectors module is the one that decides (write actions still wait for a person). Pure.
 
 import type { ConnectorId, ConnectorsEvent, ConnectorsState } from "@/lib/contracts/platform/connectors";
-import type { CrmEvent } from "@/lib/contracts/platform/crm-center";
+import type { CrmEvent, Task as CrmTask } from "@/lib/contracts/platform/crm-center";
+import { levelForAction } from "@/lib/contracts/platform/workers";
 import type { GoogleOperationId, GoogleWorkspace } from "@/lib/integrations/google";
-import type { ExecutionPlan } from "@/lib/nex/execution";
-import type { GatewayRecord, GatewaySources, OsWorkerFact, PlanFact, RuntimeWorkerFact, StepFact } from "@/lib/nex/execution-gateway";
+import { addDependency, finalize, type CopilotOutput, type ExecutionEngine, type ExecutionPlan, type Principal as ExecutionPrincipal, type Recommendation, type SuggestedAction } from "@/lib/nex/execution";
+import { LEVEL_ROLE, type GatewayRecord, type GatewaySources, type OsWorkerFact, type PlanFact, type RuntimeWorkerFact, type StepFact } from "@/lib/nex/execution-gateway";
 import type { QueueItem } from "@/lib/nex/runtime-orchestrator";
 import type { WorkerRecord as OsWorker } from "@/lib/nex/worker-os";
 import type { WorkerRecord as RuntimeWorker } from "@/lib/nex/worker-runtime";
@@ -82,6 +83,74 @@ export function crmRecordsAfterApproval(input: { tenantId: string; leadId: strin
   if (input.visit) events.push({ ...base, actor: input.approver, type: "meeting.schedule", leadId: input.leadId, scheduledFor: input.visit.scheduledFor, title: input.visit.title });
   for (const taskId of input.taskIds) events.push({ ...base, actor: input.approver, type: "task.complete", taskId, note: "Hecha por el flujo aprobado" });
   return events;
+}
+
+// ---------------------------------------------------------------------------------------------- CRM task → Execution plan (Sprint 58)
+/**
+ * What a CRM task means in the platform's own catalog. A call, a WhatsApp message and a proposal have no connector yet, so they stay internal tasks (`crm.task`): nothing leaves the platform.
+ * Everything else about the step (its level, who approves it, its timeout, retries, connector, specialty and order) is decided by the Execution layer's planner, not here.
+ */
+export const ACTION_OF_TASK_KIND: Readonly<Record<CrmTask["kind"], string>> = { email: "followup.send", followup: "followup.send", meeting: "calendar.write", call: "crm.task", whatsapp: "crm.task", proposal: "crm.task" };
+const SEVERITY_OF_PRIORITY = { critical: "critical", high: "high", normal: "medium", low: "low" } as const;
+export const findingIdOfLead = (leadId: string): string => `crm.lead.${leadId}`;
+export const actionIdOfTask = (taskId: string): string => `act:${taskId}`;
+
+/** The ACCEPTED tasks of one lead, as the Copilot output the Execution layer already takes (one recommendation, one suggested action per task). Names, drafts and addresses stay in the CRM: only ids go across. */
+export function crmCopilotOutput(input: { tenantId: string; leadId: string; tasks: readonly CrmTask[]; at: string; priority?: keyof typeof SEVERITY_OF_PRIORITY }): CopilotOutput {
+  const recommendation: Recommendation = {
+    id: `rec:${input.leadId}`, findingId: findingIdOfLead(input.leadId), kind: "opportunity", severity: SEVERITY_OF_PRIORITY[input.priority ?? "normal"], score: 50, area: "crm", title: `Seguimiento comercial ${input.leadId}`,
+    reason: "Tareas del CRM aceptadas por una persona", benefit: "Avanzar el lead", impact: { level: "medium", score: 50 }, risk: { level: "low", note: "" }, modules: ["crm"], evidence: [], needs: "general",
+  };
+  const actions = input.tasks
+    .filter((task) => task.tenantId === input.tenantId && task.leadId === input.leadId && task.status === "accepted")
+    .sort((a, b) => a.id.localeCompare(b.id))
+    .map((task): SuggestedAction => {
+      const actionId = ACTION_OF_TASK_KIND[task.kind];
+      const level = levelForAction(actionId);
+      return {
+        id: actionIdOfTask(task.id), tenantId: input.tenantId, recommendationId: recommendation.id, actionId, label: `Tarea ${task.id}`, level, requiresApproval: true, approverRole: LEVEL_ROLE[level], executed: false, preparedBy: "nex",
+        status: "suggested", needs: "general", modules: ["crm"], suggestedAt: input.at, expiresAt: task.dueAt,
+      };
+    });
+  return { recommendations: [recommendation], actions };
+}
+
+export type CrmPlanResult = { ok: true; plan: ExecutionPlan } | { ok: false; step: "empty" | "prepare" | "submit" | "approve" | "dependency"; refusal?: string; reasons?: readonly string[] };
+/**
+ * Accepted CRM tasks → the approved Execution plan the Orchestrator takes. The REAL Execution engine prepares it (its planner decides the steps), a person submits it and an administrator approves it: this
+ * function only calls them in that order. `after` says which task waits for which (the CRM has no such notion; the caller states it) and is applied with the planner's own cycle-checked `addDependency`.
+ */
+export function planFromCrmTasks(
+  engine: ExecutionEngine, people: { preparer: ExecutionPrincipal; approver: ExecutionPrincipal },
+  input: { tenantId: string; leadId: string; tasks: readonly CrmTask[]; at: string; priority?: keyof typeof SEVERITY_OF_PRIORITY; after?: Readonly<Record<string, readonly string[]>> },
+): CrmPlanResult {
+  const output = crmCopilotOutput(input);
+  if (output.actions.length === 0) return { ok: false, step: "empty" };
+  const prepared = engine.prepare(people.preparer, output);
+  const findingId = findingIdOfLead(input.leadId);
+  const planId = prepared.plans?.[0]?.id ?? engine.plansFor(people.approver).find((row) => row.findingId === findingId)?.id;
+  if (!prepared.ok || !planId) return { ok: false, step: "prepare", ...(prepared.refusal ? { refusal: prepared.refusal } : {}), ...(prepared.reasons ? { reasons: prepared.reasons } : {}) };
+  if (engine.planFor(people.approver, planId)?.status === "Draft") {
+    const submitted = engine.submit(people.preparer, planId);
+    if (!submitted.ok) return { ok: false, step: "submit", ...(submitted.refusal ? { refusal: submitted.refusal } : {}), ...(submitted.reasons ? { reasons: submitted.reasons } : {}) };
+  }
+  if (engine.planFor(people.approver, planId)?.status === "WaitingApproval") {
+    const approved = engine.approve(people.approver, planId);
+    if (!approved.ok) return { ok: false, step: "approve", ...(approved.refusal ? { refusal: approved.refusal } : {}), ...(approved.reasons ? { reasons: approved.reasons } : {}) };
+  }
+  const plan = engine.planFor(people.approver, planId);
+  if (!plan) return { ok: false, step: "approve" };
+  let steps = plan.steps;
+  for (const [taskId, waitsFor] of Object.entries(input.after ?? {})) {
+    const step = steps.find((row) => row.sourceActionId === actionIdOfTask(taskId));
+    for (const earlier of waitsFor) {
+      const before = steps.find((row) => row.sourceActionId === actionIdOfTask(earlier));
+      const added = step && before ? addDependency(steps, step.id, before.id) : undefined;
+      if (!added?.ok) return { ok: false, step: "dependency", reasons: [added ? added.reason : "unknown"] };
+      steps = added.steps;
+    }
+  }
+  return { ok: true, plan: steps === plan.steps ? plan : finalize({ ...plan, steps }, plan.modules, []) };
 }
 
 /** Which connection, scope and operation a request goes through: the caller knows its company's connection; this bridge invents none. */
