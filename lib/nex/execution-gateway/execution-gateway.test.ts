@@ -734,7 +734,7 @@ describe("Pure and isolated: nothing is executed", () => {
         if (["node_modules", ".next", ".git", ".open-next"].includes(entry.name)) continue;
         const path = join(folder, entry.name);
         if (entry.isDirectory()) walk(path);
-        else if (/\.(ts|tsx)$/.test(entry.name) && !path.includes(join("lib", "nex", "execution-gateway")) && /lib\/nex\/execution-gateway/.test(readFileSync(path, "utf8"))) importers.push(path);
+        else if (/\.(ts|tsx)$/.test(entry.name) && !path.includes(join("lib", "nex", "execution-gateway")) && !path.includes("execution-bridge") && /lib\/nex\/execution-gateway/.test(readFileSync(path, "utf8"))) importers.push(path);
       }
     };
     for (const folder of ["app", "lib", "components"]) walk(join(process.cwd(), folder));

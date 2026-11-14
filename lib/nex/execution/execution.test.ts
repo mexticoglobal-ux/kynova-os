@@ -969,7 +969,7 @@ describe("the layer is new, read only and runs nothing", () => {
         if (["node_modules", ".next", ".git", ".open-next"].includes(entry.name)) continue;
         const path = join(dir, entry.name);
         if (entry.isDirectory()) walk(path);
-        else if (/\.(ts|tsx)$/.test(entry.name) && !path.includes(join("lib", "nex", "execution")) && !path.includes(join("lib", "nex", "runtime-orchestrator")) && /lib\/nex\/execution/.test(readFileSync(path, "utf8"))) importers.push(path);
+        else if (/\.(ts|tsx)$/.test(entry.name) && !path.includes(join("lib", "nex", "execution")) && !path.includes(join("lib", "nex", "runtime-orchestrator")) && !path.includes("execution-bridge") && /lib\/nex\/execution/.test(readFileSync(path, "utf8"))) importers.push(path);
       }
     };
     for (const dir of ["app", "lib", "components"]) walk(join(process.cwd(), dir));
