@@ -5,7 +5,8 @@ import { describe, expect, it } from "vitest";
 import { decrypt, encrypt, generateEncryptionKey } from "@/lib/backend/crypto";
 import { MemorySecretsProvider, SecretsManager } from "@/lib/backend/secrets";
 import { CONNECTORS, FAMILY_SECRETS, PROVIDER_FAMILIES, configuredFamilies, newConnectorsState, reduceConnectors, type ConnectorEnv, type ConnectorId, type ConnectorsEvent, type ConnectorsState } from "@/lib/contracts/platform/connectors";
-import { EncryptedMemoryVault, GoogleWorkspace, type GoogleDeps } from "@/lib/integrations/google";
+import { newCrmState, reduceCrm, type CrmEvent, type CrmState } from "@/lib/contracts/platform/crm-center";
+import { EncryptedMemoryVault, GoogleWorkspace, workspaceView, type GoogleDeps } from "@/lib/integrations/google";
 import { fakeGoogle } from "@/lib/integrations/google/fake-google";
 import type { ExecutionPlan } from "@/lib/nex/execution";
 import { ExecutionGateway, requestIdFor, type GatewayRecord } from "@/lib/nex/execution-gateway";
@@ -312,6 +313,91 @@ describe("approved plan → … → Gateway → Google Workspace (Gmail, Calenda
       expect(approvalInbox(state, T1, w.at(), 60)[0]!.status).toBe("pending");
       expect(approvalInbox(state, T1, w.at(), 20)[0]!.status).toBe("expired");
       expect((await approveAction(w.ws, state, w.env, { tenantId: T1, actor: "ana", actionId, at: w.at(), ttlMinutes: 60 })).ok).toBe(true);
+    });
+  });
+
+  describe("Nova Marketing Studio, end to end: lead → CRM task → plan → Gateway → bridge → Approval Center → Gmail + Calendar → CRM, audit and dashboard", () => {
+    const crmEvent = (type: string, actor: string, extra: Record<string, unknown> = {}, minute = 0) => ({ type, tenantId: T1, actor, at: iso(minute), ...extra }) as CrmEvent;
+    const apply = (state: CrmState, event: CrmEvent): CrmState => { const result = reduceCrm(state, event); expect(result.error, `${event.type}: ${result.error}`).toBeUndefined(); return result.state; };
+
+    it("a new lead travels the whole way, with Google simulated, and everything is audited and on the dashboard", async () => {
+      // 1. CRM: a Worker registers the lead and prepares the task (Level 1); a person accepts it
+      let crm = apply(newCrmState(), crmEvent("lead.create", "worker:w1", { input: { name: "Laura Gómez", company: "Clínica Aurora", email: "laura@aurora.test", source: "web", estimatedValueMicros: 3_000_000_000, fit: 80 } }));
+      const lead = crm.leads[0]!;
+      crm = apply(crm, crmEvent("task.generate", "worker:w1", { leadId: lead.id }, 1));
+      const task = crm.tasks.find((row) => row.kind === "email") ?? crm.tasks[0]!;
+      expect(task).toMatchObject({ leadId: lead.id, status: "proposed" });
+      expect(task.draft.length).toBeGreaterThan(0);
+      crm = apply(crm, crmEvent("task.accept", "ana", { taskId: task.id }, 2));
+      expect(crm.tasks.find((row) => row.id === task.id)!.status).toBe("accepted");
+
+      // 2. the approved plan for that lead: send the email, then book the meeting (it waits for the email)
+      const parts = layers();
+      expect(parts.os.setPermissions(adela, T1, "w1", ["calendar.write", "followup.send"]).ok).toBe(true);
+      expect(parts.os.setTools(adela, T1, "w1", ["Calendar", "Email"]).ok).toBe(true);
+      const planId = `xp:${lead.id}`;
+      const step = (id: string, action: string, connector: ConnectorId, state: string, dependsOn: string[] = []) => ({ id, action, authorizationLevel: 3, approverRole: "admin", worker: { specialty: "sales" }, timeoutMs: 60_000, retry: { maxAttempts: 1, backoffMs: 1_000 }, dependsOn, state, connector });
+      const current = (mail: string) => plan({ id: planId, steps: [step("mail", "followup.send", "gmail", mail), step("meet", "calendar.write", "googleCalendar", "pending", ["mail"])] });
+      let live = current("pending");
+      const gw = new ExecutionGateway({ now: () => parts.clock.t, sources: () => gatewaySources({ plans: [live], runtimeWorkers: parts.runtime.workersFor(adela), osWorkers: parts.os.workersFor(adela), roleOf: (id) => ROLES[id] }) });
+
+      // 3. the Gateway: the email is Ready, the meeting waits for it
+      for (const stepId of ["mail", "meet"]) expect(gw.submit(system, T1, { planId, stepId, workerId: "w1" }).ok).toBe(true);
+      const mailReady = gw.validate(system, T1, requestIdFor(planId, "mail")).record!;
+      const meetBlocked = gw.validate(system, T1, requestIdFor(planId, "meet")).record!;
+      expect(mailReady.state).toBe("Ready");
+      expect([meetBlocked.state, meetBlocked.reasons]).toEqual(["Blocked", ["dependency.pending"]]);
+
+      // 4. the bridge and the Approval Center: the email waits for a person, nothing is sent
+      const w = google();
+      let state = await authorized(w);
+      const mailParams = { to: [lead.email!], subject: task.title, text: task.draft };
+      const held = await holdForApproval(w.ws, state, w.env, mailReady, mailParams, w.at());
+      expect("status" in held && held.status).toBe("awaitingApproval");
+      state = (held as { state: ConnectorsState }).state;
+      expect(approvalInbox(state, T1, w.at()).map((row) => row.operation)).toEqual(["gmail.send"]);
+      expect(w.fake.sent).toHaveLength(0);
+
+      // 5. a person approves: Gmail sends (simulated) with what the CRM prepared
+      const sent = await approveAction(w.ws, state, w.env, { tenantId: T1, actor: "ana", actionId: (held as { action: { id: string } }).action.id, at: w.at() });
+      expect(sent.ok, sent.code).toBe(true);
+      state = sent.state;
+      expect(w.fake.sent).toHaveLength(1);
+      expect(w.fake.sent[0]!.raw).toContain(`To: ${lead.email!}`);
+
+      // 6. the Orchestrator reports the email done: now the meeting is Ready, waits for a person, and Calendar books it on approval
+      live = current("completed");
+      parts.clock.advance(1_000);
+      const meetReady = gw.validate(system, T1, requestIdFor(planId, "meet")).record!;
+      expect(meetReady.state).toBe("Ready");
+      const meetParams = { summary: `Reunión con ${lead.name}`, start: "2026-11-16T15:00:00Z", end: "2026-11-16T16:00:00Z", attendees: [lead.email!] };
+      const heldMeet = await holdForApproval(w.ws, state, w.env, meetReady, meetParams, w.at());
+      expect("status" in heldMeet && heldMeet.status).toBe("awaitingApproval");
+      expect(Object.keys(w.fake.events)).toHaveLength(0);
+      const booked = await approveAction(w.ws, (heldMeet as { state: ConnectorsState }).state, w.env, { tenantId: T1, actor: "ana", actionId: (heldMeet as { action: { id: string } }).action.id, at: w.at() });
+      expect(booked.ok, booked.code).toBe(true);
+      state = booked.state;
+      expect(Object.keys(w.fake.events)).toHaveLength(1);
+
+      // 7. the CRM records what happened (the system reports, a person books and closes)
+      crm = apply(crm, crmEvent("timeline.record", "system", { subject: { kind: "lead", id: lead.id }, kind: "worker", summary: "Correo enviado por Gmail", ref: requestIdFor(planId, "mail") }, 10));
+      crm = apply(crm, crmEvent("meeting.schedule", "ana", { leadId: lead.id, scheduledFor: "2026-11-16T15:00:00Z", title: meetParams.summary }, 11));
+      crm = apply(crm, crmEvent("task.complete", "ana", { taskId: task.id, note: "Correo enviado y reunión agendada" }, 12));
+      expect(crm.meetings).toHaveLength(1);
+      expect(crm.tasks.find((row) => row.id === task.id)!.status).toBe("done");
+
+      // 8. everything is audited, in the layers' own trails, and the dashboards show the result
+      expect(state.audit.map((row) => `${row.actor}:${row.action}`).filter((row) => /action\./.test(row))).toEqual(["worker:w1:action.request", "ana:action.approve", "worker:w1:action.request", "ana:action.approve"]);
+      expect(gw.audit(T1).filter((row) => row.action === "request.created")).toHaveLength(2);
+      expect(gw.audit(T1).some((row) => row.action === "request.validated")).toBe(true);
+      expect(crm.audit.map((row) => row.action)).toEqual(expect.arrayContaining(["lead.create", "task.accept", "meeting.schedule", "task.complete"]));
+      expect(w.ws.executions.map((row) => `${row.operation}:${row.outcome}`)).toEqual(["gmail.send:ok", "calendar.create:ok"]);
+      expect(gw.dashboard(system).requests.byState).toMatchObject({ Ready: 2, Blocked: 0 });
+      expect(approvalInbox(state, T1, w.at())).toEqual([]);
+      const rows = workspaceView(state, w.ws.activities_(), T1, w.at());
+      expect(rows.map((row) => `${row.connectorId}:${row.display}`)).toEqual(["gmail:Connected", "googleCalendar:Connected", "googleDrive:Connected"]);
+      // no content of the lead or the email in any trail
+      expect(JSON.stringify([state.audit, w.ws.executions, gw.exportState().audit, gw.log.all()])).not.toMatch(/laura@aurora\.test|Clínica Aurora|Laura Gómez/);
     });
   });
 });
