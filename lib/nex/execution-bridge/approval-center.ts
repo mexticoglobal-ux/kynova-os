@@ -31,15 +31,22 @@ export async function holdForApproval(ws: GoogleWorkspace, state: ConnectorsStat
   return built.ok ? ws.request(state, env, built.input) : built;
 }
 
-type Decision = { tenantId: string; actor: string; actionId: string; at: string; ttlMinutes?: number };
+/** `after` receives the result of the decision as soon as it is known (the caller wires the Runtime Orchestrator here: see `syncOrchestrator`); it changes nothing about the decision. */
+type Decision = { tenantId: string; actor: string; actionId: string; at: string; ttlMinutes?: number; after?: (result: WorkspaceResult) => unknown };
 /** Approves: the person's decision, then the real call. A pending action past its deadline is refused here (it can only be rejected). */
 export async function approveAction(ws: GoogleWorkspace, state: ConnectorsState, env: ConnectorEnv, input: Decision): Promise<WorkspaceResult> {
   const entry = approvalInbox(state, input.tenantId, input.at, input.ttlMinutes).find((row) => row.actionId === input.actionId);
-  if (entry?.status === "expired") return { state, ok: false, status: "refused", code: "expired", error: "La solicitud venció: ya no se puede aprobar." };
-  return ws.approve(state, env, { tenantId: input.tenantId, actor: input.actor, actionId: input.actionId, at: input.at });
+  const result: WorkspaceResult = entry?.status === "expired"
+    ? { state, ok: false, status: "refused", code: "expired", error: "La solicitud venció: ya no se puede aprobar." }
+    : await ws.approve(state, env, { tenantId: input.tenantId, actor: input.actor, actionId: input.actionId, at: input.at });
+  input.after?.(result);
+  return result;
 }
-export const rejectAction = (ws: GoogleWorkspace, state: ConnectorsState, env: ConnectorEnv, input: Decision & { reason: string }): Promise<WorkspaceResult> =>
-  ws.reject(state, env, { tenantId: input.tenantId, actor: input.actor, actionId: input.actionId, reason: input.reason, at: input.at });
+export async function rejectAction(ws: GoogleWorkspace, state: ConnectorsState, env: ConnectorEnv, input: Decision & { reason: string }): Promise<WorkspaceResult> {
+  const result = await ws.reject(state, env, { tenantId: input.tenantId, actor: input.actor, actionId: input.actionId, reason: input.reason, at: input.at });
+  input.after?.(result);
+  return result;
+}
 
 /** Closes every pending action past its deadline by rejecting it as "expirada" in the name of `actor` (who must be a person who administers the company: otherwise the reducer refuses and nothing changes). */
 export async function expireDue(ws: GoogleWorkspace, state: ConnectorsState, env: ConnectorEnv, input: { tenantId: string; actor: string; at: string; ttlMinutes?: number }): Promise<{ state: ConnectorsState; expired: string[]; refused: string[] }> {

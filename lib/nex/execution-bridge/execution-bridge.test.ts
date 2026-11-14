@@ -6,7 +6,7 @@ import { decrypt, encrypt, generateEncryptionKey } from "@/lib/backend/crypto";
 import { MemorySecretsProvider, SecretsManager } from "@/lib/backend/secrets";
 import { CONNECTORS, FAMILY_SECRETS, PROVIDER_FAMILIES, configuredFamilies, newConnectorsState, reduceConnectors, type ConnectorEnv, type ConnectorId, type ConnectorsEvent, type ConnectorsState } from "@/lib/contracts/platform/connectors";
 import { newCrmState, reduceCrm, type CrmEvent, type CrmState } from "@/lib/contracts/platform/crm-center";
-import { EncryptedMemoryVault, GoogleWorkspace, workspaceView, type GoogleDeps } from "@/lib/integrations/google";
+import { EncryptedMemoryVault, GoogleWorkspace, workspaceView, type GoogleDeps, type WorkspaceResult } from "@/lib/integrations/google";
 import { fakeGoogle } from "@/lib/integrations/google/fake-google";
 import { ExecutionEngine, type ExecutionPlan } from "@/lib/nex/execution";
 import { ExecutionGateway, requestIdFor, type GatewayRecord } from "@/lib/nex/execution-gateway";
@@ -14,7 +14,7 @@ import { OrchestratorEngine } from "@/lib/nex/runtime-orchestrator";
 import { WorkerOsEngine, type Principal as OsPrincipal } from "@/lib/nex/worker-os";
 import { WorkerRuntimeEngine, type Principal as RuntimePrincipal } from "@/lib/nex/worker-runtime";
 import { EXPIRED_REASON, approvalInbox, approveAction, expireDue, holdForApproval, rejectAction } from "./approval-center";
-import { ACTION_OF_TASK_KIND, GOOGLE_OPERATION_OF_ACTION, TOOL_OF_CONNECTOR, connectorAction, crmCopilotOutput, crmRecordsAfterApproval, gatewaySources, googleOperationOf, googleRequest, mailParams, osFact, planFact, planFromCrmTasks, runtimeFact, visitParams, withQueueStates } from "./execution-bridge";
+import { ACTION_OF_TASK_KIND, GOOGLE_OPERATION_OF_ACTION, TOOL_OF_CONNECTOR, connectorAction, crmCopilotOutput, crmRecordsAfterApproval, gatewaySources, googleOperationOf, googleRequest, mailParams, osFact, planFact, planFromCrmTasks, runtimeFact, syncOrchestrator, visitParams, withQueueStates, type SyncOutcome } from "./execution-bridge";
 
 const T1 = "tenant-nova";
 const START = Date.parse("2026-11-13T10:00:00.000Z");
@@ -344,6 +344,7 @@ describe("approved plan → … → Gateway → Google Workspace (Gmail, Calenda
     return { exec, plan: approved, mail: approved.steps.find((row) => row.action === "followup.send")!, meet: approved.steps.find((row) => row.action === "calendar.write")! };
   }
 
+
   describe("Nova Marketing Studio, end to end: lead → CRM task → plan → Gateway → bridge → Approval Center → Gmail + Calendar → CRM, audit and dashboard", () => {
     const crmEvent = (type: string, actor: string, extra: Record<string, unknown> = {}, minute = 0) => ({ type, tenantId: T1, actor, at: iso(minute), ...extra }) as CrmEvent;
     const apply = (state: CrmState, event: CrmEvent): CrmState => { const result = reduceCrm(state, event); expect(result.error, `${event.type}: ${result.error}`).toBeUndefined(); return result.state; };
@@ -366,8 +367,11 @@ describe("approved plan → … → Gateway → Google Workspace (Gmail, Calenda
       equip(parts);
       const { plan: approved, mail, meet } = crmPlan(parts, crm, lead.id, task.id, meetTask.id);
       const planId = approved.id;
-      let live = approved;
-      const gw = new ExecutionGateway({ now: () => parts.clock.t, sources: () => gatewaySources({ plans: [live], runtimeWorkers: parts.runtime.workersFor(adela), osWorkers: parts.os.workersFor(adela), roleOf: (id) => ROLES[id] }) });
+      const osys = { kind: "system" as const, tenantId: T1 };
+      const orch = newOrchestrator(parts);
+      expect(orch.enqueue(osys, T1, approved).ok).toBe(true);
+      expect(orch.tick(osys, T1).ok).toBe(true);
+      const gw = new ExecutionGateway({ now: () => parts.clock.t, sources: () => gatewaySources({ plans: [withQueueStates(approved, orch.queueFor(osys))], runtimeWorkers: parts.runtime.workersFor(adela), osWorkers: parts.os.workersFor(adela), roleOf: (id) => ROLES[id] }) });
 
       // 3. the Gateway: the email is Ready, the meeting waits for it
       for (const [step, workerId] of [[mail, "w1"], [meet, "w2"]] as const) expect(gw.submit(system, T1, { planId, stepId: step.id, workerId }).ok).toBe(true);
@@ -387,14 +391,15 @@ describe("approved plan → … → Gateway → Google Workspace (Gmail, Calenda
       expect(w.fake.sent).toHaveLength(0);
 
       // 5. a person approves: Gmail sends (simulated) with what the CRM prepared
-      const sent = await approveAction(w.ws, state, w.env, { tenantId: T1, actor: "ana", actionId: (held as { action: { id: string } }).action.id, at: w.at() });
+      const mailSync = syncTo(orch, planId, mail.id);
+      const sent = await approveAction(w.ws, state, w.env, { tenantId: T1, actor: "ana", actionId: (held as { action: { id: string } }).action.id, at: w.at(), after: mailSync.after });
       expect(sent.ok, sent.code).toBe(true);
       state = sent.state;
       expect(w.fake.sent).toHaveLength(1);
       expect(w.fake.sent[0]!.raw).toContain(`To: ${lead.email!}`);
 
       // 6. the Orchestrator reports the email done: now the meeting is Ready, waits for a person, and Calendar books it on approval
-      live = { ...approved, steps: approved.steps.map((row) => (row.id === mail.id ? { ...row, state: "completed" as const } : row)) };
+      expect(mailSync.seen).toEqual([{ outcome: "completed", item: "Completed" }]); // the Orchestrator was told by the adapter, not by hand
       parts.clock.advance(1_000);
       const meetReady = gw.validate(system, T1, requestIdFor(planId, meet.id)).record!;
       expect(meetReady.state).toBe("Ready");
@@ -402,8 +407,10 @@ describe("approved plan → … → Gateway → Google Workspace (Gmail, Calenda
       const heldMeet = await holdForApproval(w.ws, state, w.env, meetReady, meetParams, w.at());
       expect("status" in heldMeet && heldMeet.status).toBe("awaitingApproval");
       expect(Object.keys(w.fake.events)).toHaveLength(0);
-      const booked = await approveAction(w.ws, (heldMeet as { state: ConnectorsState }).state, w.env, { tenantId: T1, actor: "ana", actionId: (heldMeet as { action: { id: string } }).action.id, at: w.at() });
+      const meetSync = syncTo(orch, planId, meet.id);
+      const booked = await approveAction(w.ws, (heldMeet as { state: ConnectorsState }).state, w.env, { tenantId: T1, actor: "ana", actionId: (heldMeet as { action: { id: string } }).action.id, at: w.at(), after: meetSync.after });
       expect(booked.ok, booked.code).toBe(true);
+      expect(meetSync.seen).toEqual([{ outcome: "completed", item: "Completed" }]);
       state = booked.state;
       expect(Object.keys(w.fake.events)).toHaveLength(1);
 
@@ -486,15 +493,13 @@ describe("approved plan → … → Gateway → Google Workspace (Gmail, Calenda
       expect(w.fake.sent).toHaveLength(0);
 
       // 5. the administrator approves: Gmail sends (simulated); the Orchestrator is told the step ran
-      const sent = await approveAction(w.ws, state, w.env, { tenantId: T1, actor: "ana", actionId: mailAction, at: w.at() });
+      const mailSync = syncTo(orch, planId, mail.id);
+      const sent = await approveAction(w.ws, state, w.env, { tenantId: T1, actor: "ana", actionId: mailAction, at: w.at(), after: mailSync.after });
       expect(sent.ok, sent.code).toBe(true);
       state = sent.state;
       expect(w.fake.sent).toHaveLength(1);
       expect(w.fake.sent[0]!.raw).toContain(`To: ${lead.email!}`);
-      expect(orch.start(osys, T1, mail.id).ok).toBe(true);
-      parts.clock.advance(5_000);
-      expect(orch.finish(osys, T1, mail.id, "completed").ok).toBe(true);
-      expect(orch.tick(osys, T1).ok).toBe(true);
+      expect(mailSync.seen).toEqual([{ outcome: "completed", item: "Completed" }]); // the Orchestrator was told by the adapter, not by hand
 
       // 6. the visit is Ready now; it waits for the administrator too, and Calendar creates it on approval
       const visitReady = gw.validate(system, T1, requestIdFor(planId, visitStep.id)).record!;
@@ -503,14 +508,13 @@ describe("approved plan → … → Gateway → Google Workspace (Gmail, Calenda
       const heldVisit = await holdForApproval(w.ws, state, w.env, visitReady, visitParams(lead, visit), w.at());
       expect("status" in heldVisit && heldVisit.status).toBe("awaitingApproval");
       expect(Object.keys(w.fake.events)).toHaveLength(0);
-      const booked = await approveAction(w.ws, (heldVisit as { state: ConnectorsState }).state, w.env, { tenantId: T1, actor: "ana", actionId: (heldVisit as { action: { id: string } }).action.id, at: w.at() });
+      const visitSync = syncTo(orch, planId, visitStep.id);
+      const booked = await approveAction(w.ws, (heldVisit as { state: ConnectorsState }).state, w.env, { tenantId: T1, actor: "ana", actionId: (heldVisit as { action: { id: string } }).action.id, at: w.at(), after: visitSync.after });
       expect(booked.ok, booked.code).toBe(true);
       state = booked.state;
       expect(Object.values(w.fake.events)).toHaveLength(1);
       expect(JSON.stringify(Object.values(w.fake.events)[0])).toContain("Escazú, San José");
-      expect(orch.start(osys, T1, visitStep.id).ok).toBe(true);
-      parts.clock.advance(5_000);
-      expect(orch.finish(osys, T1, visitStep.id, "completed").ok).toBe(true);
+      expect(visitSync.seen).toEqual([{ outcome: "completed", item: "Completed" }]);
 
       // 7. the CRM records it automatically: email sent, visit scheduled, timeline, tasks done
       for (const event of crmRecordsAfterApproval({ tenantId: T1, leadId: lead.id, taskIds, approver: "ana", at: iso(30), mailRequestId: requestIdFor(planId, mail.id), visit: { title: visit.title, scheduledFor: visit.start } })) crm = apply(crm, event);
@@ -595,14 +599,12 @@ describe("approved plan → … → Gateway → Google Workspace (Gmail, Calenda
       expect(orch.queueFor({ kind: "system", tenantId: T2 })).toEqual([]);
 
       // 10. an administrator approves: the (fake) Gmail sends; the Orchestrator is told the step ran
-      const sent = await approveAction(w.ws, state, w.env, { tenantId: T1, actor: "ana", actionId: mailAction, at: w.at() });
+      const mailSync = syncTo(orch, planId, sponsor.id);
+      const sent = await approveAction(w.ws, state, w.env, { tenantId: T1, actor: "ana", actionId: mailAction, at: w.at(), after: mailSync.after });
       expect(sent.ok, sent.code).toBe(true);
       state = sent.state;
       expect(w.fake.sent[0]!.raw).toContain(`To: ${lead.email!}`);
-      expect(orch.start(osys, T1, sponsor.id).ok).toBe(true);
-      parts.clock.advance(5_000);
-      expect(orch.finish(osys, T1, sponsor.id, "completed").ok).toBe(true);
-      expect(orch.tick(osys, T1).ok).toBe(true);
+      expect(mailSync.seen).toEqual([{ outcome: "completed", item: "Completed" }]); // the Orchestrator was told by the adapter, not by hand
 
       // 11. the recording and publication date: Ready now, held, and created by Calendar on approval
       const recordingReady = gw.validate(system, T1, requestIdFor(planId, recording.id)).record!;
@@ -611,12 +613,11 @@ describe("approved plan → … → Gateway → Google Workspace (Gmail, Calenda
       const heldDate = await holdForApproval(w.ws, state, w.env, recordingReady, visitParams(lead, date), w.at());
       expect("status" in heldDate && heldDate.status).toBe("awaitingApproval");
       expect(Object.keys(w.fake.events)).toHaveLength(0);
-      const booked = await approveAction(w.ws, (heldDate as { state: ConnectorsState }).state, w.env, { tenantId: T1, actor: "ana", actionId: (heldDate as { action: { id: string } }).action.id, at: w.at() });
+      const dateSync = syncTo(orch, planId, recording.id);
+      const booked = await approveAction(w.ws, (heldDate as { state: ConnectorsState }).state, w.env, { tenantId: T1, actor: "ana", actionId: (heldDate as { action: { id: string } }).action.id, at: w.at(), after: dateSync.after });
       expect(booked.ok, booked.code).toBe(true);
       state = booked.state;
-      expect(orch.start(osys, T1, recording.id).ok).toBe(true);
-      parts.clock.advance(5_000);
-      expect(orch.finish(osys, T1, recording.id, "completed").ok).toBe(true);
+      expect(dateSync.seen).toEqual([{ outcome: "completed", item: "Completed" }]);
 
       // 12. the CRM records: email sent, sponsor contacted, calendar created, tasks completed
       for (const event of crmRecordsAfterApproval({ tenantId: T1, leadId: lead.id, taskIds, approver: "ana", at: iso(30), mailRequestId: requestIdFor(planId, sponsor.id), visit: { title: date.title, scheduledFor: date.start } })) crm = apply(crm, event);
@@ -645,7 +646,23 @@ describe("approved plan → … → Gateway → Google Workspace (Gmail, Calenda
   });
 });
 
-describe("CRM task → Execution plan adapter", () => {
+/** The adapter wired to one step: the Approval Center hands every decision's result to it, so nobody tells the Orchestrator by hand. */
+function syncTo(orch: OrchestratorEngine, planId: string, stepId: string) {
+  const seen: SyncOutcome[] = [];
+  return { seen, after: (result: WorkspaceResult) => { seen.push(syncOrchestrator(orch, { tenantId: T1, planId, stepId }, result)); } };
+}
+/** The Runtime Orchestrator with the two workers (Sales and Operations) the planner's steps need. */
+function newOrchestrator(parts: ReturnType<typeof layers>) {
+  return new OrchestratorEngine({
+    env: { isWorkerActive: () => true }, now: () => parts.clock.t, roleOf: (_tenantId, personId) => ROLES[personId],
+    workers: () => [
+      { id: "w1", tenantId: T1, name: "Ventas", specialty: "sales", status: "active", capacity: 2, permissions: ["*"] },
+      { id: "w2", tenantId: T1, name: "Operaciones", specialty: "operations", status: "active", capacity: 2, permissions: ["*"] },
+    ],
+  });
+}
+
+describe("CRM task → Execution plan adapter, and execution result → Runtime Orchestrator adapter", () => {
   const task = (id: string, kind: "email" | "meeting" | "call" | "whatsapp" | "followup" | "proposal", over: Record<string, unknown> = {}) =>
     ({ id, tenantId: T1, leadId: "ld_00001", kind, title: "SECRETO-TITULO", reason: "SECRETO-MOTIVO", draft: "SECRETO-BORRADOR", dueAt: iso(60), status: "accepted", proposedBy: "worker:w1", proposedAt: iso(0), ...over }) as never;
   const exec = (clock: { t: number }) => new ExecutionEngine({
@@ -690,6 +707,86 @@ describe("CRM task → Execution plan adapter", () => {
     const other = { ...people, preparer: { ...people.preparer, tenantId: "tenant-vida" }, approver: { ...people.approver, tenantId: "tenant-vida" } };
     expect(planFromCrmTasks(exec({ t: START }), other, { ...base, tasks: [task("tk_1", "email")] }).ok).toBe(false); // another company's people cannot prepare this company's tasks
   });
+
+  const osys = { kind: "system" as const, tenantId: T1 };
+  /** An approved plan from CRM tasks, already in the Orchestrator and assigned. */
+  function orchestrated(kinds: ("call" | "email" | "meeting")[], after: Record<string, readonly string[]> = {}) {
+    const parts = layers();
+    const planned = planFromCrmTasks(exec(parts.clock), people, { ...base, tasks: kinds.map((kind, index) => task(`tk_${index + 1}`, kind)), after });
+    expect(planned.ok, JSON.stringify(planned)).toBe(true);
+    const approved = (planned as { plan: ExecutionPlan }).plan;
+    const orch = newOrchestrator(parts);
+    expect(orch.enqueue(osys, T1, approved).ok).toBe(true);
+    expect(orch.tick(osys, T1).ok).toBe(true);
+    const target = (action: string) => ({ tenantId: T1, planId: approved.id, stepId: approved.steps.find((row) => row.action === action)!.id });
+    return { parts, orch, approved, target, state: (stepId: string) => orch.queueFor(osys).find((row) => row.id === stepId)!.state };
+  }
+
+  it("a result that ran completes the step; the run completes with it", () => {
+    const { orch, target, state } = orchestrated(["call"]);
+    expect(syncOrchestrator(orch, target("crm.task"), { status: "done" })).toEqual({ outcome: "completed", item: "Completed" });
+    expect(state(target("crm.task").stepId)).toBe("Completed");
+    expect(orch.runsFor(osys)[0]!.status).toBe("Completed");
+  });
+  it("a failed result is the Orchestrator's to retry (its own backoff and attempts), then to fail", () => {
+    const { parts, orch, target, state } = orchestrated(["call"]); // an internal task: Level 1, three attempts
+    const t = target("crm.task");
+    expect(syncOrchestrator(orch, t, { status: "failed" })).toEqual({ outcome: "retry", item: "Pending" });
+    expect(orch.tick(osys, T1).ok).toBe(true);
+    expect(state(t.stepId)).toBe("Pending"); // still backing off
+    parts.clock.advance(1_000);
+    expect(orch.tick(osys, T1).ok).toBe(true);
+    expect(state(t.stepId)).toBe("Assigned");
+    expect(syncOrchestrator(orch, t, { status: "failed" }).outcome).toBe("retry");
+    parts.clock.advance(2_000); // the backoff doubles
+    expect(orch.tick(osys, T1).ok).toBe(true);
+    expect(syncOrchestrator(orch, t, { status: "failed" })).toEqual({ outcome: "failed", item: "Failed" });
+    expect(orch.runsFor(osys)[0]!.status).toBe("Failed");
+    expect(orch.log.ofType("execution.retry")).toHaveLength(2);
+  });
+  it("a Level 3 action is never retried: its failure fails the step, the run and what waited for it", () => {
+    const { orch, target, state } = orchestrated(["email", "meeting"], { tk_2: ["tk_1"] });
+    expect(syncOrchestrator(orch, target("followup.send"), { status: "failed" })).toEqual({ outcome: "failed", item: "Failed" });
+    expect(state(target("calendar.write").stepId)).toBe("Cancelled");
+    expect(orch.runsFor(osys)[0]!.status).toBe("Failed");
+  });
+  it("an action a person rejected cancels the plan's run (the Orchestrator cancels by run)", () => {
+    const { orch, target, state } = orchestrated(["email", "meeting"], { tk_2: ["tk_1"] });
+    expect(syncOrchestrator(orch, target("followup.send"), { status: "rejected" })).toEqual({ outcome: "cancelled" });
+    expect(orch.queueFor(osys).every((row) => row.state === "Cancelled")).toBe(true);
+    expect(orch.runsFor(osys)[0]!.status).toBe("Cancelled");
+    expect(state(target("calendar.write").stepId)).toBe("Cancelled");
+  });
+  it("reports nothing while a person still has to decide, or when the connector refused", () => {
+    const { orch, target } = orchestrated(["email"]);
+    const before = JSON.stringify(orch.exportState());
+    for (const status of ["awaitingApproval", "refused", undefined] as const) expect(syncOrchestrator(orch, target("followup.send"), { status })).toEqual({ outcome: "none" });
+    expect(JSON.stringify(orch.exportState())).toBe(before);
+  });
+  it("is idempotent, and never reaches another company's plan", () => {
+    const { orch, target, state } = orchestrated(["call"]);
+    const t = target("crm.task");
+    expect(syncOrchestrator(orch, t, { status: "done" }).outcome).toBe("completed");
+    expect(syncOrchestrator(orch, t, { status: "done" })).toEqual({ outcome: "none", refusal: "state" }); // the same result twice changes nothing
+    const other = orchestrated(["call"]);
+    const snapshot = () => JSON.stringify([other.orch.exportState().queue, other.orch.exportState().runs]); // the refusals are audited (in the asker's company), but nothing moves
+    const before = snapshot();
+    expect(syncOrchestrator(other.orch, { ...other.target("crm.task"), tenantId: "tenant-vida" }, { status: "done" })).toEqual({ outcome: "none", refusal: "notFound" });
+    expect(syncOrchestrator(other.orch, { ...other.target("crm.task"), tenantId: "tenant-vida" }, { status: "rejected" })).toEqual({ outcome: "none", refusal: "notFound" });
+    expect(snapshot()).toBe(before);
+    expect(other.orch.exportState().audit.filter((row) => row.tenantId === T1 && row.action.endsWith(".refused"))).toEqual([]);
+    expect(state(t.stepId)).toBe("Completed");
+  });
+  it("is deterministic: the same results give the same queue and log", () => {
+    const run = () => {
+      const { orch, target } = orchestrated(["email", "meeting"], { tk_2: ["tk_1"] });
+      syncOrchestrator(orch, target("followup.send"), { status: "done" });
+      syncOrchestrator(orch, target("calendar.write"), { status: "done" });
+      return [orch.exportState(), orch.log.all()];
+    };
+    expect(run()).toEqual(run());
+  });
+
 });
 
 describe("the bridge is glue only", () => {

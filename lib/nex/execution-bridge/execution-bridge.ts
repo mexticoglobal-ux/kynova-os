@@ -5,10 +5,10 @@
 import type { ConnectorId, ConnectorsEvent, ConnectorsState } from "@/lib/contracts/platform/connectors";
 import type { CrmEvent, Task as CrmTask } from "@/lib/contracts/platform/crm-center";
 import { levelForAction } from "@/lib/contracts/platform/workers";
-import type { GoogleOperationId, GoogleWorkspace } from "@/lib/integrations/google";
+import type { GoogleOperationId, GoogleWorkspace, WorkspaceResult } from "@/lib/integrations/google";
 import { addDependency, finalize, type CopilotOutput, type ExecutionEngine, type ExecutionPlan, type Principal as ExecutionPrincipal, type Recommendation, type SuggestedAction } from "@/lib/nex/execution";
 import { LEVEL_ROLE, type GatewayRecord, type GatewaySources, type OsWorkerFact, type PlanFact, type RuntimeWorkerFact, type StepFact } from "@/lib/nex/execution-gateway";
-import type { QueueItem } from "@/lib/nex/runtime-orchestrator";
+import type { OrchestratorEngine, QueueItem } from "@/lib/nex/runtime-orchestrator";
 import type { WorkerRecord as OsWorker } from "@/lib/nex/worker-os";
 import type { WorkerRecord as RuntimeWorker } from "@/lib/nex/worker-runtime";
 
@@ -151,6 +151,30 @@ export function planFromCrmTasks(
     }
   }
   return { ok: true, plan: steps === plan.steps ? plan : finalize({ ...plan, steps }, plan.modules, []) };
+}
+
+// ---------------------------------------------------------------------------------------------- execution result → Runtime Orchestrator (Sprint 59)
+export type StepTarget = { tenantId: string; planId: string; stepId: string };
+export type SyncOutcome = { outcome: "completed" | "failed" | "retry" | "cancelled" | "none"; refusal?: string; item?: QueueItem["state"] };
+/**
+ * Tells the Runtime Orchestrator what happened to a step, as the existing Orchestrator takes it (only the SYSTEM reports): an approved action that ran → started and finished `completed`; one that failed →
+ * started and finished `failed` (the Orchestrator itself decides whether it retries, with its own backoff, or fails the plan); an action a person REJECTED → the plan's run is cancelled (the Orchestrator
+ * cancels by run, never by step). Anything else (still waiting, refused) reports nothing. Then a tick, so what the step unblocked is assigned. It adds no rule: a refusal of the Orchestrator is returned as is.
+ */
+export function syncOrchestrator(orchestrator: OrchestratorEngine, target: StepTarget, result: Pick<WorkspaceResult, "status">): SyncOutcome {
+  const system = { kind: "system" as const, tenantId: target.tenantId };
+  if (result.status === "rejected") {
+    const cancelled = orchestrator.cancel(system, target.tenantId, target.planId);
+    return cancelled.ok ? { outcome: "cancelled" } : { outcome: "none", ...(cancelled.refusal ? { refusal: cancelled.refusal } : {}) };
+  }
+  if (result.status !== "done" && result.status !== "failed") return { outcome: "none" };
+  const started = orchestrator.start(system, target.tenantId, target.stepId);
+  if (!started.ok) return { outcome: "none", ...(started.refusal ? { refusal: started.refusal } : {}) };
+  const finished = orchestrator.finish(system, target.tenantId, target.stepId, result.status === "done" ? "completed" : "failed");
+  if (!finished.ok) return { outcome: "none", ...(finished.refusal ? { refusal: finished.refusal } : {}) };
+  orchestrator.tick(system, target.tenantId);
+  const item = orchestrator.queueFor(system).find((row) => row.planId === target.planId && row.id === target.stepId);
+  return { outcome: result.status === "done" ? "completed" : item?.state === "Pending" ? "retry" : "failed", ...(item ? { item: item.state } : {}) };
 }
 
 /** Which connection, scope and operation a request goes through: the caller knows its company's connection; this bridge invents none. */
