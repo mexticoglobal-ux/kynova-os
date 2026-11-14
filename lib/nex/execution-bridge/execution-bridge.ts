@@ -2,7 +2,8 @@
 // Gateway reads, and turns a Ready request into the event the existing Connectors reducer already takes (`action.request`, asked by the Worker, approved by a person, run by the connector). It adds
 // no rule and no state: it validates nothing, approves nothing and calls no provider, and the Connectors module is the one that decides (write actions still wait for a person). Pure.
 
-import type { ConnectorId, ConnectorsEvent } from "@/lib/contracts/platform/connectors";
+import type { ConnectorId, ConnectorsEvent, ConnectorsState } from "@/lib/contracts/platform/connectors";
+import type { GoogleOperationId, GoogleWorkspace } from "@/lib/integrations/google";
 import type { ExecutionPlan } from "@/lib/nex/execution";
 import type { GatewayRecord, GatewaySources, OsWorkerFact, PlanFact, RuntimeWorkerFact, StepFact } from "@/lib/nex/execution-gateway";
 import type { WorkerRecord as OsWorker } from "@/lib/nex/worker-os";
@@ -30,6 +31,28 @@ export const osFact = (worker: OsWorker): OsWorkerFact => ({
 export const gatewaySources = (input: { plans: readonly ExecutionPlan[]; runtimeWorkers: readonly RuntimeWorker[]; osWorkers: readonly OsWorker[]; roleOf: GatewaySources["roleOf"] }): GatewaySources => ({
   plans: input.plans.map(planFact), runtimeWorkers: input.runtimeWorkers.map(runtimeFact), osWorkers: input.osWorkers.map(osFact), roleOf: input.roleOf,
 });
+
+// ---------------------------------------------------------------------------------------------- Google Workspace (Sprint 41's service): Ready request → the input of `GoogleWorkspace.request`
+/** The Google operation a platform action means. The catalog has no Drive or read actions yet, so those are reached only by naming the operation itself (`drive.upload`). */
+export const GOOGLE_OPERATION_OF_ACTION: Readonly<Record<string, GoogleOperationId>> = { "followup.send": "gmail.send", "message.sendFirst": "gmail.send", "message.sendSensitive": "gmail.send", "comms.send": "gmail.send", "calendar.write": "calendar.create" };
+const CONNECTOR_OF_FAMILY: Readonly<Record<string, ConnectorId>> = { gmail: "gmail", calendar: "googleCalendar", drive: "googleDrive" };
+/** An action that already is a Google operation id (`gmail.send`, `drive.upload`…) stands for itself; the service refuses an id it does not know. */
+export const googleOperationOf = (actionId: string): string | undefined => GOOGLE_OPERATION_OF_ACTION[actionId] ?? (/^(gmail|calendar|drive)\.[A-Za-z]+$/.test(actionId) ? actionId : undefined);
+
+export type GoogleRequestInput = Parameters<GoogleWorkspace["request"]>[2];
+/**
+ * Builds what the Google Workspace service takes (it then asks the Connectors reducer, holds anything that leaves the platform for a person and only then calls Google). Only a Ready request, a mapped
+ * operation and one of the company's own active connections count. `params` (the content: recipients, text, dates) come from the caller: a request never carries them.
+ */
+export function googleRequest(record: GatewayRecord, state: ConnectorsState, params: Record<string, unknown>, at: string): { ok: true; input: GoogleRequestInput } | { ok: false; reason: "notReady" | "unknownOperation" | "notConnected" } {
+  if (record.state !== "Ready") return { ok: false, reason: "notReady" };
+  const operation = googleOperationOf(record.request.actionId);
+  const connectorId = operation ? CONNECTOR_OF_FAMILY[operation.split(".")[0] ?? ""] : undefined;
+  if (!operation || !connectorId) return { ok: false, reason: "unknownOperation" };
+  const connection = state.connections.find((row) => row.tenantId === record.request.companyId && row.connectorId === connectorId && (row.status === "active" || row.status === "degraded"));
+  if (!connection) return { ok: false, reason: "notConnected" };
+  return { ok: true, input: { tenantId: record.request.companyId, workerId: record.request.workerId, connectionId: connection.id, operation, params, at } };
+}
 
 /** Which connection, scope and operation a request goes through: the caller knows its company's connection; this bridge invents none. */
 export type ConnectorRoute = { connectionId: string; scope: string; operation: string; summary: string };

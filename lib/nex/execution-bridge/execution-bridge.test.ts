@@ -2,12 +2,16 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { PROVIDER_FAMILIES, newConnectorsState, reduceConnectors, type ConnectorEnv, type ConnectorsEvent } from "@/lib/contracts/platform/connectors";
+import { decrypt, encrypt, generateEncryptionKey } from "@/lib/backend/crypto";
+import { MemorySecretsProvider, SecretsManager } from "@/lib/backend/secrets";
+import { CONNECTORS, FAMILY_SECRETS, PROVIDER_FAMILIES, configuredFamilies, newConnectorsState, reduceConnectors, type ConnectorEnv, type ConnectorId, type ConnectorsEvent, type ConnectorsState } from "@/lib/contracts/platform/connectors";
+import { EncryptedMemoryVault, GoogleWorkspace, type GoogleDeps } from "@/lib/integrations/google";
+import { fakeGoogle } from "@/lib/integrations/google/fake-google";
 import type { ExecutionPlan } from "@/lib/nex/execution";
 import { ExecutionGateway, requestIdFor, type GatewayRecord } from "@/lib/nex/execution-gateway";
 import { WorkerOsEngine, type Principal as OsPrincipal } from "@/lib/nex/worker-os";
 import { WorkerRuntimeEngine, type Principal as RuntimePrincipal } from "@/lib/nex/worker-runtime";
-import { TOOL_OF_CONNECTOR, connectorAction, gatewaySources, osFact, planFact, runtimeFact } from "./execution-bridge";
+import { GOOGLE_OPERATION_OF_ACTION, TOOL_OF_CONNECTOR, connectorAction, gatewaySources, googleOperationOf, googleRequest, osFact, planFact, runtimeFact } from "./execution-bridge";
 
 const T1 = "tenant-nova";
 const START = Date.parse("2026-11-13T10:00:00.000Z");
@@ -119,6 +123,117 @@ describe("approved plan → Worker Runtime → Worker OS → Gateway → connect
     const c = gateway([plan({ decidedBy: "marta" }, { authorizationLevel: 3, approverRole: "admin" })]);
     c.gw.submit(system, T1, { planId: "xp:f1", stepId: "s1", workerId: "w1" });
     expect(c.gw.validate(system, T1, requestIdFor("xp:f1", "s1")).record!.reasons).toEqual(["role.insufficient"]);
+  });
+});
+
+describe("approved plan → … → Gateway → Google Workspace (Gmail, Calendar, Drive) with the fake Google: no network, no credentials", () => {
+  const CLIENT_ID = `client-id-${"a".repeat(20)}`;
+  const CLIENT_SECRET = `client-secret-${"b".repeat(24)}`;
+  const REDIRECT = "https://kynova.example/api/google/callback";
+  /** The existing Sprint 41 harness, in short: a fake Google, an encrypted vault and the app's secrets from a memory provider. */
+  function google() {
+    const fake = fakeGoogle({ clientId: CLIENT_ID, clientSecret: CLIENT_SECRET, now: START });
+    const key = generateEncryptionKey();
+    const vault = new EncryptedMemoryVault({ encrypt: (plain, context) => encrypt(plain, key, context), decrypt: (envelope, context) => decrypt(envelope, key, context) });
+    const secrets = new SecretsManager(new MemorySecretsProvider({ [FAMILY_SECRETS.google.clientId]: CLIENT_ID, [FAMILY_SECRETS.google.clientSecret]: CLIENT_SECRET }), () => new Date(fake.now()).toISOString());
+    const deps: GoogleDeps = { fetchImpl: fake.fetch, secrets, vault, now: () => fake.now(), sleep: async () => undefined };
+    const env: ConnectorEnv = { configuredFamilies: configuredFamilies(secrets), workers: [{ tenantId: T1, id: "w1", status: "active" }] };
+    return { fake, env, ws: new GoogleWorkspace(deps), at: () => new Date(fake.now()).toISOString() };
+  }
+  type World = ReturnType<typeof google>;
+  /** The company authorizes the three Google apps (reads automatic, writes on approval), as a person would. */
+  async function authorized(w: World): Promise<ConnectorsState> {
+    let state = reduceConnectors(newConnectorsState(), { tenantId: T1, actor: "ana", at: w.at(), type: "tenant.enable" }, w.env).state;
+    for (const connectorId of ["gmail", "googleCalendar", "googleDrive"] as const) {
+      const scopes = CONNECTORS[connectorId].scopes.map((row) => row.id);
+      const begun = await w.ws.begin(state, w.env, { tenantId: T1, actor: "ana", at: w.at(), connectorId, scopes, redirectUri: REDIRECT });
+      const url = new URL((begun.result as { url: string }).url);
+      const oauth = url.searchParams.get("state")!;
+      w.fake.grantCode({ code: `code-${oauth}`, challenge: url.searchParams.get("code_challenge")!, email: `${connectorId}@nova.test`, scopes: url.searchParams.get("scope")!.split(" ") });
+      const finished = await w.ws.finish(begun.state, w.env, { tenantId: T1, at: w.at(), connectorId, state: oauth, code: `code-${oauth}`, redirectUri: REDIRECT });
+      expect(finished.ok, finished.error).toBe(true);
+      state = finished.state;
+      for (const scope of finished.connection!.grantedScopes) {
+        const write = CONNECTORS[connectorId].scopes.find((row) => row.id === scope)?.effect === "write";
+        state = reduceConnectors(state, { tenantId: T1, actor: "ana", at: w.at(), type: "permissions.set", connectionId: finished.connection!.id, scope, grant: write ? "approval" : "auto" }, w.env).state;
+      }
+    }
+    return state;
+  }
+  /** Three Level 3 steps (send an email, create an event, create a folder), each through its connector, approved by an administrator. */
+  function readyRecords() {
+    const parts = layers();
+    expect(parts.os.setPermissions(adela, T1, "w1", ["calendar.write", "drive.*", "followup.send"]).ok).toBe(true);
+    expect(parts.os.setTools(adela, T1, "w1", ["Calendar", "Drive", "Email"]).ok).toBe(true);
+    const step = (id: string, action: string, connector: ConnectorId) => ({ id, action, authorizationLevel: 3, approverRole: "admin", worker: { specialty: "sales" }, timeoutMs: 60_000, retry: { maxAttempts: 1, backoffMs: 1_000 }, dependsOn: [], state: "pending", connector });
+    const p = plan({ steps: [step("mail", "followup.send", "gmail"), step("event", "calendar.write", "googleCalendar"), step("folder", "drive.createFolder", "googleDrive")] });
+    const { gw } = gateway([p], parts);
+    const records: Record<string, GatewayRecord> = {};
+    for (const stepId of ["mail", "event", "folder"]) {
+      expect(gw.submit(system, T1, { planId: "xp:f1", stepId, workerId: "w1" }).ok).toBe(true);
+      records[stepId] = gw.validate(system, T1, requestIdFor("xp:f1", stepId)).record!;
+      expect(records[stepId]!.state).toBe("Ready");
+    }
+    return records;
+  }
+  const PARAMS = {
+    mail: { to: ["cliente@x.test"], subject: "Propuesta", text: "Hola" },
+    event: { summary: "Reunión", start: "2026-11-13T15:00:00Z", end: "2026-11-13T16:00:00Z" },
+    folder: { name: "Propuestas" },
+  };
+
+  it("maps the platform's actions to the service's operations, and lets a Google operation id stand for itself", () => {
+    expect(GOOGLE_OPERATION_OF_ACTION).toEqual({ "followup.send": "gmail.send", "message.sendFirst": "gmail.send", "message.sendSensitive": "gmail.send", "comms.send": "gmail.send", "calendar.write": "calendar.create" });
+    expect(googleOperationOf("followup.send")).toBe("gmail.send");
+    expect(googleOperationOf("drive.upload")).toBe("drive.upload");
+    expect(googleOperationOf("task.create")).toBeUndefined();
+    expect(googleOperationOf("payment.refund")).toBeUndefined();
+  });
+  it("Gmail, Calendar and Drive: a Ready request waits for a person in the connector, and only the approval makes the (fake) Google call", async () => {
+    const w = google();
+    let state = await authorized(w);
+    const records = readyRecords();
+    for (const [stepId, record] of Object.entries(records)) {
+      const built = googleRequest(record, state, PARAMS[stepId as keyof typeof PARAMS], w.at());
+      expect(built.ok, stepId).toBe(true);
+      const held = await w.ws.request(state, w.env, (built as { input: Parameters<GoogleWorkspace["request"]>[2] }).input);
+      expect(held.status, `${stepId} ${held.code}`).toBe("awaitingApproval");
+      state = held.state;
+    }
+    expect(w.fake.sent).toHaveLength(0); // nothing left the platform yet
+    expect(Object.keys(w.fake.events)).toHaveLength(0);
+    expect(Object.keys(w.fake.files)).toHaveLength(0);
+    const pending = state.actions.filter((row) => row.status === "awaitingApproval");
+    expect(pending.map((row) => row.operation).sort()).toEqual(["calendar.create", "drive.createFolder", "gmail.send"]);
+    for (const action of pending) {
+      const approved = await w.ws.approve(state, w.env, { tenantId: T1, actor: "ana", actionId: action.id, at: w.at() });
+      expect(approved.ok, `${action.operation} ${approved.code}`).toBe(true);
+      state = approved.state;
+    }
+    expect(w.fake.sent).toHaveLength(1);
+    expect(Object.keys(w.fake.events)).toHaveLength(1);
+    expect(Object.keys(w.fake.files)).toHaveLength(1);
+    expect(w.ws.executions.map((row) => `${row.operation}:${row.outcome}`).sort()).toEqual(["calendar.create:ok", "drive.createFolder:ok", "gmail.send:ok"]);
+    expect(JSON.stringify([state, w.ws.executions])).not.toMatch(/cliente@x\.test|Propuesta|Hola/); // no content in the audit trail or the execution log
+  });
+  it("a Worker cannot approve its own request, and nothing else may ask the service for the worker", async () => {
+    const w = google();
+    const state = await authorized(w);
+    const built = googleRequest(readyRecords()["mail"]!, state, PARAMS.mail, w.at()) as { ok: true; input: Parameters<GoogleWorkspace["request"]>[2] };
+    const held = await w.ws.request(state, w.env, built.input);
+    const attempt = await w.ws.approve(held.state, w.env, { tenantId: T1, actor: "worker:w1", actionId: held.action!.id, at: w.at() });
+    expect(attempt.ok).toBe(false);
+    expect(w.fake.sent).toHaveLength(0);
+  });
+  it("only a Ready request, a mapped operation and the company's own connection are passed on", async () => {
+    const w = google();
+    const state = await authorized(w);
+    const records = readyRecords();
+    expect(googleRequest({ ...records["mail"]!, state: "Blocked" }, state, {}, w.at())).toEqual({ ok: false, reason: "notReady" });
+    expect(googleRequest({ ...records["mail"]!, request: { ...records["mail"]!.request, actionId: "task.create" } }, state, {}, w.at())).toEqual({ ok: false, reason: "unknownOperation" });
+    expect(googleRequest(records["mail"]!, newConnectorsState(), {}, w.at())).toEqual({ ok: false, reason: "notConnected" });
+    const otherCompany = { ...state, connections: state.connections.map((row) => ({ ...row, tenantId: "tenant-vida" })) };
+    expect(googleRequest(records["mail"]!, otherCompany, {}, w.at())).toEqual({ ok: false, reason: "notConnected" }); // another company's connection is never used
   });
 });
 
