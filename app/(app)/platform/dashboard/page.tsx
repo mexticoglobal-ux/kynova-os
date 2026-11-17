@@ -1,4 +1,5 @@
 import { LayoutDashboard } from "lucide-react";
+import { redirect } from "next/navigation";
 import { pageMetadata } from "@/lib/seo/metadata";
 import { loadServerSession } from "@/lib/auth/session";
 import { runInternalBeta, BETA_NOW } from "@/lib/contracts/platform/internal-beta";
@@ -17,6 +18,9 @@ export const metadata = pageMetadata({ title: info.title, description: info.summ
 export default async function Page({ searchParams }: { searchParams: Promise<{ empresa?: string }> }) {
   const { empresa } = await searchParams;
   const state = await loadServerSession();
+  // With a backend configured the demo is never a fallback: no valid session goes to the existing sign-in (the layout does the same), and an unreachable server shows nothing.
+  if (state.kind === "anonymous") redirect("/login");
+  if (state.kind === "unavailable") return <SectionShell section="dashboard"><EmptyState icon={LayoutDashboard} title={NO_INFO}>No pudimos conectar con el servidor.</EmptyState></SectionShell>;
   if (state.kind === "backend") {
     const own = viewerOfMemberships(state.session.memberships, state.active?.tenantId, empresa);
     const name = state.session.memberships.find((row) => row.tenantId === own?.tenantId)?.name;
