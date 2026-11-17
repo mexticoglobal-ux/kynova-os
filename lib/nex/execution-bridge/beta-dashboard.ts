@@ -30,7 +30,8 @@ export type BetaActivity = { at: string; kind: string; actor: string };
 export type BetaDashboard = {
   tenantId: string; asOf: string; name: string;
   companies: readonly { id: string; name: string; template?: string; plan?: string }[];
-  counts: { workers: number | null; workflows: number | null; executions: number | null; pendingRequests: number | null };
+  /** each count: null = no source · "error" = the source failed · a number (0 included) = the source answered */
+  counts: { workers: number | null; workflows: number | null; executions: number | null; pendingRequests: number | null | "error" };
   approvals: readonly ApprovalEntry[] | null;
   google: readonly Pick<WorkspaceRow, "connectorId" | "label" | "display" | "healthScore" | "lastSyncAt" | "needsReauthorization">[] | null;
   health: OperatingDashboard["health"] | null;
@@ -74,15 +75,15 @@ export function betaDashboard(sources: BetaSources, viewer: BetaViewer, tenantId
 
 /** A signed-in company: the one section with a persisted source (the company's activity trail) is filled; every other section keeps saying Sin información. The viewer's membership is checked BEFORE
  * anything is read (the database checks it again); a failed read is "error", an answered read with no rows is [], and no summary, reason or person's name is carried. */
-export async function liveDashboard(memberships: readonly Pick<MembershipDto, "tenantId" | "name" | "role">[], tenantId: string, at: string, readActivity: (tenantId: string) => Promise<readonly Pick<ActivityDto, "at" | "kind" | "actor">[]>): Promise<{ ok: true; dashboard: BetaDashboard } | { ok: false; refusal: BetaRefusal }> {
+export async function liveDashboard(memberships: readonly Pick<MembershipDto, "tenantId" | "name" | "role">[], tenantId: string, at: string, readers: { activity: (tenantId: string) => Promise<readonly Pick<ActivityDto, "at" | "kind" | "actor">[]>; /** the company's pending approval requests (the backend's digest) */ pending: (tenantId: string) => Promise<number> }): Promise<{ ok: true; dashboard: BetaDashboard } | { ok: false; refusal: BetaRefusal }> {
   const own = memberships.find((row) => row.tenantId === tenantId);
   if (!own) return { ok: false, refusal: "forbidden" };
-  const activity = await readActivity(tenantId).then((rows): readonly BetaActivity[] => rows.slice(0, ACTIVITY_LIMIT).map((row) => ({ at: row.at, kind: row.kind, actor: row.actor })), (): "error" => "error");
+  const [activity, pending] = await Promise.all([readers.activity(tenantId).then((rows): readonly BetaActivity[] => rows.slice(0, ACTIVITY_LIMIT).map((row) => ({ at: row.at, kind: row.kind, actor: row.actor })), (): "error" => "error"), readers.pending(tenantId).then((count): number | "error" => (Number.isInteger(count) && count >= 0 ? count : "error"), (): "error" => "error")]);
   return {
     ok: true,
     dashboard: {
       tenantId, asOf: at, name: own.name, companies: memberships.map((row) => ({ id: row.tenantId, name: row.name })).sort((a, b) => a.id.localeCompare(b.id)),
-      counts: { workers: null, workflows: null, executions: null, pendingRequests: null }, approvals: null, google: null, health: null, activity, kpis: null, execution: null,
+      counts: { workers: null, workflows: null, executions: null, pendingRequests: pending }, approvals: null, google: null, health: null, activity, kpis: null, execution: null,
     },
   };
 }

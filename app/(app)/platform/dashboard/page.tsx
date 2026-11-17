@@ -25,8 +25,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ e
   if (state.kind === "unavailable") return <SectionShell section="dashboard"><EmptyState icon={LayoutDashboard} title={NO_INFO}>No pudimos conectar con el servidor.</EmptyState></SectionShell>;
   if (state.kind === "backend") {
     const own = viewerOfMemberships(state.session.memberships, state.active?.tenantId, empresa);
-    // The one persisted source so far is the company's activity trail (the backend's `listActivity`); the rest of the sections say Sin información until their sources exist.
-    const live = own ? await liveDashboard(state.session.memberships, own.tenantId, new Date().toISOString(), async (id) => createBackend(await createSupabaseSpikeServerClient()).listActivity(id, 8)) : null;
+    // Persisted sources so far: the company's activity trail (`listActivity`) and its pending approval requests (`dashboard`, only that count); the rest of the sections say Sin información until their sources exist.
+    const live = own ? await liveDashboard(state.session.memberships, own.tenantId, new Date().toISOString(), { activity: async (id) => createBackend(await createSupabaseSpikeServerClient()).listActivity(id, 8), pending: async (id) => (await createBackend(await createSupabaseSpikeServerClient()).dashboard(id)).approvals.pending }) : null;
     return (
       <SectionShell section="dashboard">
         {live?.ok ? <BetaDashboardView data={live.dashboard} /> : <EmptyState icon={LayoutDashboard} title={NO_INFO}>No hay una empresa autorizada para mostrar.</EmptyState>}

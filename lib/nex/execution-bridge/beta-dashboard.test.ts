@@ -85,18 +85,21 @@ describe("Beta Dashboard", () => {
     const memberships = [{ tenantId: "t1", name: "Uno", role: "owner" as const }, { tenantId: "t2", name: "Dos", role: "viewer" as const }];
     const asked: string[] = [];
     const rows = [{ at: "2026-11-12T10:00:00.000Z", kind: "assessment.saved", actor: "user" }];
-    const read = async (id: string) => { asked.push(id); return rows; };
+    const read = { activity: async (id: string) => { asked.push(id); return rows; }, pending: async (id: string) => { asked.push(id); return 3; } };
     const result = await liveDashboard(memberships, "t2", BETA_NOW, read);
+    expect(result.ok && result.dashboard.counts.pendingRequests).toBe(3);
     expect(result.ok && result.dashboard.activity).toEqual(rows);
     expect(result.ok && result.dashboard.companies.map((row) => row.id)).toEqual(["t1", "t2"]);
     expect(await liveDashboard(memberships, "t-foreign", BETA_NOW, read)).toEqual({ ok: false, refusal: "forbidden" });
-    expect(asked).toEqual(["t2"]);
+    expect(asked).toEqual(["t2", "t2"]);
   });
 
   it("keeps apart a missing source (null), a failed read (error) and an empty result ([]); other sections stay Sin información", async () => {
     const memberships = [{ tenantId: "t1", name: "Uno", role: "owner" as const }];
-    const empty = await liveDashboard(memberships, "t1", BETA_NOW, async () => []);
-    const failed = await liveDashboard(memberships, "t1", BETA_NOW, async () => { throw new Error("unavailable"); });
+    const empty = await liveDashboard(memberships, "t1", BETA_NOW, { activity: async () => [], pending: async () => 0 });
+    const failed = await liveDashboard(memberships, "t1", BETA_NOW, { activity: async () => { throw new Error("unavailable"); }, pending: async () => { throw new Error("unavailable"); } });
+    expect(empty.ok && empty.dashboard.counts.pendingRequests).toBe(0);
+    expect(failed.ok && failed.dashboard.counts.pendingRequests).toBe("error");
     expect(empty.ok && empty.dashboard.activity).toEqual([]);
     expect(failed.ok && failed.dashboard.activity).toBe("error");
     expect(view().activity === null).toBe(false);
@@ -105,7 +108,7 @@ describe("Beta Dashboard", () => {
 
   it("carries only kind, actor type and time from the persisted rows: no summary, reason or name", async () => {
     const dirty = [{ at: "2026-11-12T10:00:00.000Z", kind: "lead.created", actor: "user", summary: "secret@example.com", reason: "private", actorName: "Ana" }];
-    const result = await liveDashboard([{ tenantId: "t1", name: "Uno", role: "owner" }], "t1", BETA_NOW, async () => dirty);
+    const result = await liveDashboard([{ tenantId: "t1", name: "Uno", role: "owner" }], "t1", BETA_NOW, { activity: async () => dirty, pending: async () => 1 });
     const text = JSON.stringify(result);
     for (const leaked of ["secret@example.com", "private", "Ana"]) expect(text).not.toContain(leaked);
   });
