@@ -5,6 +5,7 @@
 // Safety: only the companies the viewer belongs to appear; the approvals inbox is for people who administer the company (Level 3: owner or admin), everybody else sees "Sin información" there; the
 // activity and the inbox carry kinds, operations, ids and times, never the text of a message, an address or a summary.
 
+import type { MembershipDto } from "@/lib/contracts/backend";
 import type { ConnectorsState } from "@/lib/contracts/platform/connectors";
 import type { InternalBeta } from "@/lib/contracts/platform/internal-beta";
 import type { OperatingDashboard } from "@/lib/contracts/platform/kynova-operation";
@@ -38,6 +39,12 @@ export type BetaDashboard = {
   execution: { queued: number; active: number; gatewayPending: number } | null;
 };
 export type BetaRefusal = "forbidden" | "unknownCompany";
+
+/** The viewer from the session's memberships (the server's, never the client's). `requested` is only a preference: a company the person does not belong to falls back to their active one. */
+export function viewerOfMemberships(memberships: readonly Pick<MembershipDto, "tenantId" | "role">[], active: string | undefined, requested: string | undefined): { viewer: BetaViewer; tenantId: string } | null {
+  const pick = [requested, active].map((id) => memberships.find((row) => row.tenantId === id)).find((row) => row !== undefined) ?? memberships[0];
+  return pick ? { viewer: { tenantIds: memberships.map((row) => row.tenantId), role: pick.role }, tenantId: pick.tenantId } : null;
+}
 
 /** What one viewer sees of one company. A company the viewer does not belong to does not exist for them. */
 export function betaDashboard(sources: BetaSources, viewer: BetaViewer, tenantId: string, at: string): { ok: true; dashboard: BetaDashboard } | { ok: false; refusal: BetaRefusal } {

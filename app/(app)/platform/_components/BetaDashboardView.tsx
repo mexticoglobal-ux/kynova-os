@@ -21,7 +21,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 const NoInfo = () => <p className="text-ink-muted">{NO_INFO}</p>;
 
 // The Beta Dashboard: draws what `betaDashboard` already arranged. No rules and no queries here; a missing figure says "Sin información".
-export function BetaDashboardView({ data }: { data: BetaDashboard }) {
+export function BetaDashboardView({ data, simulated = false }: { data: BetaDashboard; simulated?: boolean }) {
   const stats: ReadonlyArray<readonly [string, string]> = [
     ["Empresas", String(data.companies.length)], ["Workers", show(data.counts.workers)], ["Workflows activos", show(data.counts.workflows)],
     ["Ejecuciones", show(data.counts.executions)], ["Solicitudes pendientes", show(data.counts.pendingRequests)],
@@ -29,6 +29,7 @@ export function BetaDashboardView({ data }: { data: BetaDashboard }) {
   const health = data.health;
   return (
     <div className="space-y-6">
+      {simulated ? <Badge tone="warning">Datos simulados · empresas de ejemplo</Badge> : null}
       <nav aria-label="Empresas" className="flex flex-wrap gap-2">
         {data.companies.map((company) => (
           <Link key={company.id} href={`/platform/dashboard?empresa=${company.id}`} aria-current={company.id === data.tenantId ? "page" : undefined}

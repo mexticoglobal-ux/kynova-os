@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { runInternalBeta, BETA_NOW } from "@/lib/contracts/platform/internal-beta";
 import { applyConnectorsEvents, newConnectorsState, PROVIDER_FAMILIES, type ConnectorEnv } from "@/lib/contracts/platform/connectors";
-import { betaDashboard, NO_INFO, type BetaSources } from "./beta-dashboard";
+import { betaDashboard, viewerOfMemberships, NO_INFO, type BetaSources } from "./beta-dashboard";
 
 const beta = runInternalBeta();
 const ids = beta.tenants.map((row) => row.spec.id);
@@ -61,6 +61,23 @@ describe("Beta Dashboard", () => {
     const google = view(all, first, withApps).google;
     expect(google).toHaveLength(3);
     expect(google?.every((row) => row.display === "Disconnected")).toBe(true);
+  });
+
+  it("the viewer comes from the session's memberships: a requested company that is not theirs is ignored, and the role is the one of the company shown", () => {
+    const memberships = [{ tenantId: "t1", role: "viewer" as const }, { tenantId: "t2", role: "admin" as const }];
+    expect(viewerOfMemberships(memberships, "t1", "t2")).toEqual({ viewer: { tenantIds: ["t1", "t2"], role: "admin" }, tenantId: "t2" });
+    expect(viewerOfMemberships(memberships, "t1", "t-other")).toEqual({ viewer: { tenantIds: ["t1", "t2"], role: "viewer" }, tenantId: "t1" });
+    expect(viewerOfMemberships(memberships, undefined, undefined)?.tenantId).toBe("t1");
+    expect(viewerOfMemberships([], "t1", "t1")).toBeNull();
+    const own = viewerOfMemberships([{ tenantId: first, role: "viewer" }], first, second);
+    expect(own?.tenantId).toBe(first);
+    expect(betaDashboard(sources, own?.viewer ?? { tenantIds: [], role: "viewer" }, second, BETA_NOW)).toEqual({ ok: false, refusal: "forbidden" });
+  });
+
+  it("a viewer or member never gets the approvals inbox, an owner or admin does", () => {
+    const withApps: BetaSources = { beta, connectors: connectors() };
+    for (const role of ["viewer", "member"]) expect(view({ tenantIds: ids, role }, first, withApps).approvals).toBeNull();
+    for (const role of ["owner", "admin"]) expect(view({ tenantIds: ids, role }, first, withApps).approvals).toEqual([]);
   });
 
   it("carries no sensitive data: only kinds, ids and times, never a summary, address or text", () => {
