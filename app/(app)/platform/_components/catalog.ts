@@ -1,7 +1,7 @@
-import { BarChart3, BookOpen, Blocks, Building2, CreditCard, Gift, Handshake, Inbox, Link2, Plug, Receipt, Sparkles, Code2, Store, UserCog, Workflow, type LucideIcon } from "lucide-react";
+import { BarChart3, BookOpen, Blocks, Building2, CreditCard, Gift, Handshake, Inbox, Link2, Plug, Receipt, Sparkles, Code2, LayoutDashboard, Store, UserCog, Workflow, type LucideIcon } from "lucide-react";
 
 // Base screens of the platform modules. Everything here is a preview of what will be connected: nothing is live.
-export type PlatformSectionKey = "integrations" | "connectedApps" | "payments" | "referrals" | "store" | "academy" | "workers" | "automations" | "studio" | "insights" | "crm" | "comms" | "org" | "billing" | "developers";
+export type PlatformSectionKey = "integrations" | "connectedApps" | "payments" | "referrals" | "store" | "academy" | "workers" | "automations" | "studio" | "insights" | "crm" | "comms" | "org" | "billing" | "developers" | "dashboard";
 
 export const PLATFORM_SECTIONS: ReadonlyArray<{ key: PlatformSectionKey; href: string; icon: LucideIcon; title: string; summary: string }> = [
   { key: "integrations", href: "/platform/integrations", icon: Plug, title: "Centro de Integraciones", summary: "Canales, pagos y calendario de la empresa, con el estado de cada conexión." },
@@ -19,6 +19,7 @@ export const PLATFORM_SECTIONS: ReadonlyArray<{ key: PlatformSectionKey; href: s
   { key: "org", href: "/platform/org", icon: Building2, title: "Organización e identidad", summary: "La estructura completa de la empresa: sucursales, equipos, personas y Workers IA, roles y permisos. KOE recomienda; una persona decide." },
   { key: "billing", href: "/platform/billing", icon: Receipt, title: "Facturación y suscripciones", summary: "Plan, límites, add-ons, facturas, consumo de IA, forecast y ROI. KOE calcula y recomienda; una persona decide y nunca se cobra sola." },
   { key: "developers", href: "/platform/developers", icon: Code2, title: "Plataforma para desarrolladores", summary: "API Keys, apps, webhooks, sandbox, API Explorer y SDK, todo simulado. KOE calcula los límites y el consumo; una persona decide y nunca se crean credenciales reales." },
+  { key: "dashboard", href: "/platform/dashboard", icon: LayoutDashboard, title: "Dashboard", summary: "Empresas, Workers, ejecuciones, aprobaciones, Google Workspace y salud del sistema, leídos de los módulos actuales. Lo que falta dice Sin información." },
 ];
 
 export const PLATFORM_HUB = { icon: Blocks, title: "Plataforma", summary: "Base de lo que se conectará después de validar el Backend Core. Hoy es solo arquitectura y vistas: no hay conexiones reales." };

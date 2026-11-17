@@ -1,0 +1,79 @@
+import { readFileSync } from "node:fs";
+import { describe, expect, it } from "vitest";
+import { runInternalBeta, BETA_NOW } from "@/lib/contracts/platform/internal-beta";
+import { applyConnectorsEvents, newConnectorsState, PROVIDER_FAMILIES, type ConnectorEnv } from "@/lib/contracts/platform/connectors";
+import { betaDashboard, NO_INFO, type BetaSources } from "./beta-dashboard";
+
+const beta = runInternalBeta();
+const ids = beta.tenants.map((row) => row.spec.id);
+const [first = "", second = ""] = ids;
+const all = { tenantIds: ids, role: "owner" };
+const env: ConnectorEnv = { configuredFamilies: [...PROVIDER_FAMILIES], workers: [] };
+const connectors = () => applyConnectorsEvents(newConnectorsState(), [{ tenantId: first, actor: "owner", at: BETA_NOW, type: "tenant.enable" }], env).state;
+const sources: BetaSources = { beta };
+
+const view = (viewer = all, tenantId = first, source: BetaSources = sources) => {
+  const result = betaDashboard(source, viewer, tenantId, BETA_NOW);
+  if (!result.ok) throw new Error(result.refusal);
+  return result.dashboard;
+};
+
+describe("Beta Dashboard", () => {
+  it("reads the existing records: counts, health, KPIs and recent activity of the company", () => {
+    const data = view();
+    const own = beta.tenants.find((row) => row.spec.id === first);
+    expect(data.name).toBe(own?.spec.name);
+    expect(data.counts.workers).toBe(own?.dashboard.people.workers);
+    expect(data.counts.workflows).toBe(own?.dashboard.automation.active);
+    expect(data.health).toEqual(own?.dashboard.health);
+    expect(data.companies).toHaveLength(ids.length);
+    expect(data.activity === null || data.activity.length <= 8).toBe(true);
+  });
+
+  it("is deterministic: the same sources and instant give the same screen", () => {
+    expect(view()).toEqual(view());
+    expect(JSON.stringify(view(all, second))).toBe(JSON.stringify(view(all, second)));
+  });
+
+  it("says Sin información (null) where nothing exists, and invents nothing", () => {
+    const data = view();
+    expect(data.approvals).toBeNull();
+    expect(data.google).toBeNull();
+    expect(data.execution).toBeNull();
+    expect(NO_INFO).toBe("Sin información");
+  });
+
+  it("multi-company: a viewer only sees and opens the companies they belong to", () => {
+    const one = { tenantIds: [first], role: "owner" };
+    const data = view(one);
+    expect(data.companies.map((row) => row.id)).toEqual([first]);
+    expect(betaDashboard(sources, one, second, BETA_NOW)).toEqual({ ok: false, refusal: "forbidden" });
+    expect(betaDashboard(sources, { tenantIds: ["tenant-ghost"], role: "owner" }, "tenant-ghost", BETA_NOW)).toEqual({ ok: false, refusal: "unknownCompany" });
+    const activity = view(all, first).activity ?? [];
+    const other = new Set(beta.parts.crm.timeline.filter((row) => row.tenantId === second).map((row) => row.at + row.actor));
+    for (const item of activity) expect(other.has(item.at + item.actor) && !beta.parts.crm.timeline.some((row) => row.tenantId === first && row.at === item.at && row.actor === item.actor)).toBe(false);
+  });
+
+  it("the approvals inbox is for people who administer the company; Google Workspace is read from the connectors", () => {
+    const withApps: BetaSources = { beta, connectors: connectors() };
+    expect(view(all, first, withApps).approvals).toEqual([]);
+    expect(view({ tenantIds: ids, role: "member" }, first, withApps).approvals).toBeNull();
+    const google = view(all, first, withApps).google;
+    expect(google).toHaveLength(3);
+    expect(google?.every((row) => row.display === "Disconnected")).toBe(true);
+  });
+
+  it("carries no sensitive data: only kinds, ids and times, never a summary, address or text", () => {
+    const text = JSON.stringify(view(all, first, { beta, connectors: connectors() }));
+    for (const lead of beta.parts.crm.leads.filter((row) => row.tenantId === first)) {
+      if (lead.email) expect(text).not.toContain(lead.email);
+      if (lead.phone) expect(text).not.toContain(lead.phone);
+    }
+    for (const entry of beta.parts.crm.timeline.filter((row) => row.tenantId === first)) expect(text).not.toContain(entry.summary);
+  });
+
+  it("is a pure view: no clock, network, database, AI or new engine in the file", () => {
+    const source = readFileSync(new URL("./beta-dashboard.ts", import.meta.url), "utf8").split("\n").filter((line) => !line.trim().startsWith("//")).join("\n");
+    for (const forbidden of ["Date.now", "new Date()", "Math.random", "fetch(", "process.env", "lib/db", "lib/ai"]) expect(source, forbidden).not.toContain(forbidden);
+  });
+});
