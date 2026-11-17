@@ -85,7 +85,7 @@ describe("Beta Dashboard", () => {
     const memberships = [{ tenantId: "t1", name: "Uno", role: "owner" as const }, { tenantId: "t2", name: "Dos", role: "viewer" as const }];
     const asked: string[] = [];
     const rows = [{ at: "2026-11-12T10:00:00.000Z", kind: "assessment.saved", actor: "user" }];
-    const read = { activity: async (id: string) => { asked.push(id); return rows; }, pending: async (id: string) => { asked.push(id); return 3; } };
+    const read = { activity: async (id: string) => { asked.push(id); return rows; }, pending: async (id: string) => { asked.push(id); return { count: 3, items: [{ kind: "lead.outreach", createdAt: "2026-11-12T09:00:00.000Z" }] }; } };
     const result = await liveDashboard(memberships, "t2", BETA_NOW, read);
     expect(result.ok && result.dashboard.counts.pendingRequests).toBe(3);
     expect(result.ok && result.dashboard.activity).toEqual(rows);
@@ -96,7 +96,7 @@ describe("Beta Dashboard", () => {
 
   it("keeps apart a missing source (null), a failed read (error) and an empty result ([]); other sections stay Sin información", async () => {
     const memberships = [{ tenantId: "t1", name: "Uno", role: "owner" as const }];
-    const empty = await liveDashboard(memberships, "t1", BETA_NOW, { activity: async () => [], pending: async () => 0 });
+    const empty = await liveDashboard(memberships, "t1", BETA_NOW, { activity: async () => [], pending: async () => ({ count: 0, items: [] }) });
     const failed = await liveDashboard(memberships, "t1", BETA_NOW, { activity: async () => { throw new Error("unavailable"); }, pending: async () => { throw new Error("unavailable"); } });
     expect(empty.ok && empty.dashboard.counts.pendingRequests).toBe(0);
     expect(failed.ok && failed.dashboard.counts.pendingRequests).toBe("error");
@@ -106,9 +106,33 @@ describe("Beta Dashboard", () => {
     if (empty.ok) expect([empty.dashboard.counts.workers, empty.dashboard.approvals, empty.dashboard.google, empty.dashboard.health, empty.dashboard.kpis, empty.dashboard.execution]).toEqual([null, null, null, null, null, null]);
   });
 
+  it("CRM requests: the list (kind and date) is for owner or admin, members only get the count; a partial list says so", async () => {
+    const row = (n: number) => ({ kind: "lead.outreach", createdAt: "2026-11-12T0" + n + ":00:00.000Z", leadId: "lead-secret", contactName: "Ana Perez", id: "req-" + n });
+    const pending = async () => ({ count: 12, items: [row(1), row(2)] });
+    const readers = { activity: async () => [], pending };
+    const as = (role: "owner" | "admin" | "member" | "viewer") => liveDashboard([{ tenantId: "t1", name: "Uno", role }], "t1", BETA_NOW, readers);
+    for (const role of ["owner", "admin"] as const) {
+      const result = await as(role);
+      expect(result.ok && result.dashboard.crmRequests).toEqual({ items: [{ kind: "lead.outreach", createdAt: "2026-11-12T01:00:00.000Z" }, { kind: "lead.outreach", createdAt: "2026-11-12T02:00:00.000Z" }], partial: true });
+      expect(JSON.stringify(result)).not.toMatch(/lead-secret|Ana Perez|req-/);
+    }
+    for (const role of ["member", "viewer"] as const) {
+      const result = await as(role);
+      expect(result.ok && result.dashboard.crmRequests).toBeNull();
+      expect(result.ok && result.dashboard.counts.pendingRequests).toBe(12);
+    }
+    const whole = await liveDashboard([{ tenantId: "t1", name: "Uno", role: "owner" }], "t1", BETA_NOW, { activity: async () => [], pending: async () => ({ count: 2, items: [row(1), row(2)] }) });
+    expect(whole.ok && whole.dashboard.crmRequests).toMatchObject({ partial: false });
+    const none = await liveDashboard([{ tenantId: "t1", name: "Uno", role: "owner" }], "t1", BETA_NOW, { activity: async () => [], pending: async () => ({ count: 0, items: [] }) });
+    expect(none.ok && none.dashboard.crmRequests).toEqual({ items: [], partial: false });
+    const failed = await liveDashboard([{ tenantId: "t1", name: "Uno", role: "owner" }], "t1", BETA_NOW, { activity: async () => [], pending: async () => { throw new Error("x"); } });
+    expect(failed.ok && failed.dashboard.crmRequests).toBe("error");
+    expect(view().crmRequests).toBeNull();
+  });
+
   it("carries only kind, actor type and time from the persisted rows: no summary, reason or name", async () => {
     const dirty = [{ at: "2026-11-12T10:00:00.000Z", kind: "lead.created", actor: "user", summary: "secret@example.com", reason: "private", actorName: "Ana" }];
-    const result = await liveDashboard([{ tenantId: "t1", name: "Uno", role: "owner" }], "t1", BETA_NOW, { activity: async () => dirty, pending: async () => 1 });
+    const result = await liveDashboard([{ tenantId: "t1", name: "Uno", role: "owner" }], "t1", BETA_NOW, { activity: async () => dirty, pending: async () => ({ count: 1, items: [] }) });
     const text = JSON.stringify(result);
     for (const leaked of ["secret@example.com", "private", "Ana"]) expect(text).not.toContain(leaked);
   });

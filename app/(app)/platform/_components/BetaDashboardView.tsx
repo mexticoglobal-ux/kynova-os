@@ -24,7 +24,7 @@ const NoInfo = () => <p className="text-ink-muted">{NO_INFO}</p>;
 export function BetaDashboardView({ data, simulated = false }: { data: BetaDashboard; simulated?: boolean }) {
   const stats: ReadonlyArray<readonly [string, string]> = [
     ["Empresas", String(data.companies.length)], ["Workers", show(data.counts.workers)], ["Workflows activos", show(data.counts.workflows)],
-    ["Ejecuciones", show(data.counts.executions)], ["Solicitudes pendientes", show(data.counts.pendingRequests)],
+    ["Ejecuciones", show(data.counts.executions)], [simulated ? "Solicitudes pendientes" : "Solicitudes pendientes del CRM", show(data.counts.pendingRequests)],
   ];
   const health = data.health;
   return (
@@ -49,7 +49,7 @@ export function BetaDashboardView({ data, simulated = false }: { data: BetaDashb
       </dl>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Section title="Bandeja de aprobaciones">
+        <Section title="Aprobaciones de acciones (Connectors)">
           {data.approvals === null ? <NoInfo /> : data.approvals.length === 0 ? <p className="text-ink-muted">Nada pendiente.</p> : (
             <ul className="space-y-2">
               {data.approvals.map((entry) => (
@@ -59,6 +59,22 @@ export function BetaDashboardView({ data, simulated = false }: { data: BetaDashb
                 </li>
               ))}
             </ul>
+          )}
+        </Section>
+
+        <Section title="Solicitudes pendientes del CRM">
+          {data.crmRequests === null ? <NoInfo /> : data.crmRequests === "error" ? <p role="alert" className="text-danger">No se pudieron leer las solicitudes. Intente de nuevo.</p> : data.crmRequests.items.length === 0 ? <p className="text-ink-muted">Nada pendiente.</p> : (
+            <>
+              <ul className="space-y-2">
+                {data.crmRequests.items.map((item, index) => (
+                  <li key={`${item.createdAt}-${index}`} className="flex items-center justify-between gap-3">
+                    <span>{item.kind}</span>
+                    <time dateTime={item.createdAt} className="text-ink-muted">{when(item.createdAt)}</time>
+                  </li>
+                ))}
+              </ul>
+              {data.crmRequests.partial ? <p className="mt-2 text-xs text-ink-muted">Lista parcial: se muestran las {data.crmRequests.items.length} más recientes de {show(data.counts.pendingRequests)}.</p> : null}
+            </>
           )}
         </Section>
 

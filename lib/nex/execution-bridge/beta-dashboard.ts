@@ -32,13 +32,16 @@ export type BetaDashboard = {
   companies: readonly { id: string; name: string; template?: string; plan?: string }[];
   /** each count: null = no source · "error" = the source failed · a number (0 included) = the source answered */
   counts: { workers: number | null; workflows: number | null; executions: number | null; pendingRequests: number | null | "error" };
-  approvals: readonly ApprovalEntry[] | null;
+  /** the actions of Connectors waiting for a person (a different thing from the CRM's requests below) */ approvals: readonly ApprovalEntry[] | null;
+  /** the CRM's pending requests (kind and date only), for owner or admin; `partial`: the source lists only the latest, the total is `counts.pendingRequests` */
+  crmRequests: { items: readonly { kind: string; createdAt: string }[]; partial: boolean } | null | "error";
   google: readonly Pick<WorkspaceRow, "connectorId" | "label" | "display" | "healthScore" | "lastSyncAt" | "needsReauthorization">[] | null;
   health: OperatingDashboard["health"] | null;
   /** null: no source · "error": the source failed · []: the source answered and there is nothing */ activity: readonly BetaActivity[] | null | "error";
   kpis: readonly KpiReading[] | null;
   execution: { queued: number; active: number; gatewayPending: number } | null;
 };
+type PendingRead = { count: number; items: readonly { kind: string; createdAt: string }[] } | "error";
 export type BetaRefusal = "forbidden" | "unknownCompany";
 
 /** The viewer from the session's memberships (the server's, never the client's). `requested` is only a preference: a company the person does not belong to falls back to their active one. */
@@ -63,7 +66,7 @@ export function betaDashboard(sources: BetaSources, viewer: BetaViewer, tenantId
     dashboard: {
       tenantId, asOf: at, name: own.spec.name, companies,
       counts: { workers: operating.people.workers, workflows: operating.automation.active, executions: operating.ai.workerRuns + operating.automation.runs, pendingRequests: operating.ai.approvalsWaiting },
-      approvals: canDecide && sources.connectors ? approvalInbox(sources.connectors, tenantId, at) : null,
+      approvals: canDecide && sources.connectors ? approvalInbox(sources.connectors, tenantId, at) : null, crmRequests: null,
       google: sources.connectors ? workspaceView(sources.connectors, sources.activities ?? [], tenantId, at).map((row) => ({ connectorId: row.connectorId, label: row.label, display: row.display, healthScore: row.healthScore, ...(row.lastSyncAt ? { lastSyncAt: row.lastSyncAt } : {}), needsReauthorization: row.needsReauthorization })) : null,
       health: operating.health,
       activity,
@@ -75,15 +78,16 @@ export function betaDashboard(sources: BetaSources, viewer: BetaViewer, tenantId
 
 /** A signed-in company: the one section with a persisted source (the company's activity trail) is filled; every other section keeps saying Sin información. The viewer's membership is checked BEFORE
  * anything is read (the database checks it again); a failed read is "error", an answered read with no rows is [], and no summary, reason or person's name is carried. */
-export async function liveDashboard(memberships: readonly Pick<MembershipDto, "tenantId" | "name" | "role">[], tenantId: string, at: string, readers: { activity: (tenantId: string) => Promise<readonly Pick<ActivityDto, "at" | "kind" | "actor">[]>; /** the company's pending approval requests (the backend's digest) */ pending: (tenantId: string) => Promise<number> }): Promise<{ ok: true; dashboard: BetaDashboard } | { ok: false; refusal: BetaRefusal }> {
+export async function liveDashboard(memberships: readonly Pick<MembershipDto, "tenantId" | "name" | "role">[], tenantId: string, at: string, readers: { activity: (tenantId: string) => Promise<readonly Pick<ActivityDto, "at" | "kind" | "actor">[]>; /** the company's pending approval requests (the backend's digest) */ pending: (tenantId: string) => Promise<{ count: number; items: readonly { kind: string; createdAt: string }[] }> }): Promise<{ ok: true; dashboard: BetaDashboard } | { ok: false; refusal: BetaRefusal }> {
   const own = memberships.find((row) => row.tenantId === tenantId);
   if (!own) return { ok: false, refusal: "forbidden" };
-  const [activity, pending] = await Promise.all([readers.activity(tenantId).then((rows): readonly BetaActivity[] => rows.slice(0, ACTIVITY_LIMIT).map((row) => ({ at: row.at, kind: row.kind, actor: row.actor })), (): "error" => "error"), readers.pending(tenantId).then((count): number | "error" => (Number.isInteger(count) && count >= 0 ? count : "error"), (): "error" => "error")]);
+  const [activity, pending] = await Promise.all([readers.activity(tenantId).then((rows): readonly BetaActivity[] => rows.slice(0, ACTIVITY_LIMIT).map((row) => ({ at: row.at, kind: row.kind, actor: row.actor })), (): "error" => "error"), readers.pending(tenantId).then((row): PendingRead => (Number.isInteger(row.count) && row.count >= 0 && Array.isArray(row.items) ? row : "error"), (): "error" => "error")]);
+  const crmRequests: BetaDashboard["crmRequests"] = !ADMIN_ROLES.includes(own.role) ? null : pending === "error" ? "error" : { items: pending.items.map((row) => ({ kind: row.kind, createdAt: row.createdAt })), partial: pending.count > pending.items.length };
   return {
     ok: true,
     dashboard: {
       tenantId, asOf: at, name: own.name, companies: memberships.map((row) => ({ id: row.tenantId, name: row.name })).sort((a, b) => a.id.localeCompare(b.id)),
-      counts: { workers: null, workflows: null, executions: null, pendingRequests: pending }, approvals: null, google: null, health: null, activity, kpis: null, execution: null,
+      counts: { workers: null, workflows: null, executions: null, pendingRequests: pending === "error" ? "error" : pending.count }, approvals: null, crmRequests, google: null, health: null, activity, kpis: null, execution: null,
     },
   };
 }
