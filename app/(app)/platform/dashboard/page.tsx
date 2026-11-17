@@ -12,6 +12,8 @@ import { BetaDashboardView } from "../_components/BetaDashboardView";
 import { SectionShell } from "../_components/SectionShell";
 
 const info = sectionInfo("dashboard");
+// The signed-in path shows the company's own records (partly connected): never the sample-data label of the demo.
+const LIVE_EYEBROW = "Beta · datos de su empresa";
 
 export const metadata = pageMetadata({ title: info.title, description: info.summary, path: info.href });
 
@@ -22,13 +24,13 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ e
   const state = await loadServerSession();
   // With a backend configured the demo is never a fallback: no valid session goes to the existing sign-in (the layout does the same), and an unreachable server shows nothing.
   if (state.kind === "anonymous") redirect("/login");
-  if (state.kind === "unavailable") return <SectionShell section="dashboard"><EmptyState icon={LayoutDashboard} title={NO_INFO}>No pudimos conectar con el servidor.</EmptyState></SectionShell>;
+  if (state.kind === "unavailable") return <SectionShell section="dashboard" eyebrow={LIVE_EYEBROW}><EmptyState icon={LayoutDashboard} title={NO_INFO}>No pudimos conectar con el servidor.</EmptyState></SectionShell>;
   if (state.kind === "backend") {
     const own = viewerOfMemberships(state.session.memberships, state.active?.tenantId, empresa);
     // Persisted sources so far: the company's activity trail (`listActivity`) and its pending CRM requests (`dashboard`: the count, and kind and date of the latest ones); the rest of the sections say Sin información until their sources exist.
     const live = own ? await liveDashboard(state.session.memberships, own.tenantId, new Date().toISOString(), { activity: async (id) => createBackend(await createSupabaseSpikeServerClient()).listActivity(id, 8), pending: async (id) => { const { pending, items } = (await createBackend(await createSupabaseSpikeServerClient()).dashboard(id)).approvals; return { count: pending, items: items.map((row) => ({ kind: row.kind, createdAt: row.createdAt })) }; } }) : null;
     return (
-      <SectionShell section="dashboard">
+      <SectionShell section="dashboard" eyebrow={LIVE_EYEBROW}>
         {live?.ok ? <BetaDashboardView data={live.dashboard} /> : <EmptyState icon={LayoutDashboard} title={NO_INFO}>No hay una empresa autorizada para mostrar.</EmptyState>}
       </SectionShell>
     );
