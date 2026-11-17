@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { runInternalBeta, BETA_NOW } from "@/lib/contracts/platform/internal-beta";
 import { applyConnectorsEvents, newConnectorsState, PROVIDER_FAMILIES, type ConnectorEnv } from "@/lib/contracts/platform/connectors";
-import { betaDashboard, viewerOfMemberships, NO_INFO, type BetaSources } from "./beta-dashboard";
+import { betaDashboard, liveDashboard, viewerOfMemberships, NO_INFO, type BetaSources } from "./beta-dashboard";
 
 const beta = runInternalBeta();
 const ids = beta.tenants.map((row) => row.spec.id);
@@ -49,7 +49,8 @@ describe("Beta Dashboard", () => {
     expect(data.companies.map((row) => row.id)).toEqual([first]);
     expect(betaDashboard(sources, one, second, BETA_NOW)).toEqual({ ok: false, refusal: "forbidden" });
     expect(betaDashboard(sources, { tenantIds: ["tenant-ghost"], role: "owner" }, "tenant-ghost", BETA_NOW)).toEqual({ ok: false, refusal: "unknownCompany" });
-    const activity = view(all, first).activity ?? [];
+    const shown = view(all, first).activity;
+    const activity = Array.isArray(shown) ? shown : [];
     const other = new Set(beta.parts.crm.timeline.filter((row) => row.tenantId === second).map((row) => row.at + row.actor));
     for (const item of activity) expect(other.has(item.at + item.actor) && !beta.parts.crm.timeline.some((row) => row.tenantId === first && row.at === item.at && row.actor === item.actor)).toBe(false);
   });
@@ -78,6 +79,35 @@ describe("Beta Dashboard", () => {
     const withApps: BetaSources = { beta, connectors: connectors() };
     for (const role of ["viewer", "member"]) expect(view({ tenantIds: ids, role }, first, withApps).approvals).toBeNull();
     for (const role of ["owner", "admin"]) expect(view({ tenantIds: ids, role }, first, withApps).approvals).toEqual([]);
+  });
+
+  it("a signed-in company reads its persisted activity only after its membership is checked; a foreign company is refused before any read", async () => {
+    const memberships = [{ tenantId: "t1", name: "Uno", role: "owner" as const }, { tenantId: "t2", name: "Dos", role: "viewer" as const }];
+    const asked: string[] = [];
+    const rows = [{ at: "2026-11-12T10:00:00.000Z", kind: "assessment.saved", actor: "user" }];
+    const read = async (id: string) => { asked.push(id); return rows; };
+    const result = await liveDashboard(memberships, "t2", BETA_NOW, read);
+    expect(result.ok && result.dashboard.activity).toEqual(rows);
+    expect(result.ok && result.dashboard.companies.map((row) => row.id)).toEqual(["t1", "t2"]);
+    expect(await liveDashboard(memberships, "t-foreign", BETA_NOW, read)).toEqual({ ok: false, refusal: "forbidden" });
+    expect(asked).toEqual(["t2"]);
+  });
+
+  it("keeps apart a missing source (null), a failed read (error) and an empty result ([]); other sections stay Sin información", async () => {
+    const memberships = [{ tenantId: "t1", name: "Uno", role: "owner" as const }];
+    const empty = await liveDashboard(memberships, "t1", BETA_NOW, async () => []);
+    const failed = await liveDashboard(memberships, "t1", BETA_NOW, async () => { throw new Error("unavailable"); });
+    expect(empty.ok && empty.dashboard.activity).toEqual([]);
+    expect(failed.ok && failed.dashboard.activity).toBe("error");
+    expect(view().activity === null).toBe(false);
+    if (empty.ok) expect([empty.dashboard.counts.workers, empty.dashboard.approvals, empty.dashboard.google, empty.dashboard.health, empty.dashboard.kpis, empty.dashboard.execution]).toEqual([null, null, null, null, null, null]);
+  });
+
+  it("carries only kind, actor type and time from the persisted rows: no summary, reason or name", async () => {
+    const dirty = [{ at: "2026-11-12T10:00:00.000Z", kind: "lead.created", actor: "user", summary: "secret@example.com", reason: "private", actorName: "Ana" }];
+    const result = await liveDashboard([{ tenantId: "t1", name: "Uno", role: "owner" }], "t1", BETA_NOW, async () => dirty);
+    const text = JSON.stringify(result);
+    for (const leaked of ["secret@example.com", "private", "Ana"]) expect(text).not.toContain(leaked);
   });
 
   it("carries no sensitive data: only kinds, ids and times, never a summary, address or text", () => {

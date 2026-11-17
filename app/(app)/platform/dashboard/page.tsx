@@ -3,7 +3,9 @@ import { redirect } from "next/navigation";
 import { pageMetadata } from "@/lib/seo/metadata";
 import { loadServerSession } from "@/lib/auth/session";
 import { runInternalBeta, BETA_NOW } from "@/lib/contracts/platform/internal-beta";
-import { betaDashboard, viewerOfMemberships, NO_INFO } from "@/lib/nex/execution-bridge/beta-dashboard";
+import { createBackend } from "@/lib/db/backend";
+import { createSupabaseSpikeServerClient } from "@/lib/db/supabase-spike";
+import { betaDashboard, liveDashboard, viewerOfMemberships, NO_INFO } from "@/lib/nex/execution-bridge/beta-dashboard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { sectionInfo } from "../_components/catalog";
 import { BetaDashboardView } from "../_components/BetaDashboardView";
@@ -23,10 +25,11 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ e
   if (state.kind === "unavailable") return <SectionShell section="dashboard"><EmptyState icon={LayoutDashboard} title={NO_INFO}>No pudimos conectar con el servidor.</EmptyState></SectionShell>;
   if (state.kind === "backend") {
     const own = viewerOfMemberships(state.session.memberships, state.active?.tenantId, empresa);
-    const name = state.session.memberships.find((row) => row.tenantId === own?.tenantId)?.name;
+    // The one persisted source so far is the company's activity trail (the backend's `listActivity`); the rest of the sections say Sin información until their sources exist.
+    const live = own ? await liveDashboard(state.session.memberships, own.tenantId, new Date().toISOString(), async (id) => createBackend(await createSupabaseSpikeServerClient()).listActivity(id, 8)) : null;
     return (
       <SectionShell section="dashboard">
-        <EmptyState icon={LayoutDashboard} title={NO_INFO}>{name ? `${name}: ` : ""}todavía no hay fuentes reales conectadas para esta empresa.</EmptyState>
+        {live?.ok ? <BetaDashboardView data={live.dashboard} /> : <EmptyState icon={LayoutDashboard} title={NO_INFO}>No hay una empresa autorizada para mostrar.</EmptyState>}
       </SectionShell>
     );
   }

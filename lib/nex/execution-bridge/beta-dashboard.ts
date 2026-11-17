@@ -5,7 +5,7 @@
 // Safety: only the companies the viewer belongs to appear; the approvals inbox is for people who administer the company (Level 3: owner or admin), everybody else sees "Sin información" there; the
 // activity and the inbox carry kinds, operations, ids and times, never the text of a message, an address or a summary.
 
-import type { MembershipDto } from "@/lib/contracts/backend";
+import type { ActivityDto, MembershipDto } from "@/lib/contracts/backend";
 import type { ConnectorsState } from "@/lib/contracts/platform/connectors";
 import type { InternalBeta } from "@/lib/contracts/platform/internal-beta";
 import type { OperatingDashboard } from "@/lib/contracts/platform/kynova-operation";
@@ -29,12 +29,12 @@ export type BetaSources = {
 export type BetaActivity = { at: string; kind: string; actor: string };
 export type BetaDashboard = {
   tenantId: string; asOf: string; name: string;
-  companies: readonly { id: string; name: string; template: string; plan: string }[];
+  companies: readonly { id: string; name: string; template?: string; plan?: string }[];
   counts: { workers: number | null; workflows: number | null; executions: number | null; pendingRequests: number | null };
   approvals: readonly ApprovalEntry[] | null;
   google: readonly Pick<WorkspaceRow, "connectorId" | "label" | "display" | "healthScore" | "lastSyncAt" | "needsReauthorization">[] | null;
   health: OperatingDashboard["health"] | null;
-  activity: readonly BetaActivity[] | null;
+  /** null: no source · "error": the source failed · []: the source answered and there is nothing */ activity: readonly BetaActivity[] | null | "error";
   kpis: readonly KpiReading[] | null;
   execution: { queued: number; active: number; gatewayPending: number } | null;
 };
@@ -65,9 +65,24 @@ export function betaDashboard(sources: BetaSources, viewer: BetaViewer, tenantId
       approvals: canDecide && sources.connectors ? approvalInbox(sources.connectors, tenantId, at) : null,
       google: sources.connectors ? workspaceView(sources.connectors, sources.activities ?? [], tenantId, at).map((row) => ({ connectorId: row.connectorId, label: row.label, display: row.display, healthScore: row.healthScore, ...(row.lastSyncAt ? { lastSyncAt: row.lastSyncAt } : {}), needsReauthorization: row.needsReauthorization })) : null,
       health: operating.health,
-      activity: activity.length > 0 ? activity : null,
+      activity,
       kpis: own.kpis.length > 0 ? own.kpis : null,
       execution: orchestrator || gateway ? { queued: orchestrator?.queue.total ?? 0, active: orchestrator?.plans.active.length ?? 0, gatewayPending: gateway?.pending.total ?? 0 } : null,
+    },
+  };
+}
+
+/** A signed-in company: the one section with a persisted source (the company's activity trail) is filled; every other section keeps saying Sin información. The viewer's membership is checked BEFORE
+ * anything is read (the database checks it again); a failed read is "error", an answered read with no rows is [], and no summary, reason or person's name is carried. */
+export async function liveDashboard(memberships: readonly Pick<MembershipDto, "tenantId" | "name" | "role">[], tenantId: string, at: string, readActivity: (tenantId: string) => Promise<readonly Pick<ActivityDto, "at" | "kind" | "actor">[]>): Promise<{ ok: true; dashboard: BetaDashboard } | { ok: false; refusal: BetaRefusal }> {
+  const own = memberships.find((row) => row.tenantId === tenantId);
+  if (!own) return { ok: false, refusal: "forbidden" };
+  const activity = await readActivity(tenantId).then((rows): readonly BetaActivity[] => rows.slice(0, ACTIVITY_LIMIT).map((row) => ({ at: row.at, kind: row.kind, actor: row.actor })), (): "error" => "error");
+  return {
+    ok: true,
+    dashboard: {
+      tenantId, asOf: at, name: own.name, companies: memberships.map((row) => ({ id: row.tenantId, name: row.name })).sort((a, b) => a.id.localeCompare(b.id)),
+      counts: { workers: null, workflows: null, executions: null, pendingRequests: null }, approvals: null, google: null, health: null, activity, kpis: null, execution: null,
     },
   };
 }

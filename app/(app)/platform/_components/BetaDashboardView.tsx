@@ -106,7 +106,7 @@ export function BetaDashboardView({ data, simulated = false }: { data: BetaDashb
         </Section>
 
         <Section title="Actividad reciente">
-          {data.activity === null ? <NoInfo /> : (
+          {data.activity === null ? <NoInfo /> : data.activity === "error" ? <p role="alert" className="text-danger">No se pudo leer la actividad. Intente de nuevo.</p> : data.activity.length === 0 ? <p className="text-ink-muted">Sin actividad registrada.</p> : (
             <ul className="space-y-2">
               {data.activity.map((item, index) => (
                 <li key={`${item.at}-${index}`} className="flex items-center justify-between gap-3">
