@@ -117,6 +117,14 @@ Hallazgos aceptados de `/code-review` (`ed96ca0`), no son deuda:
 - **Sigue siendo demo:** los KPI, las tarjetas y la tabla de campañas de Marketing; el contenido de muestra; los textos de muestra solo están en español.
 - **Siguiente paso:** que Nova pruebe el flujo con contenido ficticio y señale qué falta (campos, etapas, formato de guion); después decidir persistencia por tenant (tras el Go de ADR-0006), ayuda de NEX para ideas y guiones, y exportación de guiones.
 
+**Sprint 65 — Beta Dashboard con sesión real** (rama `feat/beta-dashboard-v1`, apilada sobre `feat/psi-e2e-v1`; `/platform/dashboard`, proyecto Supabase desechable, solo datos ficticios)
+- **Hecho y comprobado a mano:** inicio de sesión real por enlace mágico (`/spike/login`), recorrido de prospecto (aparece en Ventas) y actividad (`prospect.captured`) leída de `list_activity`; el contador de solicitudes del CRM sale de `dashboard_digest`. Sin sesión redirige a `/login`; sin backend configurado se muestra la demostración identificada.
+- **Hecho y revisado:** barra superior sólida, próxima acción y cierre sin proponer escribir ni llamar si no hay contacto, texto del chat con backend, Ventas sin KPI ni oportunidades de ejemplo con sesión, hora de la actividad en UTC. Vista móvil básica a 400 px comprobada.
+- **Bloqueado — roles:** la cuenta invitada (Solo lectura) no puede entrar porque no hay SMTP propio y no se agregan cuentas al equipo de Supabase; no existe otra vía de acceso local. La invitación queda guardada, pendiente. Requisito mínimo para retomar: SMTP propio en Supabase (Authentication › Emails).
+- **Aislamiento — resultado y alcance:** con la sesión de propietario, `?empresa=00000000-0000-0000-0000-00000000000b` siguió mostrando Nova Marketing Studio. Eso confirma que el servidor ignora una empresa pedida que no está entre las membresías de la sesión (por el código, solo se muestra la pedida si es membresía, luego la cuenta no pertenece a ese id). **No confirma** que la Empresa B exista en la base (no hay lectura directa de la base desde el repositorio: no se usa `service_role`) ni prueba RLS con un segundo usuario real; eso sigue cubierto solo por las pruebas SQL de la CI.
+- **Sin confirmar:** avisos de hidratación asociados a `bis_skin_checked`: probablemente los inyecta una extensión del navegador; la causa no está confirmada (se descartaría con una ventana sin extensiones).
+- **Pendiente:** roles (member/viewer) y aislamiento con otro usuario; revisar los avisos de hidratación en una ventana limpia; publicar los commits (sin red, hay un respaldo en `respaldos-git/` fuera del repositorio); `/spike` (lee `spike_items`, tabla del spike que ninguna migración crea) no se repara; secciones sin fuente persistida: Workers, Workflows, Ejecuciones, Google Workspace, Salud, KPIs y Ejecución.
+
 ## 6. Próximos pasos
 
 1. Confirmar `kynova.ai` (D23), decidir la caché del HTML (D21) y ejecutar la fase 4 de ADR-0002 con aprobación.
