@@ -125,6 +125,12 @@ Hallazgos aceptados de `/code-review` (`ed96ca0`), no son deuda:
 - **Sin confirmar:** avisos de hidratación asociados a `bis_skin_checked`: probablemente los inyecta una extensión del navegador; la causa no está confirmada (se descartaría con una ventana sin extensiones).
 - **Pendiente:** roles (member/viewer) y aislamiento con otro usuario; revisar los avisos de hidratación en una ventana limpia; publicar los commits (sin red, hay un respaldo en `respaldos-git/` fuera del repositorio); `/spike` (lee `spike_items`, tabla del spike que ninguna migración crea) no se repara; secciones sin fuente persistida: Workers, Workflows, Ejecuciones, Google Workspace, Salud, KPIs y Ejecución.
 
+**Sprint 66 — NEX entrega valor desde el primer uso** (rama `feat/beta-dashboard-v1`; `/nex` › "Mi primera prioridad: plan de 7 días")
+- **Entregable elegido:** plan de 7 días (seguimiento si hay prospectos en el Pipeline; captación si no), con una prioridad recomendada y su porqué, y un borrador de mensaje sin enviar. Se produce hoy con lo que ya existe: sesión (empresa, rol, permisos), prospectos del Pipeline y el historial privado de NEX. Lógica pura en `lib/first-work.ts`; pantalla en `FirstWorkFlow.tsx`.
+- **Estados separados en pantalla y en el texto:** ejemplo (no usa datos de la empresa), borrador guardado (privado para quien lo guarda, en el historial de NEX) y acciones ejecutadas (ninguna: no se envía ni agenda nada). Dice qué falta para ejecutar: no hay canal de envío ni calendario conectados.
+- **No pregunta** presupuesto, quién decide ni contacto: esos datos solo los pide el chat de captación de visitantes (`/nex/chat`), que sigue siendo otro recorrido. El diagnóstico largo es opcional ("Profundizar").
+- **Límites:** textos solo en español; recomienda por reglas, sin modelo; no hay chat público embebible, canales ni publicación de contenido; la paleta de colores sigue pendiente de definir (no se tocó). Validación en navegador y de roles (Sprint 65) siguen pendientes.
+
 ## 6. Próximos pasos
 
 1. Confirmar `kynova.ai` (D23), decidir la caché del HTML (D21) y ejecutar la fase 4 de ADR-0002 con aprobación.

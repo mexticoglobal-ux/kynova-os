@@ -3,11 +3,13 @@
 import { useEffect, useRef, useState } from "react";
 import clsx from "clsx";
 import { AnimatePresence, m as motion } from "framer-motion";
-import { Bot, Building2, ClipboardList, History, Lightbulb, Mail, Megaphone, MessageSquarePlus, Receipt, SendHorizontal, Sparkles, Trash2 } from "lucide-react";
+import { Bot, Building2, ClipboardList, History, Lightbulb, Mail, Megaphone, MessageSquarePlus, Receipt, SendHorizontal, Sparkles, Target, Trash2 } from "lucide-react";
 import { askNex } from "@/lib/nex";
 import type { Message } from "@/types";
 import { useI18n } from "@/components/i18n/I18nProvider";
+import { DRAFT_MARK } from "@/lib/first-work";
 import { AssessmentFlow } from "./AssessmentFlow";
+import { FirstWorkFlow } from "./FirstWorkFlow";
 import { useConversations } from "./useConversations";
 import { buttonClass } from "@/components/ui/Button";
 import { IconBadge } from "@/components/ui/IconBadge";
@@ -16,11 +18,12 @@ const QUICK_ACTION_ICONS = [Mail, Megaphone, Receipt, Building2];
 
 export function NexChat() {
   const { m } = useI18n();
-  const { conversations, active, activeId, setActiveId, appendMessage, remove, newId } = useConversations();
+  const { conversations, active, activeId, setActiveId, appendMessage, remove, newId, syncError } = useConversations();
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const [assessing, setAssessing] = useState(false);
+  const [firstWork, setFirstWork] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const messages = active?.messages ?? [];
@@ -58,6 +61,7 @@ export function NexChat() {
     setActiveId(null);
     setFailed(false);
     setAssessing(false);
+    setFirstWork(false);
     setShowHistory(false);
   }
 
@@ -135,11 +139,25 @@ export function NexChat() {
         </header>
 
         <div data-nex-scroll className="flex-1 overflow-y-auto px-4 py-6" aria-live="polite">
-          {messages.length === 0 && assessing ? (
+          {messages.length === 0 && firstWork ? (
+            <FirstWorkFlow
+              onExit={() => setFirstWork(false)}
+              onDeepen={() => { setFirstWork(false); setAssessing(true); }}
+              onSave={(plan) => appendMessage(newId(), { role: "nex", text: plan }, "Plan de 7 días")}
+              saveFailed={syncError}
+            />
+          ) : messages.length === 0 && assessing ? (
             <AssessmentFlow onExit={() => setAssessing(false)} />
           ) : messages.length === 0 ? (
             <div className="mx-auto max-w-2xl">
               <h2 className="text-center text-2xl font-semibold sm:text-3xl">{m.nex.title}</h2>
+              <button type="button" onClick={() => setFirstWork(true)} className="mt-6 flex w-full items-start gap-3 rounded-xl border border-primary/40 bg-primary/10 p-4 text-left transition hover:bg-primary/15">
+                <Target aria-hidden className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+                <span>
+                  <span className="block font-medium">Mi primera prioridad: plan de 7 días</span>
+                  <span className="block text-sm text-ink-soft">Un minuto: NEX usa los datos de su empresa, le recomienda por dónde empezar y le deja un plan para revisar. No envía nada.</span>
+                </span>
+              </button>
               <h3 className="mt-8 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-ink-muted">
                 <Sparkles aria-hidden className="h-3.5 w-3.5" />
                 {m.nex.suggestions}
@@ -194,7 +212,7 @@ export function NexChat() {
                   )}
                 >
                   <span className="sr-only">{message.role === "user" ? m.nex.you : m.nav.nex}: </span>
-                  {message.role === "nex" && (
+                  {message.role === "nex" && !message.text.startsWith(DRAFT_MARK) && (
                     <span data-simulated-notice className="mb-2 flex w-fit items-center gap-2 rounded-full bg-raised px-3 py-1 text-xs text-ink-muted">
                       <Sparkles aria-hidden className="h-3.5 w-3.5 text-primary" />
                       {m.nex.simulatedReply}
