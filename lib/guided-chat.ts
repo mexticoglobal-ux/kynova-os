@@ -186,7 +186,11 @@ export function initialState(treatment: Treatment): ChatState {
   return { step: "start", treatment, auditIndex: 0, answers: {} };
 }
 
-export function greeting(pack: ClientPack, treatment: Treatment): Say[] {
+/** What the team does when the visitor left no way to reach them (the same words in the chat, the lead and the summary). */
+export const NO_CONTACT_ACTION = "Sin medio de contacto: esperar a que el prospecto vuelva a escribir";
+
+/** `persisted`: the conversation is saved in the company (signed-in mode); otherwise it is the demonstration and nothing is kept. */
+export function greeting(pack: ClientPack, treatment: Treatment, persisted = false): Say[] {
   const t = (usted: string, tu: string) => pick(treatment, [usted, tu]);
   return [
     { kind: "text", text: `Hola, soy NEX, el asistente automatizado de ${pack.brand}.` },
@@ -197,7 +201,12 @@ export function greeting(pack: ClientPack, treatment: Treatment): Say[] {
         "Puedo ayudarte a entender en qué punto está tu negocio y qué te conviene hacer primero, y dejar tu consulta lista para que el equipo te atienda con contexto.",
       ),
     },
-    { kind: "text", text: "Soy un asistente automático, no una persona. En esta demostración no se guarda ni se envía nada." },
+    {
+      kind: "text",
+      text: persisted
+        ? t("Soy un asistente automático, no una persona. Al terminar, la conversación y el resumen se guardan en su empresa; no se envía nada a nadie.", "Soy un asistente automático, no una persona. Al terminar, la conversación y el resumen se guardan en tu empresa; no se envía nada a nadie.")
+        : "Soy un asistente automático, no una persona. En esta demostración no se guarda ni se envía nada.",
+    },
     { kind: "text", text: t("¿Qué le gustaría hacer?", "¿Qué te gustaría hacer?") },
   ];
 }
@@ -265,7 +274,7 @@ function nextAfterName(state: ChatState): Step {
   return state.intent === "audit" ? "businessName" : "contactMethod";
 }
 
-export function advance(state: ChatState, input: string, pack: ClientPack): { state: ChatState; say: Say[] } {
+export function advance(state: ChatState, input: string, pack: ClientPack, persisted = false): { state: ChatState; say: Say[] } {
   const t = (usted: string, tu: string) => pick(state.treatment, [usted, tu]);
   const say: Say[] = [];
   const text = (value: string) => say.push({ kind: "text", text: value });
@@ -374,7 +383,7 @@ export function advance(state: ChatState, input: string, pack: ClientPack): { st
       if (method === "none") {
         next = { ...state, contactMethod: method, step: "end" };
         text(t("Sin problema, no guardo ningún dato de contacto.", "Sin problema, no guardo ningún dato de contacto."));
-        closing(next, pack, say);
+        closing(next, pack, say, persisted);
       } else {
         next = { ...state, contactMethod: method, step: "contactValue" };
         text(t(`Perfecto. ¿Cuál es ${METHOD_VALUE[method]}?`, `Perfecto. ¿Cuál es ${METHOD_VALUE[method].replace("su ", "tu ")}?`));
@@ -383,7 +392,7 @@ export function advance(state: ChatState, input: string, pack: ClientPack): { st
     }
     case "contactValue":
       next = { ...state, contact: value, step: "end" };
-      closing(next, pack, say);
+      closing(next, pack, say, persisted);
       break;
     case "end":
       return { state, say };
@@ -416,7 +425,9 @@ export function buildHandoff(state: ChatState, pack: ClientPack): Handoff {
   if (!state.contact) reasons.push("No dejó un medio de contacto: no se le puede escribir.");
 
   const nextStep =
-    route === "hot"
+    !state.contact && route !== "human"
+      ? NO_CONTACT_ACTION
+      : route === "hot"
       ? "Contactar cuanto antes y proponer una llamada."
       : route === "warm"
         ? "Enviar información y proponer una llamada."
@@ -440,12 +451,15 @@ export function buildHandoff(state: ChatState, pack: ClientPack): Handoff {
 }
 
 // In the demo nothing leaves the screen, so the closing says what would be handed over and never claims it was sent.
-function closing(state: ChatState, pack: ClientPack, say: Say[]) {
+function closing(state: ChatState, pack: ClientPack, say: Say[], persisted = false) {
   const handoff = buildHandoff(state, pack);
   const t = (usted: string, tu: string) => pick(state.treatment, [usted, tu]);
   const name = state.name ?? "";
+  const unreachable = handoff.contact === null && handoff.route !== "human";
   const lead =
-    handoff.route === "hot"
+    unreachable && handoff.route !== "cold"
+      ? t(`Gracias, ${name}. Como no dejó un medio de contacto, el equipo no podrá escribirle: puede volver a escribirnos cuando quiera.`, `Gracias, ${name}. Como no dejaste un medio de contacto, el equipo no podrá escribirte: puedes volver a escribirnos cuando quieras.`)
+      : handoff.route === "hot"
       ? t(`Gracias, ${name}. Con lo que me contó, el equipo de Nova podría atenderle con prioridad.`, `Gracias, ${name}. Con lo que me contaste, el equipo de Nova podría atenderte con prioridad.`)
       : handoff.route === "warm"
         ? t(`Gracias, ${name}. El equipo de Nova podría contactarle para una llamada.`, `Gracias, ${name}. El equipo de Nova podría contactarte para una llamada.`)
@@ -455,7 +469,9 @@ function closing(state: ChatState, pack: ClientPack, say: Say[]) {
   say.push({ kind: "text", text: lead });
   say.push({
     kind: "text",
-    text: pack.isDraft
+    text: persisted
+      ? t("Dejé la conversación y el resumen guardados en su empresa para el equipo. No se envió ningún mensaje.", "Dejé la conversación y el resumen guardados en tu empresa para el equipo. No se envió ningún mensaje.")
+      : pack.isDraft
       ? t("Esto es una demostración: no se envió nada. Así quedaría el traspaso que recibiría el equipo.", "Esto es una demostración: no se envió nada. Así quedaría el traspaso que recibiría el equipo.")
       : t("Ya dejé el resumen listo para el equipo.", "Ya dejé el resumen listo para el equipo."),
   });

@@ -11,7 +11,7 @@ export const metadata = pageMetadata({
 
 export default function SalesPage() {
   return (
-    <ModuleView moduleKey="sales">
+    <ModuleView moduleKey="sales" hideExamplesWhenConnected>
       <PipelineBoard />
     </ModuleView>
   );

@@ -4,7 +4,7 @@ import { PRIORITIES, type ContactMethod, type Grade, type Lead, type Priority, t
 import { pick, type Treatment } from "@/lib/audit-copy";
 import { buildSummary, scoreStatus } from "@/lib/audit-summary";
 import type { ClientPack } from "@/lib/audit-packs/nova-draft";
-import type { Handoff } from "@/lib/guided-chat";
+import { NO_CONTACT_ACTION, type Handoff } from "@/lib/guided-chat";
 
 // Pure pipeline logic: turns a conversation's handoff into a lead, moves leads through stages, and summarises the day.
 // Everything here is deterministic and in memory (demo mode, no persistence).
@@ -24,7 +24,7 @@ export function meetingDraft(pack: ClientPack, name: string, serviceName: string
 }
 
 function nextActionFor(grade: Grade, hasContact: boolean): string {
-  if (!hasContact && grade !== "human") return "Sin medio de contacto: esperar a que el prospecto vuelva a escribir";
+  if (!hasContact && grade !== "human") return NO_CONTACT_ACTION;
   if (grade === "human") return "Responder personalmente a lo que pidió";
   if (grade === "hot") return "Aprobar la solicitud de reunión que NEX preparó";
   if (grade === "warm") return "Enviar información y proponer una llamada";
@@ -124,7 +124,7 @@ export function executiveSummary(lead: Lead, pack: ClientPack): ExecutiveSummary
   if (lead.question) rows.push(["Lo que preguntó", lead.question]);
   rows.push(["Clasificación", lead.reasons.join(" ")]);
   if (lead.services.length > 0) rows.push(["Servicios recomendados", lead.services.map((id) => pack.services[id]?.name ?? id).join(", ")]);
-  rows.push(["Qué recomienda NEX", lead.nextAction]);
+  rows.push(["Qué recomienda NEX", !lead.contact && lead.grade !== "human" ? NO_CONTACT_ACTION : lead.nextAction]);
   rows.push(["Contacto", lead.contact ? `${lead.contactName} · ${lead.contact.value}` : "No dejó un medio de contacto"]);
   const headline =
     lead.grade === "hot" ? `${lead.company}: oportunidad caliente`

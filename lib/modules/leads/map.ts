@@ -3,6 +3,7 @@ import type { ClientPack } from "@/lib/audit-packs/nova-draft";
 import { scoreStatus } from "@/lib/audit-summary";
 import type { LeadDto, ServerDigest } from "@/lib/contracts/backend";
 import type { Grade, Lead, Priority, Stage } from "@/lib/contracts/pipeline";
+import { NO_CONTACT_ACTION } from "@/lib/guided-chat";
 import { OWNER_NEX, OWNER_TEAM, type Digest } from "@/lib/pipeline";
 import { digest as demoDigest } from "@/lib/pipeline";
 import type { AuditBand, AuditDimension, Infrastructure } from "@/lib/contracts/audit";
@@ -48,7 +49,8 @@ export function leadFromDto(dto: LeadDto, pack: ClientPack, sessionStartedAt: Da
     challenge: dto.challenge ?? undefined,
     question: dto.question ?? undefined,
     stage: stageOf(dto, now),
-    nextAction: dto.nextActionText ?? "Decidir cómo continuar con este prospecto",
+    // A lead stored before the rule existed may still say to call or write: without a contact it cannot be done.
+    nextAction: !contact && grade !== "human" ? NO_CONTACT_ACTION : (dto.nextActionText ?? "Decidir cómo continuar con este prospecto"),
     owner: dto.ownerName ?? (grade === "hot" || grade === "human" ? OWNER_TEAM : OWNER_NEX),
     approval: dto.approval && draft ? { kind: "meeting", draft } : null,
     ...(dto.approval && draft ? { approvalId: dto.approval.id } : {}),

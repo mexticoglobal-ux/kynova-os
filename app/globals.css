@@ -413,7 +413,7 @@ body::before {
   .app-header {
     -webkit-backdrop-filter: blur(18px) saturate(1.4);
     backdrop-filter: blur(18px) saturate(1.4);
-    background: rgb(var(--canvas) / 0.72);
+    background: rgb(var(--canvas)); /* solid: the page scrolls under the bar and its text must never show through */
   }
 
   /* Empty states: a halo that breathes slowly behind the icon. */

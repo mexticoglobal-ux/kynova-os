@@ -7,7 +7,12 @@ const DISPLAY_LABEL = { Connected: "Conectada", Disconnected: "Desconectada", "P
 const DISPLAY_TONE: Record<keyof typeof DISPLAY_LABEL, BadgeTone> = { Connected: "success", Disconnected: "neutral", "Pending Authorization": "warning", Error: "danger" };
 const HEALTH_LABEL = { sales: "Ventas", support: "Soporte", billing: "Facturación", automation: "Automatización", ai: "IA" } as const;
 const KIND_LABEL: Record<string, string> = { email: "Correo", whatsapp: "WhatsApp", call: "Llamada", note: "Nota", meeting: "Reunión", automation: "Automatización", worker: "Worker", audit: "Auditoría", nex: "NEX" };
-const when = (iso: string) => iso.slice(0, 16).replace("T", " ");
+// The app has no time-zone setting: the time is shown in UTC and says so.
+const STAMP = new Intl.DateTimeFormat("es", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" });
+const when = (iso: string) => {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? "" : `${STAMP.format(date)} UTC`;
+};
 const show = (value: number | null | "error") => (value === null ? NO_INFO : value === "error" ? "Error de lectura" : String(value));
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {

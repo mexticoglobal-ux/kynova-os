@@ -35,6 +35,7 @@ export function GuidedChat({
   paceMs = 1,
   onHandoff,
   endActions,
+  persisted = false,
 }: {
   pack: ClientPack;
   treatment?: Treatment;
@@ -42,14 +43,16 @@ export function GuidedChat({
   // Called once, when the conversation ends, with what the team needs. The pipeline subscribes to this.
   onHandoff?: (handoff: Handoff, context: { state: ChatState; transcript: TranscriptEntry[] }) => void;
   endActions?: React.ReactNode;
+  // Signed-in mode: the conversation is saved in the company, so the chat says so instead of "nothing is saved".
+  persisted?: boolean;
 }) {
   const [state, setState] = useState<ChatState>(() => initialState(treatment));
   const [items, setItems] = useState<Item[]>([]);
-  const [queue, setQueue] = useState<Say[]>(() => greeting(pack, treatment));
+  const [queue, setQueue] = useState<Say[]>(() => greeting(pack, treatment, persisted));
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const nextId = useRef(1);
-  const transcript = useRef<TranscriptEntry[]>(entriesFromSay(greeting(pack, treatment)));
+  const transcript = useRef<TranscriptEntry[]>(entriesFromSay(greeting(pack, treatment, persisted)));
   const endRef = useRef<HTMLDivElement>(null);
 
   // Plays NEX's queued messages one at a time.
@@ -71,7 +74,7 @@ export function GuidedChat({
   const prompt = busy ? null : promptFor(state);
 
   function submit(label: string, value: string) {
-    const result = advance(state, value, pack);
+    const result = advance(state, value, pack, persisted);
     if (result.state === state && result.say.length === 0) return;
     setItems((current) => (label === "" ? current : [...current, { id: nextId.current++, from: "user", text: label }]));
     if (label !== "") transcript.current.push({ direction: "in", senderKind: "contact", contentType: prompt?.kind === "choice" ? "choice" : "text", body: label });
@@ -94,8 +97,8 @@ export function GuidedChat({
   function restart() {
     setState(initialState(treatment));
     setItems([]);
-    transcript.current = entriesFromSay(greeting(pack, treatment));
-    setQueue(greeting(pack, treatment));
+    transcript.current = entriesFromSay(greeting(pack, treatment, persisted));
+    setQueue(greeting(pack, treatment, persisted));
     setDraft("");
     setError(null);
   }

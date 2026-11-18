@@ -25,6 +25,7 @@ export function ConnectedGuidedChat({ paceMs }: { paceMs?: number }) {
       <GuidedChat
         pack={pack}
         paceMs={paceMs}
+        persisted={mode === "backend"}
         onHandoff={(handoff, context) => {
           if (canWrite) void receiveHandoff(handoff, context);
         }}

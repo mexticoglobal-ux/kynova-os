@@ -7,6 +7,7 @@ import type { InsightIcon } from "@/lib/contracts/module";
 import { moduleRegistry } from "@/lib/modules/registry";
 import { formatValue } from "@/lib/i18n/format";
 import { useI18n } from "@/components/i18n/I18nProvider";
+import { useSession } from "@/components/session/SessionProvider";
 import { KpiCard } from "@/components/ui/KpiCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { NAV_ICONS } from "@/components/shell/nav-icons";
@@ -28,8 +29,11 @@ const INSIGHT_ICONS: Record<InsightIcon, LucideIcon> = {
 const stagger = (index: number) => ({ animationDelay: `${index * 50}ms` });
 
 // `children` renders right below the page header, for a module that has real (non-demo) content to show first.
-export function ModuleView({ moduleKey, children }: { moduleKey: ModuleKey; children?: ReactNode }) {
+// `hideExamplesWhenConnected`: signed in to a company, the example figures are not shown; what has no source says "Sin información".
+export function ModuleView({ moduleKey, children, hideExamplesWhenConnected = false }: { moduleKey: ModuleKey; children?: ReactNode; hideExamplesWhenConnected?: boolean }) {
   const { m, tag } = useI18n();
+  const { mode } = useSession();
+  const connected = hideExamplesWhenConnected && mode === "backend";
   const [notice, setNotice] = useState<string | null>(null);
   const copy = m.modules[moduleKey];
   const data = moduleRegistry[moduleKey];
@@ -39,7 +43,7 @@ export function ModuleView({ moduleKey, children }: { moduleKey: ModuleKey; chil
     <div className="space-y-8">
       <PageHeader
         icon={ModuleIcon}
-        eyebrow={m.common.demoData}
+        eyebrow={connected ? "Datos de su empresa" : m.common.demoData}
         title={copy.title}
         subtitle={copy.subtitle}
         actions={copy.actions.map((action, index) => (
@@ -55,6 +59,13 @@ export function ModuleView({ moduleKey, children }: { moduleKey: ModuleKey; chil
 
       {children}
 
+      {connected ? (
+        <section className="card p-5 sm:p-6" aria-labelledby="module-no-source">
+          <h2 id="module-no-source" className="font-semibold tracking-tight">Indicadores y oportunidades</h2>
+          <p className="mt-1 text-sm text-ink-muted">Sin información: todavía no hay una fuente conectada para estos indicadores.</p>
+        </section>
+      ) : (
+        <>
       <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
         {data.kpis.map((kpi, index) => (
           <div key={copy.kpis[index]} className="animate-fade-up" style={stagger(index + 1)}>
@@ -111,6 +122,8 @@ export function ModuleView({ moduleKey, children }: { moduleKey: ModuleKey; chil
           </tbody>
         </table>
       </section>
+        </>
+      )}
     </div>
   );
 }
