@@ -5,6 +5,7 @@ import type { Message } from "@/types";
 import type { ConversationDto, MessageDto } from "@/lib/contracts/backend";
 import { apiFetch } from "@/lib/api/client";
 import { useSession } from "@/components/session/SessionProvider";
+import { LEGACY_DRAFT_TITLES } from "@/lib/first-work";
 
 export type Conversation = { id: string; title: string; messages: Message[]; updatedAt: number; loaded: boolean };
 
@@ -61,6 +62,15 @@ export function useConversations() {
       if (!result.ok) return setSyncError(true);
       result.data.conversations.forEach((dto) => remoteIds.current.add(dto.id));
       setConversations(result.data.conversations.map((dto) => ({ id: dto.id, title: dto.title ?? "", messages: [], updatedAt: new Date(dto.lastMessageAt).getTime(), loaded: false })));
+      // Drafts saved before the two kinds had their own title: read them so the history can tell which is which.
+      result.data.conversations
+        .filter((dto) => LEGACY_DRAFT_TITLES.includes(dto.title ?? ""))
+        .forEach((dto) => {
+          void apiFetch<{ messages: MessageDto[] }>(`/api/v1/conversations/${dto.id}/messages`).then((messages) => {
+            if (!messages.ok) return;
+            setConversations((current) => current.map((conversation) => (conversation.id === dto.id && !conversation.loaded ? { ...conversation, messages: messages.data.messages.map(toMessage), loaded: true } : conversation)));
+          });
+        });
     });
   }, [tenantId]);
 

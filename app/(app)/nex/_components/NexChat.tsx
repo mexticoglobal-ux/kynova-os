@@ -7,7 +7,7 @@ import { Bot, Building2, ClipboardList, History, Lightbulb, Mail, Megaphone, Mes
 import { askNex } from "@/lib/nex";
 import type { Message } from "@/types";
 import { useI18n } from "@/components/i18n/I18nProvider";
-import { DRAFT_MARK } from "@/lib/first-work";
+import { DRAFT_MARK, historyTitleOf } from "@/lib/first-work";
 import { AssessmentFlow } from "./AssessmentFlow";
 import { FirstWorkFlow } from "./FirstWorkFlow";
 import { useConversations } from "./useConversations";
@@ -15,6 +15,12 @@ import { buttonClass } from "@/components/ui/Button";
 import { IconBadge } from "@/components/ui/IconBadge";
 
 const QUICK_ACTION_ICONS = [Mail, Megaphone, Receipt, Building2];
+
+// A saved draft shows its kind (read from its text once it is loaded); everything else keeps its title.
+const titleOf = (conversation: { title: string; loaded: boolean; messages: readonly { text: string }[] }): string => {
+  const first = conversation.loaded ? conversation.messages[0]?.text : undefined;
+  return (first ? historyTitleOf(first) : null) ?? conversation.title;
+};
 
 export function NexChat() {
   const { m } = useI18n();
@@ -26,6 +32,7 @@ export function NexChat() {
   const [firstWork, setFirstWork] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const messages = active?.messages ?? [];
 
   useEffect(() => {
@@ -58,6 +65,8 @@ export function NexChat() {
   }
 
   function startNew() {
+    // Back to the top of the panel: it must not keep the scroll of the conversation it replaces.
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
     setActiveId(null);
     setFailed(false);
     setAssessing(false);
@@ -98,7 +107,7 @@ export function NexChat() {
                   conversation.id === activeId ? "bg-raised-strong text-ink" : "text-ink-muted hover:bg-raised hover:text-ink",
                 )}
               >
-                {conversation.title || m.nex.untitled}
+                {titleOf(conversation) || m.nex.untitled}
               </button>
               <button
                 type="button"
@@ -138,12 +147,12 @@ export function NexChat() {
           </div>
         </header>
 
-        <div data-nex-scroll className="flex-1 overflow-y-auto px-4 py-6" aria-live="polite">
+        <div ref={scrollRef} data-nex-scroll className="flex-1 overflow-y-auto px-4 py-6" aria-live="polite">
           {messages.length === 0 && firstWork ? (
             <FirstWorkFlow
               onExit={() => setFirstWork(false)}
               onDeepen={() => { setFirstWork(false); setAssessing(true); }}
-              onSave={(plan) => appendMessage(newId(), { role: "nex", text: plan }, "Borrador: primera prioridad")}
+              onSave={(plan, title) => appendMessage(newId(), { role: "nex", text: plan }, title)}
               saveFailed={syncError}
             />
           ) : messages.length === 0 && assessing ? (

@@ -46,7 +46,7 @@ describe("FirstWorkFlow", () => {
     expect(screen.getAllByText(/\[completar: qué ofrece su empresa/).length).toBeGreaterThan(0);
     fireEvent.change(screen.getByLabelText("¿Qué ofrece su empresa?"), { target: { value: "campañas de marketing" } });
     fireEvent.change(screen.getByLabelText("¿A quién se dirige?"), { target: { value: "restaurantes" } });
-    expect(screen.getAllByText(/Nos dedicamos a campañas de marketing, pensado para restaurantes\./).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Lo que ofrecemos: campañas de marketing\. Trabajamos con: restaurantes\./).length).toBeGreaterThan(0);
     expect(screen.queryByText(/\[completar: (qué ofrece|a quién)/)).toBeNull();
   });
 
@@ -68,7 +68,16 @@ describe("FirstWorkFlow", () => {
     fireEvent.click(screen.getByRole("button", { name: "Guardar borrador" }));
     expect(p.onSave).toHaveBeenCalledTimes(1);
     expect(p.onSave.mock.calls[0]?.[0]).toMatch(new RegExp(`^${DRAFT_MARK}`));
+    expect(p.onSave.mock.calls[0]?.[1]).toBe("Captación: mensaje y presentación");
     expect(screen.getByText("Borrador guardado")).toBeTruthy();
+  });
+
+  it("a follow-up draft is saved under the follow-up title", () => {
+    state.pipeline = { sorted: [lead], canWrite: true };
+    const p = props();
+    render(<FirstWorkFlow {...p} />);
+    fireEvent.click(screen.getByRole("button", { name: "Guardar borrador" }));
+    expect(p.onSave.mock.calls[0]?.[1]).toBe("Seguimiento: prospectos");
   });
 
   it("states that execution depends on connected channels and configured permissions, and that none happens today", () => {

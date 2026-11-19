@@ -14,6 +14,20 @@ export const NEED_LABEL: Record<Need, string> = { clients: "Conseguir más clien
 /** Every saved draft starts with this, so the history can tell a saved draft from a (simulated) reply. */
 export const DRAFT_MARK = "Borrador guardado · ";
 
+/** What the history shows for each kind of saved draft. */
+export const HISTORY_TITLE: Record<Need, string> = { clients: "Captación: mensaje y presentación", followUp: "Seguimiento: prospectos" };
+/** Titles drafts were saved with before the two kinds had their own (their type is read from the text when it can be). */
+export const LEGACY_DRAFT_TITLES: readonly string[] = ["Plan de 7 días", "Borrador: primera prioridad"];
+
+/** The history title of a saved draft, read from its first line ("Borrador guardado · <title>"); null when it is not one of ours or its type cannot be told. */
+export function historyTitleOf(text: string): string | null {
+  if (!text.startsWith(DRAFT_MARK)) return null;
+  const first = (text.split("\n")[0] ?? "").slice(DRAFT_MARK.length).toLowerCase();
+  if (first.includes("seguimiento")) return HISTORY_TITLE.followUp;
+  if (first.includes("captación") || first.includes("mensaje y presentación")) return HISTORY_TITLE.clients;
+  return null;
+}
+
 export type FirstWorkContext = {
   /** no company connected: the prospects are the demonstration's fictitious ones */ demo: boolean;
   companyName: string | null;
@@ -28,6 +42,7 @@ export type Recommendation = { need: Need; priority: string; why: string };
 export type ListItem = { label: string; task: string; note?: string };
 export type Piece = { label: string; text: string };
 export type Deliverable = {
+  /** which kind of draft it is (a follow-up with nothing to follow up is a capture draft) */ kind: Need;
   title: string;
   /** "company": built with the company's data · "example": demonstration data */ basis: "company" | "example";
   items: readonly ListItem[];
@@ -83,7 +98,8 @@ function capturePieces(ctx: FirstWorkContext): { pieces: Piece[]; needsContext: 
   const offer = clean(ctx.offer);
   const audience = clean(ctx.audience);
   const needsContext = [...(offer ? [] : ["qué ofrece su empresa"]), ...(audience ? [] : ["a quién se dirige"])];
-  const offerLine = offer ? `Nos dedicamos a ${offer}${audience ? `, pensado para ${audience}` : ""}.` : `[completar: qué ofrece su empresa${audience ? "" : " y para quién"}]`;
+  // The person's own words, labelled and unchanged: they are never bent into a sentence, and nothing about benefits or results is added.
+  const offerLine = [offer ? `Lo que ofrecemos: ${offer}.` : "[completar: qué ofrece su empresa]", audience ? `Trabajamos con: ${audience}.` : "[completar: a quién se dirige]"].join(" ");
   return {
     needsContext,
     pieces: [
@@ -115,6 +131,7 @@ function followUpDeliverable(ctx: FirstWorkContext): Deliverable {
   const target = toFollow[0] ?? asked.find(reachable);
   const who = ctx.companyName ?? "nuestro equipo";
   return {
+    kind: "followUp",
     title: "Seguimiento preparado",
     basis: ctx.demo ? "example" : "company",
     items,
@@ -129,7 +146,7 @@ function followUpDeliverable(ctx: FirstWorkContext): Deliverable {
 export function buildDeliverable(need: Need, ctx: FirstWorkContext): Deliverable {
   if (effectiveNeed(need, ctx) === "followUp") return followUpDeliverable(ctx);
   const { pieces, needsContext } = capturePieces(ctx);
-  return { title: "Propuesta de mensaje y presentación", basis: ctx.demo ? "example" : "company", items: [], pieces, needsContext };
+  return { kind: "clients", title: "Propuesta de mensaje y presentación", basis: ctx.demo ? "example" : "company", items: [], pieces, needsContext };
 }
 
 /** The draft as text, to keep: it says it is a draft, what it is based on, what is missing, and that nothing was executed. */
