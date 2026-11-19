@@ -5,6 +5,7 @@
 //   - an EXAMPLE (demonstration data), - a SAVED DRAFT (the person saved it, private to them), - an EXECUTED ACTION (none exists here).
 
 import type { Lead } from "@/lib/contracts/pipeline";
+import { cleanPhrase } from "@/lib/contracts/first-work-draft";
 import { NO_CONTACT_ACTION } from "@/lib/guided-chat";
 
 export const NEEDS = ["clients", "followUp"] as const;
@@ -56,7 +57,7 @@ export const EXECUTION_NOTE = "Hoy no se ejecutan envíos, publicaciones ni reun
 const open = (ctx: FirstWorkContext) => ctx.leads.filter((lead) => lead.stage !== "won");
 const reachable = (lead: Lead) => lead.contact !== null;
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
-const clean = (value: string | undefined) => (value ?? "").trim().replace(/[.\s]+$/, "");
+const clean = (value: string | undefined) => cleanPhrase(value ?? "");
 
 /** Which goal to suggest, from what the Pipeline holds. The person can still choose the other one. */
 export function recommend(ctx: FirstWorkContext): Recommendation {
