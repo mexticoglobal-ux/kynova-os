@@ -202,7 +202,7 @@ export const en: Messages = {
     untitled: "New conversation",
     deleteChat: "Delete conversation",
     you: "You",
-    disclaimer: "Simulated answers: NEX is not connected to your data yet.",
+    disclaimer: "Answers in this free chat are simulated.",
     simulatedReply: "Simulated answer with sample data",
     error: "NEX couldn't respond. Check your connection and try again.",
     assessment: {

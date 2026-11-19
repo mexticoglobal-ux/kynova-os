@@ -202,7 +202,7 @@ export const de: Messages = {
     untitled: "Neue Unterhaltung",
     deleteChat: "Unterhaltung löschen",
     you: "Sie",
-    disclaimer: "Simulierte Antworten: NEX ist noch nicht mit Ihren Daten verbunden.",
+    disclaimer: "Die Antworten in diesem freien Chat sind simuliert.",
     simulatedReply: "Simulierte Antwort mit Beispieldaten",
     error: "NEX konnte nicht antworten. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
     assessment: {

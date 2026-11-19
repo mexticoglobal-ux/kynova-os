@@ -252,7 +252,7 @@ export const es = {
     untitled: "Conversación nueva",
     deleteChat: "Eliminar conversación",
     you: "Tú",
-    disclaimer: "Respuestas simuladas: NEX todavía no está conectado a tus datos.",
+    disclaimer: "Las respuestas de este chat libre son simuladas.",
     simulatedReply: "Respuesta simulada con datos de ejemplo",
     error: "NEX no pudo responder. Revisa tu conexión e inténtalo de nuevo.",
     assessment: {

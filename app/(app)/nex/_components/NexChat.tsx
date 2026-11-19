@@ -143,7 +143,7 @@ export function NexChat() {
             <FirstWorkFlow
               onExit={() => setFirstWork(false)}
               onDeepen={() => { setFirstWork(false); setAssessing(true); }}
-              onSave={(plan) => appendMessage(newId(), { role: "nex", text: plan }, "Plan de 7 días")}
+              onSave={(plan) => appendMessage(newId(), { role: "nex", text: plan }, "Borrador: primera prioridad")}
               saveFailed={syncError}
             />
           ) : messages.length === 0 && assessing ? (
@@ -154,8 +154,8 @@ export function NexChat() {
               <button type="button" onClick={() => setFirstWork(true)} className="mt-6 flex w-full items-start gap-3 rounded-xl border border-primary/40 bg-primary/10 p-4 text-left transition hover:bg-primary/15">
                 <Target aria-hidden className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
                 <span>
-                  <span className="block font-medium">Mi primera prioridad: plan de 7 días</span>
-                  <span className="block text-sm text-ink-soft">Un minuto: NEX usa los datos de su empresa, le recomienda por dónde empezar y le deja un plan para revisar. No envía nada.</span>
+                  <span className="block font-medium">Mi primera prioridad: un borrador listo para revisar</span>
+                  <span className="block text-sm text-ink-soft">Un minuto: NEX usa los datos de su empresa, le recomienda por dónde empezar y le deja un borrador para revisar. Hoy no envía nada.</span>
                 </span>
               </button>
               <h3 className="mt-8 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-ink-muted">

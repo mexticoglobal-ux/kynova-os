@@ -194,7 +194,7 @@ export const zh: Messages = {
     untitled: "新对话",
     deleteChat: "删除对话",
     you: "你",
-    disclaimer: "模拟回答：NEX 尚未连接到你的数据。",
+    disclaimer: "此自由聊天中的回答为模拟内容。",
     simulatedReply: "基于示例数据的模拟回答",
     error: "NEX 无法回复。请检查网络连接后重试。",
     assessment: {

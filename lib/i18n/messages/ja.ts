@@ -202,7 +202,7 @@ export const ja: Messages = {
     untitled: "新しい会話",
     deleteChat: "会話を削除",
     you: "あなた",
-    disclaimer: "シミュレーション回答：NEX はまだあなたのデータに接続されていません。",
+    disclaimer: "このフリーチャットの回答はシミュレーションです。",
     simulatedReply: "サンプルデータによるシミュレーション回答",
     error: "NEX が応答できませんでした。接続を確認して、もう一度お試しください。",
     assessment: {
