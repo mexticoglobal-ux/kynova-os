@@ -65,3 +65,9 @@ jobs:
 
       - name: Run Backend Core Integration tests (events, audit chain, storage registry, isolation)
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/backend_integration.sql
+
+      - name: Run AI budget tests (reservations, idempotency, settlement, expiry, isolation)
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/ai_budget.sql
+
+      - name: Run AI budget concurrency tests (the limit holds with parallel sessions)
+        run: bash supabase/tests/ai_budget_concurrency.sh

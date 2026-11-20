@@ -6,8 +6,7 @@
 //     decision of its own (see MODEL_REQUIREMENTS and ADR-0036): a change to this file with its tests.
 // Pure apart from the injected `ask`/`budget`: no network, no clock, no secret and no database in this file.
 
-import type { ProviderPrompt } from "@/lib/ai/types";
-import { cleanPhrase, parseDraftOutput, type DraftSource, type FallbackReason, type FirstWorkDraft, type FirstWorkDraftResult } from "@/lib/contracts/first-work-draft";
+import { cleanPhrase, parseDraftOutput, type DraftPrompt, type DraftSource, type FallbackReason, type FirstWorkDraft, type FirstWorkDraftResult } from "@/lib/contracts/first-work-draft";
 import { buildDeliverable } from "@/lib/first-work";
 
 export type FirstWorkAiConfig = {
@@ -48,7 +47,7 @@ export function missingForModel(config: FirstWorkAiConfig = FIRST_WORK_AI): stri
 
 export type DraftDeps = {
   /** the prompt's "Instrucciones del sistema", loaded from prompts/ by whoever wires the model */ instructions?: string;
-  /** one call to the model through lib/ai/ and the Gateway; returns the model's text */ ask?: (prompt: ProviderPrompt) => Promise<string>;
+  /** one call to the model through lib/ai/ and the Gateway; returns the model's text */ ask?: (prompt: DraftPrompt) => Promise<string>;
   /** asks for the room in the company's persistent budget BEFORE the call; false when there is none or it cannot be checked */ budget?: { reserve: () => Promise<boolean> };
 };
 
@@ -73,7 +72,7 @@ export function rulesDraft(input: { offer: string; audience: string }, companyNa
 }
 
 /** What the model is given: the instructions apart, and the person's words only as DATA inside explicit delimiters (rules/ai.md 5 and 6), never mixed with instructions. */
-export function buildProviderPrompt(instructions: string, input: { offer: string; audience: string }, companyName: string | null): ProviderPrompt {
+export function buildProviderPrompt(instructions: string, input: { offer: string; audience: string }, companyName: string | null): DraftPrompt {
   const data = (label: string, value: string) => `<<<${label}\n${value.replace(/[<>]{3,}/g, " ").replace(/\s+/g, " ").trim()}\n>>>`;
   return {
     system: instructions,

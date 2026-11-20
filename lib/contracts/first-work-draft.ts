@@ -9,6 +9,8 @@ export const DRAFT_LIMITS = { message: 700, presentation: 1_200 } as const;
 
 export type FirstWorkDraftInput = { tenantId: string; offer: string; audience: string };
 export type FirstWorkDraft = { message: string; presentation: string };
+/** What a model is asked: the instructions apart from the data. The same shape as the provider layer's prompt, so lib/ai accepts it as is. */
+export type DraftPrompt = { system: string; user: string };
 
 /** Who wrote the draft: the rules of KYNOVA or a model. */
 export type DraftSource = "rules" | "model";
@@ -38,6 +40,14 @@ export function parseDraftInput(value: unknown): FirstWorkDraftInput | null {
   const offer = phrase(record.offer);
   const audience = phrase(record.audience);
   return isUuid(record.tenantId) && offer !== null && audience !== null ? { tenantId: record.tenantId, offer, audience } : null;
+}
+
+/** Whether something the route answered has the shape of a result (the screen does not trust a body it did not check). */
+export function isDraftResult(value: unknown): value is FirstWorkDraftResult {
+  if (typeof value !== "object" || value === null) return false;
+  const record = value as Record<string, unknown>;
+  const draft = record.draft as Record<string, unknown> | undefined;
+  return (record.source === "rules" || record.source === "model") && typeof record.label === "string" && Array.isArray(record.needsContext) && typeof draft?.message === "string" && typeof draft.presentation === "string";
 }
 
 /** The phrase without the trailing dots and spaces the draft adds its own to (the same way the rules fallback uses it). */

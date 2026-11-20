@@ -352,10 +352,11 @@ describe("the rules of the Backend Core", () => {
     }
   });
 
-  it("adds no migration besides the Backend Core Integration one, and no dependency: the migrations are the six that existed plus 20261110000100", () => {
+  it("adds no migration besides the Backend Core Integration one and the AI budget one (ADR-0036, not applied), and no dependency: the migrations are the six that existed plus 20261110000100 and 20261118000100", () => {
     expect(readdirSync(join(ROOT, "supabase", "migrations")).sort()).toEqual([
       "20261031000000_tenancy_core.sql", "20261102000000_upgrade_disposable_tenancy.sql", "20261106000100_backend_foundations.sql",
       "20261106000200_crm_core.sql", "20261106000300_messaging_and_governance.sql", "20261106000400_business_functions.sql", "20261110000100_backend_integration.sql",
+      "20261118000100_ai_budget.sql",
     ]);
   });
 

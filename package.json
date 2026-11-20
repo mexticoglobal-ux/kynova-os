@@ -26,6 +26,8 @@
     "test:e2e": "playwright test --pass-with-no-tests",
     "test:e2e:install": "playwright install --with-deps chromium",
     "spike:check-canary": "node scripts/check-spike-canary.mjs",
+    "prompts:generate": "node scripts/generate-prompts.mjs",
+    "prompts:check": "node scripts/generate-prompts.mjs --check",
     "check": "npm run typecheck && npm run lint && npm run format:check && npm run test && npm run build"
   },
   "dependencies": {

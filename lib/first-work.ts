@@ -151,10 +151,11 @@ export function buildDeliverable(need: Need, ctx: FirstWorkContext): Deliverable
 }
 
 /** The draft as text, to keep: it says it is a draft, what it is based on, what is missing, and that nothing was executed. */
-export function planText(deliverable: Deliverable, advice: { priority: string; why: string }): string {
+export function planText(deliverable: Deliverable, advice: { priority: string; why: string }, origin?: string): string {
   return [
     `${DRAFT_MARK}${deliverable.title}`,
     deliverable.basis === "example" ? "Datos de ejemplo (modo demostración)." : "Se basa en datos de su empresa y en lo que usted escribió.",
+    ...(origin ? [`Origen del texto: ${origin}`] : []),
     `Prioridad: ${advice.priority}.`,
     `Por qué: ${advice.why}`,
     ...(deliverable.items.length > 0 ? ["", ...deliverable.items.map((item) => `• ${item.label}: ${item.task}${item.note ? ` (${item.note})` : ""}`)] : []),
