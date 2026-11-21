@@ -48,6 +48,11 @@ export const FIRST_WORK_TEST_LIMITS = {
   maxAttemptsPerRequest: 1,
   maxBillableCalls: 30,
   budgetMicros: 100_000,
+  /**
+   * The money reserved before a call is priced on the input bound times this factor plus the full output cap. The factor is OUR margin over an estimate (the bound is not a guarantee of the
+   * provider); a call that still costs more is settled as overage (visible in the database), and every call is settled with the provider's own token report.
+   */
+  reservationInputFactor: 2,
 } as const;
 
 /** What is still missing before a model may be called, in words. Empty only when every requirement is met. */

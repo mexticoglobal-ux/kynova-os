@@ -86,16 +86,18 @@ export type BudgetGate = {
   reserve(): Promise<boolean>;
   /** After the call: settles the reservation with every attempt the executor made, retries and fallbacks included. */
   settle(events: readonly AttemptEvent[], call: { inputTokens: number; maxOutputTokens: number }): Promise<SettleOutcome | null>;
+  /** Settles with attempt rows the caller already priced (from the provider's own report). null when it could not be recorded: the reservation then stays held. */
+  settleRows(rows: readonly BudgetAttemptRow[]): Promise<SettleOutcome | null>;
   /** The call never reached a provider: gives the room back. */
   release(): Promise<boolean>;
   readonly reservationId: string | undefined;
-  readonly refusal: ReserveRefusal | "unavailable" | undefined;
+  readonly refusal: ReserveRefusal | "unavailable" | "repeated" | undefined;
 };
 
-/** The gate for ONE call of a company. `idempotencyKey` identifies the request (a retry of the same request must pass the same key, so it never reserves twice). */
+/** The gate for ONE call of a company. `idempotencyKey` identifies the request: a retry of the same request passes the same key, so it never reserves twice AND is never granted a second call (`refusal: "repeated"`). */
 export function createBudgetGate(store: BudgetStore, params: { tenantId: string; purposeId: string; idempotencyKey: string; estimateMicros: number; ttlSeconds?: number }): BudgetGate {
   let reservationId: string | undefined;
-  let refusal: ReserveRefusal | "unavailable" | undefined;
+  let refusal: ReserveRefusal | "unavailable" | "repeated" | undefined;
   return {
     get reservationId() { return reservationId; },
     get refusal() { return refusal; },
@@ -103,12 +105,18 @@ export function createBudgetGate(store: BudgetStore, params: { tenantId: string;
       const outcome = await store.reserve({ tenantId: params.tenantId, purposeId: params.purposeId, estimateMicros: params.estimateMicros, idempotencyKey: params.idempotencyKey, ...(params.ttlSeconds ? { ttlSeconds: params.ttlSeconds } : {}) }).catch(() => null);
       if (!outcome) { refusal = "unavailable"; return false; }
       if (!outcome.ok) { refusal = outcome.reason; return false; }
+      // the key was reserved before: that request already has its call (made, in flight or pending). Granting it again would send a SECOND call under one reservation.
+      if (outcome.repeated) { refusal = "repeated"; return false; }
       reservationId = outcome.reservationId;
       return true;
     },
     async settle(events, call) {
       if (!reservationId) return null;
       return store.settle(reservationId, rowsFromAttempts(events, call).rows).catch(() => null);
+    },
+    async settleRows(rows) {
+      if (!reservationId) return null;
+      return store.settle(reservationId, rows).catch(() => null);
     },
     async release() {
       if (!reservationId) return false;

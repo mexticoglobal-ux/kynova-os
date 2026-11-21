@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 import { BackendError, createBackend, type Backend, type BackendErrorCode } from "@/lib/db/backend";
 import { createSupabaseSpikeServerClient, getSupabaseSpikeConfig } from "@/lib/db/supabase-spike";
@@ -6,7 +7,7 @@ import { hasSameOrigin, noStore } from "@/lib/db/supabase-spike-http";
 // One wrapper for every /api/v1 route: configuration, same-origin writes, a verified user, a typed backend,
 // and a single place that turns failures into status codes. Handlers only validate input and call the backend.
 
-export type ApiContext = { db: Backend; userId: string; email: string | null; request: NextRequest };
+export type ApiContext = { db: Backend; /** the signed-in user's client (RLS applies): for the few routes that call a database function `lib/db/` wraps outside the typed backend */ client: SupabaseClient; userId: string; email: string | null; request: NextRequest };
 
 const STATUS: Record<BackendErrorCode, number> = {
   unauthorized: 401,
@@ -55,7 +56,7 @@ export function api<P extends Params = Params>(handler: (ctx: ApiContext, params
       const { data, error } = await client.auth.getUser();
       if (error && (error.name === "AuthRetryableFetchError" || (typeof error.status === "number" && error.status >= 500))) return fail("unavailable", 503);
       if (error || !data.user) return fail("unauthorized", 401);
-      return await handler({ db: createBackend(client), userId: data.user.id, email: data.user.email ?? null, request }, await route.params);
+      return await handler({ db: createBackend(client), client, userId: data.user.id, email: data.user.email ?? null, request }, await route.params);
     } catch (error) {
       if (error instanceof BackendError) return fail(error.code, STATUS[error.code]);
       return fail("unavailable", 503);

@@ -26,9 +26,10 @@ describe("lib/ai is the only place that talks to an AI provider", () => {
     const offenders = all.filter((file) => !file.startsWith("lib/ai/") && hosts.test(read(file)));
     expect(offenders).toEqual([]);
   });
-  it("is imported by no module, page or component", () => {
+  it("is imported by no module, page or component, except the one route of the first AI test and only through its facade", () => {
     const importers = all.filter((file) => !file.startsWith("lib/ai/") && /from\s+["']@\/lib\/ai(\/|["'])/.test(read(file)));
-    expect(importers).toEqual([]);
+    expect(importers).toEqual(["app/api/v1/nex/draft/route.ts"]);
+    expect(read("app/api/v1/nex/draft/route.ts").match(/from\s+["']@\/lib\/ai[^"']*["']/g)).toEqual(['from "@/lib/ai/first-work"']);
   });
   it("reads no environment variable directly: secrets come through the Secrets Manager", () => {
     expect(source(walk("lib/ai")).filter((file) => /process\.env/.test(read(file)))).toEqual([]);

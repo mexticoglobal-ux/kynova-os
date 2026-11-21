@@ -33,6 +33,11 @@ export type ExecutorDeps = {
    * That bound only describes the OpenAI-compatible chat body and is not a guarantee of the provider (see its header): set it together with a reservation sized on the same number.
    */
   maxInputTokens?: number;
+  /**
+   * When set, the executor starts AT MOST this many provider calls for the request, counting every attempt of every model (a retry or a fallback is a call). It is checked BEFORE each
+   * call, so an excess is refused instead of discovered when the call is settled. 1 means: one real attempt, no retry and no fallback, whatever the request's limits say.
+   */
+  maxProviderCalls?: number;
 };
 
 export type Execution = { outcome: DriverOutcome; text: string | null };
@@ -67,6 +72,7 @@ async function runChain<T>(request: GatewayRequest, maxOutputTokens: number, dep
   const setRow = (row: BreakerRecord) => { breakers = [...breakers.filter((item) => !(item.tenantId === row.tenantId && item.providerId === row.providerId)), row]; };
   const mine = (): BreakerRecord[] => breakers.filter((item) => item.tenantId === request.tenantId);
   let latencyMs = 0;
+  let providerCalls = 0;
   const first = request.models[0] ?? "";
 
   const skip = (modelId: string, providerId: string, note: string) => {
@@ -92,6 +98,8 @@ async function runChain<T>(request: GatewayRequest, maxOutputTokens: number, dep
     const allowed = status === "halfOpen" ? 1 : attemptsFor(request.priority, request.limits);
     let lastKind: ProviderErrorKind = "network";
     for (let index = 0; index < allowed; index += 1) {
+      if (deps.maxProviderCalls !== undefined && providerCalls >= deps.maxProviderCalls) { reasons.push(`${modelId}: límite de llamadas por petición`); break; }
+      providerCalls += 1;
       const controller = new AbortController();
       const started = now();
       let timer: ReturnType<typeof setTimeout> | undefined;

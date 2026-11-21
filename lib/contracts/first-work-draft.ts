@@ -7,7 +7,7 @@ import { isUuid } from "@/lib/contracts/tenancy";
 export const DRAFT_PHRASE_MAX = 160;
 export const DRAFT_LIMITS = { message: 700, presentation: 1_200 } as const;
 
-export type FirstWorkDraftInput = { tenantId: string; offer: string; audience: string };
+export type FirstWorkDraftInput = { tenantId: string; offer: string; audience: string; /** the client's id of THIS request (a UUID): the same id never makes a second model call */ requestId?: string };
 export type FirstWorkDraft = { message: string; presentation: string };
 /** What a model is asked: the instructions apart from the data. The same shape as the provider layer's prompt, so lib/ai accepts it as is. */
 export type DraftPrompt = { system: string; user: string };
@@ -39,7 +39,9 @@ export function parseDraftInput(value: unknown): FirstWorkDraftInput | null {
   const record = value as Record<string, unknown>;
   const offer = phrase(record.offer);
   const audience = phrase(record.audience);
-  return isUuid(record.tenantId) && offer !== null && audience !== null ? { tenantId: record.tenantId, offer, audience } : null;
+  const requestId = record.requestId;
+  if (requestId !== undefined && !isUuid(requestId)) return null;
+  return isUuid(record.tenantId) && offer !== null && audience !== null ? { tenantId: record.tenantId, offer, audience, ...(requestId !== undefined ? { requestId } : {}) } : null;
 }
 
 /** Whether something the route answered has the shape of a result (the screen does not trust a body it did not check). */

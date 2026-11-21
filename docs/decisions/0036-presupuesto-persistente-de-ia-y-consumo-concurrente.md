@@ -127,3 +127,16 @@ Para la primera prueba de IA (30 llamadas facturables en total) la base cuenta t
 - **Supuesto:** una reserva es una llamada, es decir, **un intento por petición**; los intentos extra solo se descubren al liquidar.
 - Cota de entrada: `lib/ai/input-bound.ts` es una cota **conservadora, no un máximo garantizado por el proveedor**; lo único que el proveedor impone es la salida (`max_completion_tokens`).
 - Sigue **sin aplicarse** en ningún Supabase: la migración `20261118000100` se modificó antes de aplicarse (no hay nada que migrar de una versión anterior).
+
+## Enmienda (2026-11-21, 2): una llamada controlada, un intento real y cuándo se libera una reserva
+
+La ruta `POST /api/v1/nex/draft` y el ejecutor de evals pasan por **una sola** llamada controlada (`lib/ai/controlled-call.ts`, expuesta por la fachada `lib/ai/first-work.ts`, el único archivo de `lib/ai/` que el guardián de arquitectura deja importar a esa ruta):
+
+1. **Primero la reserva** (dinero y tope de llamadas, atómicos en la base). Sin reserva concedida no se envía nada. Una clave de petición repetida **no** se concede otra vez (`refusal: repeated`): una petición tiene una sola llamada.
+2. **Un único intento real:** un solo modelo en la cadena, `retry.maxAttempts = 1` y `ExecutorDeps.maxProviderCalls = 1`, que **rechaza antes de iniciar** una segunda llamada (sea reintento o respaldo). Sin reintentos ni otro proveedor. El límite de entrada también se comprueba antes de enviar (la cota es una **estimación conservadora**, no un máximo garantizado).
+3. **Reserva monetaria conservadora que no depende de que la cota sea un máximo:** se calcula con la cota de entrada × 2 (`reservationInputFactor`, margen nuestro) más el tope de salida; lo que se liquida es lo que el proveedor informa; si costara más de lo reservado queda como `overage_micros`.
+4. **Cuándo se libera, cuándo se liquida y cuándo queda pendiente:**
+   - *Se libera* solo cuando se sabe que no salió ninguna llamada (proveedor omitido, sin clave, entrada sobre el límite, ejecutor sin intentos). Si la liberación falla, queda pendiente.
+   - *Se liquida* cuando hubo respuesta del proveedor: con sus tokens reales; sin informe de tokens, al peor caso reservado; si el proveedor rechazó antes de procesar (límite de tasa, clave, petición inválida), a coste 0 (la llamada sigue contando en el tope).
+   - *Queda pendiente (retenida)* ante un resultado incierto: tiempo de espera, conexión caída, error 5xx, respuesta ilegible, fallo al registrar la liquidación o un fallo inesperado del ejecutor. Vence a `expired_unreconciled`, sigue contando en dinero y tope, y se concilia después con la evidencia del proveedor o se cancela con motivo.
+5. **Interruptor de la prueba:** la variable de despliegue `NEX_AI_FIRST_TEST_TENANT` con el id de la única empresa. Sin ella, o para otra empresa, la ruta responde con el borrador por reglas sin tocar presupuesto ni proveedor.
