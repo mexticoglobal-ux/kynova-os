@@ -24,10 +24,10 @@ exception when others then
 end $$;
 
 insert into auth.users (id, email) values
-  ('20000000-0000-4000-8000-000000000001', 'o@example.test'),
-  ('20000000-0000-4000-8000-000000000002', 'm@example.test'),
-  ('20000000-0000-4000-8000-000000000003', 'v@example.test'),
-  ('20000000-0000-4000-8000-000000000004', 'x@example.test');
+  ('20000000-0000-4000-8000-000000000001', 'int-o@example.test'),
+  ('20000000-0000-4000-8000-000000000002', 'int-m@example.test'),
+  ('20000000-0000-4000-8000-000000000003', 'int-v@example.test'),
+  ('20000000-0000-4000-8000-000000000004', 'int-x@example.test');
 
 insert into public.tenants (id, name) values
   ('20000000-0000-4000-8000-0000000000b1', 'Empresa Uno'),
@@ -68,7 +68,7 @@ end $$;
 do $$
 declare n int; ev jsonb := '[{"event_id":"e1","type":"crm.audit.recorded","module":"crm","actor":"ana","correlation_id":"c1","payload":{"action":"lead.created","category":"crm"}}]'::jsonb;
 begin
-  perform pg_temp.as_user('20000000-0000-4000-8000-000000000001', 'o@example.test');
+  perform pg_temp.as_user('20000000-0000-4000-8000-000000000001', 'int-o@example.test');
   n := public.append_platform_events('20000000-0000-4000-8000-0000000000b1', ev);
   if n <> 1 then raise exception 'FAIL: the owner could not publish an event (%)', n; end if;
   n := public.append_platform_events('20000000-0000-4000-8000-0000000000b1', ev);
@@ -76,17 +76,17 @@ begin
   if (select count(*) from public.platform_events) <> 1 then raise exception 'FAIL: the owner does not see exactly its event'; end if;
 
   -- a writer who is a plain member publishes too
-  perform pg_temp.as_user('20000000-0000-4000-8000-000000000002', 'm@example.test');
+  perform pg_temp.as_user('20000000-0000-4000-8000-000000000002', 'int-m@example.test');
   n := public.append_platform_events('20000000-0000-4000-8000-0000000000b1', '[{"event_id":"e2","type":"crm.audit.recorded","module":"crm","actor":"worker:nex","payload":{}}]'::jsonb);
   if n <> 1 then raise exception 'FAIL: a member could not publish'; end if;
 
   -- a viewer reads but never writes
-  perform pg_temp.as_user('20000000-0000-4000-8000-000000000003', 'v@example.test');
+  perform pg_temp.as_user('20000000-0000-4000-8000-000000000003', 'int-v@example.test');
   if (select count(*) from public.platform_events) <> 2 then raise exception 'FAIL: a viewer does not read the events of its company'; end if;
   if pg_temp.state_of($q$select public.append_platform_events('20000000-0000-4000-8000-0000000000b1', '[]'::jsonb)$q$) <> '42501' then raise exception 'FAIL: a viewer published'; end if;
 
   -- another company sees nothing and cannot publish into T1
-  perform pg_temp.as_user('20000000-0000-4000-8000-000000000004', 'x@example.test');
+  perform pg_temp.as_user('20000000-0000-4000-8000-000000000004', 'int-x@example.test');
   if (select count(*) from public.platform_events) <> 0 then raise exception 'FAIL: another company reads the events'; end if;
   if pg_temp.state_of($q$select public.append_platform_events('20000000-0000-4000-8000-0000000000b1', '[]'::jsonb)$q$) <> '42501' then raise exception 'FAIL: another company published into T1'; end if;
   n := public.append_platform_events('20000000-0000-4000-8000-0000000000b2', '[{"event_id":"e1","type":"crm.audit.recorded","module":"crm","actor":"x","payload":{}}]'::jsonb);
@@ -112,7 +112,7 @@ begin
   rec1 := jsonb_build_array(jsonb_build_object('record_id', 'aud_T1_1', 'seq', 1, 'actor_id', 'ana', 'actor_kind', 'person', 'module', 'crm', 'action', 'lead.created', 'category', 'crm', 'outcome', 'success', 'prev_hash', zero, 'hash', h1, 'at', '2026-11-10T12:00:00Z'));
   rec2 := jsonb_build_array(jsonb_build_object('record_id', 'aud_T1_2', 'seq', 2, 'actor_id', 'ana', 'actor_kind', 'person', 'module', 'crm', 'action', 'lead.won', 'category', 'crm', 'outcome', 'success', 'prev_hash', h1, 'hash', h2, 'at', '2026-11-10T12:01:00Z'));
 
-  perform pg_temp.as_user('20000000-0000-4000-8000-000000000001', 'o@example.test');
+  perform pg_temp.as_user('20000000-0000-4000-8000-000000000001', 'int-o@example.test');
   if pg_temp.state_of(format($q$select public.append_platform_audit('20000000-0000-4000-8000-0000000000b1', %L::jsonb)$q$, rec2)) <> '23514' then raise exception 'FAIL: a chain that does not start at 1 was accepted'; end if;
   n := public.append_platform_audit('20000000-0000-4000-8000-0000000000b1', rec1);
   if n <> 1 then raise exception 'FAIL: the first audit record was not stored (%)', n; end if;
@@ -126,10 +126,10 @@ begin
   if pg_temp.state_of($q$delete from public.platform_audit$q$) <> '42501' then raise exception 'FAIL: audit delete allowed'; end if;
 
   -- a viewer reads, never writes; another company has its own chain, starting at 1
-  perform pg_temp.as_user('20000000-0000-4000-8000-000000000003', 'v@example.test');
+  perform pg_temp.as_user('20000000-0000-4000-8000-000000000003', 'int-v@example.test');
   if (select count(*) from public.platform_audit) <> 2 then raise exception 'FAIL: a viewer does not read the audit'; end if;
   if pg_temp.state_of(format($q$select public.append_platform_audit('20000000-0000-4000-8000-0000000000b1', %L::jsonb)$q$, rec2)) <> '42501' then raise exception 'FAIL: a viewer wrote audit'; end if;
-  perform pg_temp.as_user('20000000-0000-4000-8000-000000000004', 'x@example.test');
+  perform pg_temp.as_user('20000000-0000-4000-8000-000000000004', 'int-x@example.test');
   if (select count(*) from public.platform_audit) <> 0 then raise exception 'FAIL: another company reads the audit'; end if;
   if pg_temp.state_of(format($q$select public.append_platform_audit('20000000-0000-4000-8000-0000000000b1', %L::jsonb)$q$, rec1)) <> '42501' then raise exception 'FAIL: another company wrote T1 audit'; end if;
   if public.append_platform_audit('20000000-0000-4000-8000-0000000000b2', rec1) <> 1 then raise exception 'FAIL: another company could not start its own chain at 1'; end if;
@@ -141,23 +141,23 @@ end $$;
 do $$
 declare id1 uuid;
 begin
-  perform pg_temp.as_user('20000000-0000-4000-8000-000000000002', 'm@example.test');
+  perform pg_temp.as_user('20000000-0000-4000-8000-000000000002', 'int-m@example.test');
   id1 := public.register_storage_object('20000000-0000-4000-8000-0000000000b1', 'documents', '20000000-0000-4000-8000-0000000000b1/documents/system/a.txt', 'text/plain', 120);
   if id1 is null then raise exception 'FAIL: a writer could not register a file'; end if;
   if public.register_storage_object('20000000-0000-4000-8000-0000000000b1', 'documents', '20000000-0000-4000-8000-0000000000b1/documents/system/a.txt', 'text/plain', 120) is not null then raise exception 'FAIL: the same path was registered twice'; end if;
   if pg_temp.state_of($q$select public.register_storage_object('20000000-0000-4000-8000-0000000000b1', 'documents', '20000000-0000-4000-8000-0000000000b2/documents/system/b.txt', 'text/plain', 5)$q$) <> '42501' then raise exception 'FAIL: a path outside the company folder was accepted'; end if;
   if pg_temp.state_of($q$select public.register_storage_object('20000000-0000-4000-8000-0000000000b1', 'secrets', '20000000-0000-4000-8000-0000000000b1/secrets/x/c.txt', 'text/plain', 5)$q$) <> '23514' then raise exception 'FAIL: an unknown bucket was accepted'; end if;
 
-  perform pg_temp.as_user('20000000-0000-4000-8000-000000000003', 'v@example.test');
+  perform pg_temp.as_user('20000000-0000-4000-8000-000000000003', 'int-v@example.test');
   if (select count(*) from public.storage_objects) <> 1 then raise exception 'FAIL: a viewer does not see the file registry'; end if;
   if pg_temp.state_of($q$select public.register_storage_object('20000000-0000-4000-8000-0000000000b1', 'documents', '20000000-0000-4000-8000-0000000000b1/documents/system/v.txt', 'text/plain', 5)$q$) <> '42501' then raise exception 'FAIL: a viewer registered a file'; end if;
   if pg_temp.state_of($q$update public.storage_objects set bytes = 1$q$) <> '42501' then raise exception 'FAIL: the registry was updated directly'; end if;
 
-  perform pg_temp.as_user('20000000-0000-4000-8000-000000000004', 'x@example.test');
+  perform pg_temp.as_user('20000000-0000-4000-8000-000000000004', 'int-x@example.test');
   if (select count(*) from public.storage_objects) <> 0 then raise exception 'FAIL: another company sees the registry'; end if;
   if pg_temp.state_of($q$select public.retire_storage_object('20000000-0000-4000-8000-0000000000b1', '20000000-0000-4000-8000-0000000000b1/documents/system/a.txt')$q$) <> '42501' then raise exception 'FAIL: another company retired a file'; end if;
 
-  perform pg_temp.as_user('20000000-0000-4000-8000-000000000002', 'm@example.test');
+  perform pg_temp.as_user('20000000-0000-4000-8000-000000000002', 'int-m@example.test');
   perform public.retire_storage_object('20000000-0000-4000-8000-0000000000b1', '20000000-0000-4000-8000-0000000000b1/documents/system/a.txt');
   if (select retired_at from public.storage_objects where path like '%a.txt') is null then raise exception 'FAIL: the file was not retired'; end if;
   if (select count(*) from public.storage_objects) <> 1 then raise exception 'FAIL: a retired file must stay registered'; end if;
@@ -168,7 +168,7 @@ end $$;
 -- ---------------------------------------------------------------------------
 do $$
 begin
-  perform pg_temp.as_user('20000000-0000-4000-8000-000000000001', 'o@example.test');
+  perform pg_temp.as_user('20000000-0000-4000-8000-000000000001', 'int-o@example.test');
   perform public.delete_company('20000000-0000-4000-8000-0000000000b1', 'Empresa Uno');
   reset role;
   if exists (select 1 from public.platform_events where tenant_id = '20000000-0000-4000-8000-0000000000b1') then raise exception 'FAIL: events of the deleted company remain'; end if;

@@ -23,10 +23,10 @@ exception when others then
 end $$;
 
 insert into auth.users (id, email) values
-  ('30000000-0000-4000-8000-000000000001', 'o@example.test'),
-  ('30000000-0000-4000-8000-000000000002', 'm@example.test'),
-  ('30000000-0000-4000-8000-000000000003', 'v@example.test'),
-  ('30000000-0000-4000-8000-000000000004', 'x@example.test');
+  ('30000000-0000-4000-8000-000000000001', 'budget-o@example.test'),
+  ('30000000-0000-4000-8000-000000000002', 'budget-m@example.test'),
+  ('30000000-0000-4000-8000-000000000003', 'budget-v@example.test'),
+  ('30000000-0000-4000-8000-000000000004', 'budget-x@example.test');
 
 insert into public.tenants (id, name) values
   ('30000000-0000-4000-8000-0000000000b1', 'Empresa Uno'),
@@ -77,7 +77,7 @@ end $$;
 do $$
 declare res jsonb;
 begin
-  perform pg_temp.as_user('30000000-0000-4000-8000-000000000002', 'm@example.test');
+  perform pg_temp.as_user('30000000-0000-4000-8000-000000000002', 'budget-m@example.test');
   res := public.reserve_ai_budget('30000000-0000-4000-8000-0000000000b1', 'message.draft', 100, 'k-none', 300);
   if res ->> 'ok' <> 'false' or res ->> 'reason' <> 'no_budget' then raise exception 'FAIL: a company with no assignment reserved something (%)', res; end if;
   if (select count(*) from public.ai_reservations) <> 0 then raise exception 'FAIL: a rejected reservation left a row'; end if;
@@ -85,7 +85,7 @@ begin
   -- a company cannot give itself a budget
   if pg_temp.state_of($q$select public.assign_ai_budget('30000000-0000-4000-8000-0000000000b1', date_trunc('month', now() at time zone 'utc')::date, 1000000)$q$) <> '42501' then raise exception 'FAIL: a member assigned a budget'; end if;
   reset role;
-  perform pg_temp.as_user('30000000-0000-4000-8000-000000000001', 'o@example.test');
+  perform pg_temp.as_user('30000000-0000-4000-8000-000000000001', 'budget-o@example.test');
   if pg_temp.state_of($q$select public.assign_ai_budget('30000000-0000-4000-8000-0000000000b1', date_trunc('month', now() at time zone 'utc')::date, 1000000)$q$) <> '42501' then raise exception 'FAIL: the owner assigned its own budget'; end if;
   reset role;
 
@@ -93,7 +93,7 @@ begin
   set local role service_role;
   perform public.assign_ai_budget('30000000-0000-4000-8000-0000000000b1', date_trunc('month', now() at time zone 'utc')::date, 0);
   reset role;
-  perform pg_temp.as_user('30000000-0000-4000-8000-000000000002', 'm@example.test');
+  perform pg_temp.as_user('30000000-0000-4000-8000-000000000002', 'budget-m@example.test');
   res := public.reserve_ai_budget('30000000-0000-4000-8000-0000000000b1', 'message.draft', 100, 'k-zero', 300);
   if res ->> 'reason' <> 'budget_exceeded' then raise exception 'FAIL: a limit of 0 let a reservation through (%)', res; end if;
 end $$;
@@ -121,14 +121,14 @@ begin
   reset role;
 
   -- a viewer and another company cannot reserve in T1
-  perform pg_temp.as_user('30000000-0000-4000-8000-000000000003', 'v@example.test');
+  perform pg_temp.as_user('30000000-0000-4000-8000-000000000003', 'budget-v@example.test');
   if pg_temp.state_of($q$select public.reserve_ai_budget('30000000-0000-4000-8000-0000000000b1', 'message.draft', 100, 'k-v', 300)$q$) <> '42501' then raise exception 'FAIL: a viewer reserved'; end if;
   reset role;
-  perform pg_temp.as_user('30000000-0000-4000-8000-000000000004', 'x@example.test');
+  perform pg_temp.as_user('30000000-0000-4000-8000-000000000004', 'budget-x@example.test');
   if pg_temp.state_of($q$select public.reserve_ai_budget('30000000-0000-4000-8000-0000000000b1', 'message.draft', 100, 'k-x', 300)$q$) <> '42501' then raise exception 'FAIL: another company reserved in T1'; end if;
   reset role;
 
-  perform pg_temp.as_user('30000000-0000-4000-8000-000000000002', 'm@example.test');
+  perform pg_temp.as_user('30000000-0000-4000-8000-000000000002', 'budget-m@example.test');
   res := public.reserve_ai_budget('30000000-0000-4000-8000-0000000000b1', 'message.draft', 400, 'k-1', 300);
   if res ->> 'ok' <> 'true' or res ->> 'repeated' <> 'false' then raise exception 'FAIL: a reservation within the limit was refused (%)', res; end if;
   first_id := (res ->> 'reservationId')::uuid;
@@ -148,7 +148,7 @@ begin
   if (select reserved_micros from public.ai_budget_periods where tenant_id = '30000000-0000-4000-8000-0000000000b1') <> 800 then raise exception 'FAIL: reserved is not 800'; end if;
   if (select count(*) from public.ai_reservations where tenant_id = '30000000-0000-4000-8000-0000000000b1') <> 2 then raise exception 'FAIL: the refused reservation left a row'; end if;
   -- bad input
-  perform pg_temp.as_user('30000000-0000-4000-8000-000000000002', 'm@example.test');
+  perform pg_temp.as_user('30000000-0000-4000-8000-000000000002', 'budget-m@example.test');
   if pg_temp.state_of($q$select public.reserve_ai_budget('30000000-0000-4000-8000-0000000000b1', 'message.draft', 0, 'k-bad', 300)$q$) <> '22023' then raise exception 'FAIL: a zero estimate was accepted'; end if;
   if pg_temp.state_of($q$select public.reserve_ai_budget('30000000-0000-4000-8000-0000000000b1', 'Message Draft', 10, 'k-bad', 300)$q$) <> '22023' then raise exception 'FAIL: a bad purpose was accepted'; end if;
   if pg_temp.state_of($q$select public.reserve_ai_budget('30000000-0000-4000-8000-0000000000b1', 'message.draft', 10, 'k-bad', 5)$q$) <> '22023' then raise exception 'FAIL: a ttl under 30 seconds was accepted'; end if;
@@ -170,14 +170,14 @@ declare
 begin
   rid := (select id from public.ai_reservations where idempotency_key = 'k-1' and tenant_id = '30000000-0000-4000-8000-0000000000b1');
   -- a viewer and another company cannot settle it
-  perform pg_temp.as_user('30000000-0000-4000-8000-000000000003', 'v@example.test');
+  perform pg_temp.as_user('30000000-0000-4000-8000-000000000003', 'budget-v@example.test');
   if pg_temp.state_of(format('select public.settle_ai_budget(%L, %L::jsonb)', rid, attempts)) <> '42501' then raise exception 'FAIL: a viewer settled'; end if;
   reset role;
-  perform pg_temp.as_user('30000000-0000-4000-8000-000000000004', 'x@example.test');
+  perform pg_temp.as_user('30000000-0000-4000-8000-000000000004', 'budget-x@example.test');
   if pg_temp.state_of(format('select public.settle_ai_budget(%L, %L::jsonb)', rid, attempts)) <> '42501' then raise exception 'FAIL: another company settled'; end if;
   reset role;
 
-  perform pg_temp.as_user('30000000-0000-4000-8000-000000000002', 'm@example.test');
+  perform pg_temp.as_user('30000000-0000-4000-8000-000000000002', 'budget-m@example.test');
   res := public.settle_ai_budget(rid, attempts);
   -- 60 + 100 + 130 = 290: the retry and the fallback are billed, the unbilled attempt is not
   if (res ->> 'settledMicros')::bigint <> 290 or (res ->> 'overageMicros')::bigint <> 0 then raise exception 'FAIL: the settled cost is not 290 (%)', res; end if;
@@ -194,7 +194,7 @@ begin
 
   -- a call that cost more than it reserved: the overage is recorded and counts as spent
   rid := (select id from public.ai_reservations where idempotency_key = 'k-2' and tenant_id = '30000000-0000-4000-8000-0000000000b1');
-  perform pg_temp.as_user('30000000-0000-4000-8000-000000000002', 'm@example.test');
+  perform pg_temp.as_user('30000000-0000-4000-8000-000000000002', 'budget-m@example.test');
   res := public.settle_ai_budget(rid, '[{"attempt_no":1,"role":"primary","provider":"p1","model":"m1","input_tokens":1,"output_tokens":1,"cost_micros":450,"billable":true}]'::jsonb);
   if (res ->> 'overageMicros')::bigint <> 50 then raise exception 'FAIL: the overage is not 50 (%)', res; end if;
   reset role;
@@ -210,7 +210,7 @@ end $$;
 do $$
 declare rid uuid; res jsonb;
 begin
-  perform pg_temp.as_user('30000000-0000-4000-8000-000000000002', 'm@example.test');
+  perform pg_temp.as_user('30000000-0000-4000-8000-000000000002', 'budget-m@example.test');
   res := public.reserve_ai_budget('30000000-0000-4000-8000-0000000000b1', 'message.draft', 100, 'k-rel', 300);
   rid := (res ->> 'reservationId')::uuid;
   perform public.release_ai_budget(rid);
@@ -232,7 +232,7 @@ begin
   perform public.assign_ai_budget('30000000-0000-4000-8000-0000000000b1', date_trunc('month', now() at time zone 'utc')::date, 2000);
   reset role;
 
-  perform pg_temp.as_user('30000000-0000-4000-8000-000000000002', 'm@example.test');
+  perform pg_temp.as_user('30000000-0000-4000-8000-000000000002', 'budget-m@example.test');
   a := (public.reserve_ai_budget('30000000-0000-4000-8000-0000000000b1', 'message.draft', 300, 'k-exp-a', 300) ->> 'reservationId')::uuid;
   b := (public.reserve_ai_budget('30000000-0000-4000-8000-0000000000b1', 'message.draft', 200, 'k-exp-b', 300) ->> 'reservationId')::uuid;
   reset role;
@@ -240,7 +240,7 @@ begin
   update public.ai_reservations set expires_at = now() - interval '1 minute' where id in (a, b);
 
   before_committed := (select reserved_micros + unreconciled_micros + spent_micros from public.ai_budget_periods where tenant_id = '30000000-0000-4000-8000-0000000000b1');
-  perform pg_temp.as_user('30000000-0000-4000-8000-000000000001', 'o@example.test');
+  perform pg_temp.as_user('30000000-0000-4000-8000-000000000001', 'budget-o@example.test');
   if pg_temp.state_of($q$select public.expire_ai_reservations()$q$) <> '42501' then raise exception 'FAIL: a signed-in user ran the expiry'; end if;
   reset role;
   set local role service_role;
@@ -252,7 +252,7 @@ begin
   if (select count(*) from public.ai_reservations where status = 'expired_unreconciled') <> 2 then raise exception 'FAIL: the reservations are not marked expired'; end if;
 
   -- an expired reservation cannot be released, and reconciling it needs the provider's attempts
-  perform pg_temp.as_user('30000000-0000-4000-8000-000000000002', 'm@example.test');
+  perform pg_temp.as_user('30000000-0000-4000-8000-000000000002', 'budget-m@example.test');
   if pg_temp.state_of(format('select public.release_ai_budget(%L)', a)) <> '23514' then raise exception 'FAIL: an expired reservation was released'; end if;
   if pg_temp.state_of(format('select public.settle_ai_budget(%L, %L::jsonb)', a, '[]')) <> '22023' then raise exception 'FAIL: an expired reservation was reconciled without attempts'; end if;
   res := public.settle_ai_budget(a, '[{"attempt_no":1,"role":"primary","provider":"p1","model":"m1","input_tokens":10,"output_tokens":5,"cost_micros":30,"billable":true}]'::jsonb);
@@ -260,7 +260,7 @@ begin
   -- a plain member cannot write off
   if pg_temp.state_of(format('select public.write_off_ai_reservation(%L, %L)', b, 'el proveedor confirmo que no hubo cobro')) <> '42501' then raise exception 'FAIL: a member wrote off a reservation'; end if;
   reset role;
-  perform pg_temp.as_user('30000000-0000-4000-8000-000000000001', 'o@example.test');
+  perform pg_temp.as_user('30000000-0000-4000-8000-000000000001', 'budget-o@example.test');
   if pg_temp.state_of(format('select public.write_off_ai_reservation(%L, %L)', b, 'corto')) <> '22023' then raise exception 'FAIL: a write-off without a real reason was accepted'; end if;
   perform public.write_off_ai_reservation(b, 'el proveedor confirmo por escrito que no hubo cobro');
   if pg_temp.state_of(format('select public.write_off_ai_reservation(%L, %L)', b, 'el proveedor confirmo por escrito que no hubo cobro')) <> '23514' then raise exception 'FAIL: a reservation was written off twice'; end if;
@@ -281,14 +281,14 @@ begin
   set local role service_role;
   perform public.assign_ai_budget('30000000-0000-4000-8000-0000000000b2', date_trunc('month', now() at time zone 'utc')::date, 500);
   reset role;
-  perform pg_temp.as_user('30000000-0000-4000-8000-000000000001', 'o@example.test');
+  perform pg_temp.as_user('30000000-0000-4000-8000-000000000001', 'budget-o@example.test');
   if (select count(*) from public.ai_budget_periods where tenant_id = '30000000-0000-4000-8000-0000000000b1') <> 1 then raise exception 'FAIL: the owner does not read its budget'; end if;
   if (select count(*) from public.ai_budget_periods where tenant_id = '30000000-0000-4000-8000-0000000000b2') <> 0 then raise exception 'FAIL: the owner reads another company'; end if;
   reset role;
-  perform pg_temp.as_user('30000000-0000-4000-8000-000000000002', 'm@example.test');
+  perform pg_temp.as_user('30000000-0000-4000-8000-000000000002', 'budget-m@example.test');
   if (select count(*) from public.ai_budget_periods) <> 0 or (select count(*) from public.ai_reservations) <> 0 or (select count(*) from public.ai_usage_attempts) <> 0 then raise exception 'FAIL: a plain member reads the budget'; end if;
   reset role;
-  perform pg_temp.as_user('30000000-0000-4000-8000-000000000004', 'x@example.test');
+  perform pg_temp.as_user('30000000-0000-4000-8000-000000000004', 'budget-x@example.test');
   if (select count(*) from public.ai_budget_periods where tenant_id = '30000000-0000-4000-8000-0000000000b1') <> 0 then raise exception 'FAIL: another company reads T1'; end if;
   if (select count(*) from public.ai_budget_periods) <> 1 then raise exception 'FAIL: the owner of T2 does not read exactly its own'; end if;
   -- no direct write
@@ -306,7 +306,7 @@ begin
   set local role service_role;
   perform public.assign_ai_budget('30000000-0000-4000-8000-0000000000b3', date_trunc('month', now() at time zone 'utc')::date, 1000);
   reset role;
-  perform pg_temp.as_user('30000000-0000-4000-8000-000000000001', 'o@example.test');
+  perform pg_temp.as_user('30000000-0000-4000-8000-000000000001', 'budget-o@example.test');
   rid := (public.reserve_ai_budget('30000000-0000-4000-8000-0000000000b3', 'message.draft', 100, 'k-del', 300) ->> 'reservationId')::uuid;
   perform public.settle_ai_budget(rid, '[{"attempt_no":1,"role":"primary","provider":"p1","model":"m1","input_tokens":1,"output_tokens":1,"cost_micros":10,"billable":true}]'::jsonb);
   perform public.delete_company('30000000-0000-4000-8000-0000000000b3', 'Empresa Tres');
