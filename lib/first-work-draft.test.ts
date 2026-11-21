@@ -2,7 +2,11 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { cleanPhrase, parseDraftInput, parseDraftOutput } from "@/lib/contracts/first-work-draft";
-import { FIRST_WORK_AI, buildProviderPrompt, generateDraft, missingForModel, rulesDraft, sourceLabel, type FirstWorkAiConfig } from "./first-work-draft";
+import { CHAT_FORMAT_OVERHEAD_TOKENS, FIRST_WORK_AI, FIRST_WORK_TEST_LIMITS, buildProviderPrompt, generateDraft, inputTokenCeiling, missingForModel, rulesDraft, sourceLabel, type FirstWorkAiConfig } from "./first-work-draft";
+import { instructionsOf } from "@/lib/ai/prompts";
+import { NATIVE_MODELS, costOfNative } from "@/lib/ai/providers";
+import { DRAFT_PHRASE_MAX } from "@/lib/contracts/first-work-draft";
+import { TRADE_NAME_MAX_LENGTH } from "@/lib/contracts/tenancy";
 
 const T = "00000000-0000-4000-8000-0000000000b1";
 const BOTH = { offer: "campañas de marketing para pequeños negocios", audience: "restaurantes y cafés" };
@@ -173,5 +177,46 @@ describe("the versioned prompt and its evals", () => {
     expect(used.length).toBeGreaterThan(5);
     for (const name of used) expect(fixture, String(name)).toMatch(new RegExp(`^  ${name}:`, "m"));
     expect(fixture).toContain("TENANT-B-MARKER-7F3");
+  });
+});
+
+describe("the limits of the first AI test (a proposal: nothing is turned on)", () => {
+  const realInstructions = () => instructionsOf("nex.nex.first-work-draft", { allowDraft: true }) ?? "";
+  // the worst the contract lets through: every character of every field takes 3 UTF-8 bytes
+  const worst = () => buildProviderPrompt(realInstructions(), { offer: "€".repeat(DRAFT_PHRASE_MAX), audience: "€".repeat(DRAFT_PHRASE_MAX) }, "€".repeat(TRADE_NAME_MAX_LENGTH));
+
+  it("the input ceiling is the bytes of both messages plus the chat-format overhead, so it cannot be below the real token count (a token never covers less than one byte)", () => {
+    const prompt = { system: "ñ€", user: "ab" };
+    expect(inputTokenCeiling(prompt)).toBe(new TextEncoder().encode("ñ€ab").length + CHAT_FORMAT_OVERHEAD_TOKENS);
+    expect(inputTokenCeiling({ system: "", user: "" })).toBe(CHAT_FORMAT_OVERHEAD_TOKENS);
+  });
+
+  it("even the largest prompt the contract admits stays under the cap, and the real instructions are what is measured", () => {
+    expect(realInstructions().length).toBeGreaterThan(1_000);
+    expect(inputTokenCeiling(worst())).toBeLessThanOrEqual(FIRST_WORK_TEST_LIMITS.maxInputTokens);
+  });
+
+  it("a prompt over the cap is never reserved nor sent: it falls back to rules", async () => {
+    const reserve = vi.fn(async () => true);
+    const ask = vi.fn(async () => "{}");
+    const result = await generateDraft({ offer: "x", audience: "y" }, { companyName: "N" }, { instructions: "A".repeat(FIRST_WORK_TEST_LIMITS.maxInputTokens + 1), ask, budget: { reserve } }, READY);
+    expect(result.source).toBe("rules");
+    expect(reserve).not.toHaveBeenCalled();
+    expect(ask).not.toHaveBeenCalled();
+  });
+
+  it("worst case per call with gpt-4o-mini, in micros of a dollar: ceiling input + the full output cap, one attempt (prices checked on the provider's page on 2026-11-20)", () => {
+    const native = NATIVE_MODELS["gw-fast-1"];
+    if (!native) throw new Error("gw-fast-1 is not in the registry");
+    expect([native.provider, native.model, native.inputMicrosPerM, native.outputMicrosPerM]).toEqual(["openai", "gpt-4o-mini", 150_000, 600_000]);
+    const perCall = costOfNative(native, FIRST_WORK_TEST_LIMITS.maxInputTokens, FIRST_WORK_TEST_LIMITS.maxOutputTokens) * FIRST_WORK_TEST_LIMITS.maxAttemptsPerRequest;
+    expect(perCall).toBe(915); // 2 900 x 0.15 = 435 plus 800 x 0.60 = 480
+    // the 30 billable calls at the worst case fit the proposed budget with room to spare; the call cap is the binding limit
+    expect(perCall * FIRST_WORK_TEST_LIMITS.maxBillableCalls).toBe(27_450);
+    expect(perCall * FIRST_WORK_TEST_LIMITS.maxBillableCalls).toBeLessThan(FIRST_WORK_TEST_LIMITS.budgetMicros);
+  });
+
+  it("the test stays off: no switch, no provider, no model are set in the shipped configuration", () => {
+    expect(FIRST_WORK_AI).toMatchObject({ enabled: false, provider: null, model: null, pricesVerified: false, limitsDefined: false, persistentBudget: false });
   });
 });

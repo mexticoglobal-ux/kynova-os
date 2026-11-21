@@ -33,6 +33,34 @@ export const FIRST_WORK_AI: FirstWorkAiConfig = {
   persistentBudget: false,
 };
 
+/**
+ * The limits of the FIRST AI TEST (a proposal: nothing here turns a model on; `FIRST_WORK_AI.enabled` stays false).
+ * - Input: a CEILING, not an estimate (see `inputTokenCeiling`). The output is capped by the provider itself (`max_completion_tokens`, sent by the adapter).
+ * - Calls: at most `maxBillableCalls` billable calls IN TOTAL (evals + manual runs + any re-run), with ONE attempt per request (no automatic retries, so a request is at most one
+ *   billable call and a re-run is a new request that counts). The provider's simulated failure case of the evals makes no call.
+ * - Money: `budgetMicros` is the proposed period limit; it is assigned by `assign_ai_budget` only after approval, never here.
+ */
+export const FIRST_WORK_TEST_LIMITS = {
+  maxInputTokens: 2_900,
+  maxOutputTokens: 800,
+  maxAttemptsPerRequest: 1,
+  maxBillableCalls: 30,
+  budgetMicros: 100_000,
+} as const;
+
+/** Tokens the chat format adds around the text of the two messages (system, user) and the reply priming: OpenAI documents about 3 per message and 3 for the reply; 4 + 4 + 4 leaves margin. */
+export const CHAT_FORMAT_OVERHEAD_TOKENS = 12;
+
+/**
+ * An upper bound (never an estimate) of the input tokens of a prompt for a byte-level BPE tokenizer such as the o200k_base of gpt-4o-mini: a text never takes more tokens
+ * than it has UTF-8 bytes, because every single byte is itself a token. So the bound is the bytes of both messages plus the chat-format overhead. It is deliberately loose
+ * (real text takes a small fraction of it); the provider's reported usage is the real count, and it is what the budget settles.
+ */
+export function inputTokenCeiling(prompt: DraftPrompt): number {
+  const bytes = (text: string) => new TextEncoder().encode(text).length;
+  return bytes(prompt.system) + bytes(prompt.user) + CHAT_FORMAT_OVERHEAD_TOKENS;
+}
+
 /** What is still missing before a model may be called, in words. Empty only when every requirement is met. */
 export function missingForModel(config: FirstWorkAiConfig = FIRST_WORK_AI): string[] {
   return [
@@ -92,13 +120,16 @@ export async function generateDraft(
 
   if (!config.enabled) return byRules("disabled");
   if (missingForModel(config).length > 0 || !deps.ask || !deps.instructions) return byRules("not_configured");
+  // the input is bounded BEFORE anything is reserved or sent: a prompt over the ceiling never reaches a provider
+  const prompt = buildProviderPrompt(deps.instructions, input, ctx.companyName);
+  if (inputTokenCeiling(prompt) > FIRST_WORK_TEST_LIMITS.maxInputTokens) return byRules("not_configured");
   // the room in the budget is reserved before the call; without a granted reservation nothing is sent to a provider
   const granted = await (deps.budget?.reserve() ?? Promise.resolve(false)).catch(() => false);
   if (!granted) return byRules("budget_unavailable");
 
   let text: string;
   try {
-    text = await deps.ask(buildProviderPrompt(deps.instructions, input, ctx.companyName));
+    text = await deps.ask(prompt);
   } catch {
     return byRules("provider_error");
   }
