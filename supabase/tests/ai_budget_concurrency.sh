@@ -5,6 +5,7 @@
 #   1. With a limit that fits exactly 10 reservations of 100 and 40 sessions asking, EXACTLY 10 are granted and reserved is exactly 1000: the limit holds under concurrency.
 #   2. 20 sessions that use the SAME idempotency key create ONE reservation and reserve its amount ONCE.
 #   3. Settling the same reservation from 10 sessions at once counts its attempts once.
+#   4. With a cap of 30 calls (and plenty of money) and 60 sessions asking at once, EXACTLY 30 are granted, 30 are refused with 'call_limit_reached', and the 31st request is refused.
 # Fictitious data only. It creates its own company and user and removes nothing else.
 set -euo pipefail
 
@@ -67,4 +68,25 @@ spent=$(psql_admin -c "select spent_micros from public.ai_budget_periods where t
 attempts=$(psql_admin -c "select count(*) from public.ai_usage_attempts where reservation_id = '$RID'")
 if [ "$spent" -ne 65 ] || [ "$attempts" -ne 2 ]; then echo "FAIL: spent=$spent (want 65), attempts=$attempts (want 2)"; exit 1; fi
 echo "ok: concurrent settlements counted each attempt once (spent 65)"
+# 4. the cap of 30 calls, a company of its own, money for far more than 30 calls
+T2='40000000-0000-4000-8000-0000000000b2'
+psql_admin <<SQL
+insert into public.tenants (id, name) values ('$T2', 'Empresa Tope') on conflict do nothing;
+insert into public.memberships (user_id, tenant_id, role) values ('$U', '$T2', 'owner') on conflict do nothing;
+set role service_role;
+select public.assign_ai_budget('$T2', date_trunc('month', now() at time zone 'utc')::date, 1000000);
+select public.assign_ai_call_cap('$T2', date_trunc('month', now() at time zone 'utc')::date, 30);
+SQL
+for i in $(seq 1 60); do
+  ( { as_user; echo "select coalesce(public.reserve_ai_budget('$T2', 'message.draft', 915, 'cap-$i', 300) ->> 'reason', 'granted');"; } | psql_admin -f - | tail -n1 > "$TMP/c$i" ) &
+done
+wait
+granted=$(psql_admin -c "select count(*) from public.ai_reservations where tenant_id = '$T2' and status = 'held'")
+used=$(psql_admin -c "select calls_used from public.ai_budget_periods where tenant_id = '$T2'")
+refused=$(cat "$TMP"/c* | grep -c '^call_limit_reached$' || true)
+if [ "$granted" -ne 30 ] || [ "$used" -ne 30 ]; then echo "FAIL: cap granted=$granted calls_used=$used (want 30 and 30)"; exit 1; fi
+if [ "$refused" -ne 30 ]; then echo "FAIL: $refused sessions saw call_limit_reached (want 30)"; exit 1; fi
+extra=$( { as_user; echo "select public.reserve_ai_budget('$T2', 'message.draft', 915, 'cap-31st', 300) ->> 'reason';"; } | psql_admin -f - | tail -n1)
+if [ "$extra" != "call_limit_reached" ]; then echo "FAIL: the 31st call was not refused (got '$extra')"; exit 1; fi
+echo "ok: the cap held under 60 concurrent sessions (EXACTLY 30 are granted, 30 refused, the 31st refused)"
 echo "ai_budget_concurrency: all checks passed"

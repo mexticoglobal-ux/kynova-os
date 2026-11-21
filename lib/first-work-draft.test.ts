@@ -2,7 +2,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { cleanPhrase, parseDraftInput, parseDraftOutput } from "@/lib/contracts/first-work-draft";
-import { CHAT_FORMAT_OVERHEAD_TOKENS, FIRST_WORK_AI, FIRST_WORK_TEST_LIMITS, buildProviderPrompt, generateDraft, inputTokenCeiling, missingForModel, rulesDraft, sourceLabel, type FirstWorkAiConfig } from "./first-work-draft";
+import { FIRST_WORK_AI, FIRST_WORK_TEST_LIMITS, buildProviderPrompt, generateDraft, missingForModel, rulesDraft, sourceLabel, type FirstWorkAiConfig } from "./first-work-draft";
+import { chatInputTokenBound } from "@/lib/ai/input-bound";
 import { instructionsOf } from "@/lib/ai/prompts";
 import { NATIVE_MODELS, costOfNative } from "@/lib/ai/providers";
 import { DRAFT_PHRASE_MAX } from "@/lib/contracts/first-work-draft";
@@ -185,27 +186,23 @@ describe("the limits of the first AI test (a proposal: nothing is turned on)", (
   // the worst the contract lets through: every character of every field takes 3 UTF-8 bytes
   const worst = () => buildProviderPrompt(realInstructions(), { offer: "€".repeat(DRAFT_PHRASE_MAX), audience: "€".repeat(DRAFT_PHRASE_MAX) }, "€".repeat(TRADE_NAME_MAX_LENGTH));
 
-  it("the input ceiling is the bytes of both messages plus the chat-format overhead, so it cannot be below the real token count (a token never covers less than one byte)", () => {
-    const prompt = { system: "ñ€", user: "ab" };
-    expect(inputTokenCeiling(prompt)).toBe(new TextEncoder().encode("ñ€ab").length + CHAT_FORMAT_OVERHEAD_TOKENS);
-    expect(inputTokenCeiling({ system: "", user: "" })).toBe(CHAT_FORMAT_OVERHEAD_TOKENS);
-  });
-
-  it("even the largest prompt the contract admits stays under the cap, and the real instructions are what is measured", () => {
+  it("even the largest prompt the contract admits is within the input limit by the conservative bound, measured with the real instructions", () => {
     expect(realInstructions().length).toBeGreaterThan(1_000);
-    expect(inputTokenCeiling(worst())).toBeLessThanOrEqual(FIRST_WORK_TEST_LIMITS.maxInputTokens);
+    const bound = chatInputTokenBound(worst());
+    expect(bound).toBeGreaterThan(2_000); // the real prompt is being measured, not an empty one
+    expect(bound).toBeLessThanOrEqual(FIRST_WORK_TEST_LIMITS.maxInputTokens);
   });
 
-  it("a prompt over the cap is never reserved nor sent: it falls back to rules", async () => {
+  it("a prompt the wiring says does not fit is never reserved nor sent: it falls back to rules", async () => {
     const reserve = vi.fn(async () => true);
     const ask = vi.fn(async () => "{}");
-    const result = await generateDraft({ offer: "x", audience: "y" }, { companyName: "N" }, { instructions: "A".repeat(FIRST_WORK_TEST_LIMITS.maxInputTokens + 1), ask, budget: { reserve } }, READY);
+    const result = await generateDraft({ offer: "x", audience: "y" }, { companyName: "N" }, { instructions: "A".repeat(FIRST_WORK_TEST_LIMITS.maxInputTokens + 1), ask, budget: { reserve }, inputFits: (prompt) => chatInputTokenBound(prompt) <= FIRST_WORK_TEST_LIMITS.maxInputTokens }, READY);
     expect(result.source).toBe("rules");
     expect(reserve).not.toHaveBeenCalled();
     expect(ask).not.toHaveBeenCalled();
   });
 
-  it("worst case per call with gpt-4o-mini, in micros of a dollar: ceiling input + the full output cap, one attempt (prices checked on the provider's page on 2026-11-20)", () => {
+  it("worst case per call with gpt-4o-mini, in micros of a dollar: the input limit + the full output cap, one attempt (prices checked on the provider's page on 2026-11-20)", () => {
     const native = NATIVE_MODELS["gw-fast-1"];
     if (!native) throw new Error("gw-fast-1 is not in the registry");
     expect([native.provider, native.model, native.inputMicrosPerM, native.outputMicrosPerM]).toEqual(["openai", "gpt-4o-mini", 150_000, 600_000]);

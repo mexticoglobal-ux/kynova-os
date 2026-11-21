@@ -12,6 +12,7 @@ import {
   ANTHROPIC_VERSION, anthropicAdapter, deepseekAdapter, googleAdapter, grokAdapter, mistralAdapter, ollamaAdapter, openaiAdapter, openrouterAdapter,
 } from "./adapters";
 import { executeChain, executeStream, outcomeOfKind, sanitizeAnswer, type ExecutorDeps } from "./executor";
+import { CHAT_FORMAT_OVERHEAD_TOKENS, chatInputTokenBound } from "./input-bound";
 import { AI_CONFIG_NAMES, AI_SECRET_NAMES, aiSecrets, providerReadiness } from "./secrets";
 import { askAi, askAiStream, providerPrompt, type AskEvent } from "./service";
 import { CONNECTED_PROVIDERS, NATIVE_MODELS, PREPARED_PROVIDERS, PROVIDER_REGISTRY, costOfNative, type ProviderConfig } from "./providers";
@@ -573,5 +574,52 @@ describe("a request through KOE, the Optimizer and the Gateway to a real provide
     expect(simulated.state.gateway.calls[0]).toMatchObject({ status: "ok" });
     expect(simulated.state.gateway.calls[0]!.tokenSource).not.toBe("provider");
     expect(simulated.output).toMatch(/^\[simulado\]/);
+  });
+});
+
+describe("the conservative input bound and the executor's input limit", () => {
+  it("is the UTF-8 bytes of both messages plus the chat-format overhead (12 = the cookbook's 9 plus a margin of 3)", () => {
+    expect(CHAT_FORMAT_OVERHEAD_TOKENS).toBe(12);
+    expect(chatInputTokenBound({ system: "", user: "" })).toBe(12);
+    expect(chatInputTokenBound({ system: "abc", user: "ñ€😀" })).toBe(3 + (2 + 3 + 4) + 12);
+  });
+
+  it("covers exactly what the OpenAI-compatible adapter sends: two messages with these two texts and no other text in the body", async () => {
+    let sent: Record<string, unknown> = {};
+    const fetchImpl = (async (_url: unknown, init: { body?: string }) => {
+      sent = JSON.parse(init.body ?? "{}") as Record<string, unknown>;
+      return new Response(JSON.stringify({ choices: [{ message: { content: "ok" }, finish_reason: "stop" }], usage: { prompt_tokens: 5, completion_tokens: 1 } }), { status: 200, headers: { "content-type": "application/json" } });
+    }) as unknown as typeof fetch;
+    const prompt = { system: "reglas ñ", user: "datos €" };
+    await openaiAdapter.complete({ model: "gpt-4o-mini", key: "k", prompt, maxOutputTokens: 800, signal: new AbortController().signal, fetchImpl });
+    expect(Object.keys(sent).sort()).toEqual(["max_completion_tokens", "messages", "model", "stream"]);
+    expect(sent["messages"]).toEqual([{ role: "system", content: prompt.system }, { role: "user", content: prompt.user }]);
+    expect(sent["max_completion_tokens"]).toBe(800); // the output limit is the provider's own
+    const texts = (sent["messages"] as { content: string }[]).map((message) => message.content);
+    expect(chatInputTokenBound(prompt) - CHAT_FORMAT_OVERHEAD_TOKENS).toBe(texts.reduce((sum, text) => sum + new TextEncoder().encode(text).length, 0));
+  });
+
+  it("a prompt over the limit is not sent to any provider and costs nothing; within it, it is sent", async () => {
+    const a = fakeAdapter("openai");
+    const bound = chatInputTokenBound(PROMPT);
+    const over = await executeChain(request(), PROMPT, deps(registryOf({ openai: a.adapter }), { maxInputTokens: bound - 1 }).deps);
+    expect(over.text).toBeNull();
+    expect(over.outcome).toMatchObject({ status: "failed", attempts: [], estimatedCostMicros: 0, fallbackUsed: false });
+    expect(over.outcome.fallbackReasons).toEqual(["entrada sobre el límite de tokens"]);
+    expect(a.state.calls).toBe(0);
+    const within = await executeChain(request(), PROMPT, deps(registryOf({ openai: a.adapter }), { maxInputTokens: bound }).deps);
+    expect(within.outcome.status).toBe("ok");
+    expect(a.state.calls).toBe(1);
+  });
+
+  it("the stream is refused the same way, and without a limit nothing changes", async () => {
+    const a = fakeAdapter("openai");
+    const bound = chatInputTokenBound(PROMPT);
+    const parts = [];
+    for await (const part of executeStream(request(), PROMPT, deps(registryOf({ openai: a.adapter }), { maxInputTokens: bound - 1 }).deps)) parts.push(part);
+    expect(parts).toHaveLength(1);
+    expect(parts[0]).toMatchObject({ type: "done", execution: { text: null, outcome: { status: "failed", attempts: [] } } });
+    expect(a.state.calls).toBe(0);
+    expect((await executeChain(request(), PROMPT, deps(registryOf({ openai: a.adapter })).deps)).outcome.status).toBe("ok");
   });
 });

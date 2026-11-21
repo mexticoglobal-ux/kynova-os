@@ -10,6 +10,7 @@ import { reason } from "@/lib/contracts/platform/gateway-messages";
 import { MODEL_PROVIDER } from "@/lib/contracts/platform/gateway-catalog";
 import { afterAttempt, attemptsFor, backoffFor, breakerStatus, type AttemptOutcome, type AttemptRecord, type BreakerRecord, type DriverOutcome, type GatewayRequest } from "@/lib/contracts/platform/gateway-engine";
 import { NATIVE_MODELS, PROVIDER_REGISTRY, costOfNative, type NativeModel, type ProviderConfig } from "./providers";
+import { chatInputTokenBound } from "./input-bound";
 import { ProviderError, RETRYABLE_KINDS, type AdapterCall, type Completion, type ProviderErrorKind, type ProviderPrompt, type StreamEvent, type Usage } from "./types";
 
 export type AttemptEvent = { providerId: string; modelId: string; outcome: AttemptOutcome | "skipped"; latencyMs: number; errorKind?: ProviderErrorKind; inputTokens?: number; outputTokens?: number };
@@ -27,6 +28,11 @@ export type ExecutorDeps = {
   breakers?: readonly BreakerRecord[];
   /** Told about every attempt (no text, no key): a place to log, count and trace. */
   onAttempt?: (event: AttemptEvent) => void;
+  /**
+   * When set, a request whose prompt is over this many input tokens by the CONSERVATIVE bound of `input-bound.ts` is not sent to any provider (it fails with no attempt, so nothing is billed).
+   * That bound only describes the OpenAI-compatible chat body and is not a guarantee of the provider (see its header): set it together with a reservation sized on the same number.
+   */
+  maxInputTokens?: number;
 };
 
 export type Execution = { outcome: DriverOutcome; text: string | null };
@@ -140,8 +146,17 @@ function okOutcome(request: GatewayRequest, chain: Chain<unknown>, won: NonNulla
   };
 }
 
+/** The failed Execution of a request that was not sent because its input is over the limit the caller set; null when there is no limit or the prompt is within it. */
+function refusedForInput(request: GatewayRequest, prompt: ProviderPrompt, deps: ExecutorDeps): Execution | null {
+  if (deps.maxInputTokens === undefined || chatInputTokenBound(prompt) <= deps.maxInputTokens) return null;
+  const chain: Chain<unknown> = { attempts: [], reasons: ["entrada sobre el límite de tokens"], breakers: (deps.breakers ?? []).filter((item) => item.tenantId === request.tenantId), latencyMs: 0, first: request.models[0] ?? "" };
+  return { outcome: failedOutcome(request, chain), text: null };
+}
+
 /** One answer, all at once. */
 export async function executeChain(request: GatewayRequest, prompt: ProviderPrompt, deps: ExecutorDeps): Promise<Execution> {
+  const refused = refusedForInput(request, prompt, deps);
+  if (refused) return refused;
   const chain = await runChain<Completion>(request, request.maxOutputTokens, deps, (call) => call.adapter.complete({ ...call, model: call.native.model, prompt }));
   if (!chain.winner) return { outcome: failedOutcome(request, chain), text: null };
   const answer = sanitizeAnswer(chain.winner.value.text);
@@ -155,6 +170,8 @@ export type StreamPart = { type: "delta"; text: string } | { type: "done"; execu
  * middle ends the stream as failed (the Gateway records it) instead of mixing two models. The usage comes at the end, so the outcome is only known then.
  */
 export async function* executeStream(request: GatewayRequest, prompt: ProviderPrompt, deps: ExecutorDeps): AsyncGenerator<StreamPart, void> {
+  const refused = refusedForInput(request, prompt, deps);
+  if (refused) { yield { type: "done", execution: refused }; return; }
   type Opened = { events: AsyncGenerator<StreamEvent, void>; head: StreamEvent[] };
   const chain = await runChain<Opened>(request, request.maxOutputTokens, deps, async (call) => {
     const events = call.adapter.stream({ ...call, model: call.native.model, prompt });

@@ -117,6 +117,7 @@ with expected(migration, kind, name) as (
     ('20261118000100', 'function', 'public.release_ai_budget'),
     ('20261118000100', 'function', 'public.write_off_ai_reservation'),
     ('20261118000100', 'function', 'public.assign_ai_budget'),
+    ('20261118000100', 'function', 'public.assign_ai_call_cap'),
     ('20261118000100', 'function', 'public.expire_ai_reservations')
 ), found as (
   select e.migration, e.kind, e.name,
@@ -250,6 +251,7 @@ with expected(migration, kind, name) as (
     ('20261118000100', 'function', 'public.release_ai_budget'),
     ('20261118000100', 'function', 'public.write_off_ai_reservation'),
     ('20261118000100', 'function', 'public.assign_ai_budget'),
+    ('20261118000100', 'function', 'public.assign_ai_call_cap'),
     ('20261118000100', 'function', 'public.expire_ai_reservations')
 )
 select e.migration, e.kind, e.name,
@@ -278,3 +280,9 @@ from (values
   ('20261106000100', 'tenants', 'slug')
 ) as v(migration, tabla, columna)
 order by existe, migration, tabla, columna;
+
+-- PARTE 5: columnas de `20261118000100_ai_budget.sql` (tope de llamadas). Si esta migración no está aplicada, las partes 1 y 2 ya la dan por ausente y esta devuelve 0 filas.
+select table_name as tabla, column_name as columna
+from information_schema.columns
+where table_schema = 'public' and table_name = 'ai_budget_periods' and column_name in ('max_calls', 'calls_used')
+order by column_name;

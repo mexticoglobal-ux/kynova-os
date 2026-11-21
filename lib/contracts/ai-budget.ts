@@ -18,7 +18,7 @@ export type BudgetAttemptRow = {
 
 export const MAX_ATTEMPTS_PER_RESERVATION = 20;
 
-export type ReserveRefusal = "no_budget" | "budget_exceeded" | "already_closed";
+export type ReserveRefusal = "no_budget" | "budget_exceeded" | "call_limit_reached" | "already_closed";
 export type ReserveOutcome =
   | { ok: true; reservationId: string; periodStart: string; expiresAt: string; repeated: boolean }
   | { ok: false; reason: ReserveRefusal; reservationId?: string };
@@ -31,7 +31,7 @@ export interface BudgetStore {
   release(reservationId: string): Promise<boolean>;
 }
 
-const REFUSALS: readonly string[] = ["no_budget", "budget_exceeded", "already_closed"];
+const REFUSALS: readonly string[] = ["no_budget", "budget_exceeded", "call_limit_reached", "already_closed"];
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 const isUuid = (value: unknown): value is string => typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 const whole = (value: unknown): value is number => typeof value === "number" && Number.isSafeInteger(value) && value >= 0;

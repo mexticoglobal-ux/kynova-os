@@ -28,6 +28,10 @@ create table public.ai_budget_periods (
   reserved_micros bigint not null default 0 check (reserved_micros >= 0),
   unreconciled_micros bigint not null default 0 check (unreconciled_micros >= 0),
   spent_micros bigint not null default 0 check (spent_micros >= 0),
+  -- an OPTIONAL cap on the number of calls of the period (null = no cap): max_calls is assigned by the platform, calls_used counts every reservation that was not released
+  -- (a held, settled, expired or written-off one may have reached a provider) plus any extra billable attempt a settlement reports. It is checked in the same atomic UPDATE as the money.
+  max_calls int check (max_calls is null or max_calls >= 0),
+  calls_used int not null default 0 check (calls_used >= 0),
   assigned_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   primary key (tenant_id, period_start)
@@ -111,7 +115,7 @@ set search_path = ''
 as $$ select date_trunc('month', now() at time zone 'utc')::date; $$;
 
 -- Reserves room for ONE call of a company, before it reaches a provider. Answers a jsonb: {ok, reservationId, status, expiresAt, periodStart, repeated} or {ok: false, reason}.
--- reason: 'no_budget' (nothing assigned for this month: the budget is 0), 'budget_exceeded', 'already_closed' (the key belongs to a reservation that is no longer held).
+-- reason: 'no_budget' (nothing assigned for this month: the budget is 0), 'budget_exceeded', 'call_limit_reached' (the period's cap of calls is used up), 'already_closed' (the key belongs to a reservation that is no longer held).
 -- Atomic: the limit is in the WHERE of the single UPDATE, and the row lock serializes concurrent calls of the same company. Idempotent by key: a retry never reserves twice.
 create function public.reserve_ai_budget(p_tenant uuid, p_purpose text, p_estimate_micros bigint, p_idempotency_key text, p_ttl_seconds int default 300)
 returns jsonb
@@ -154,12 +158,17 @@ begin
   end if;
 
   update public.ai_budget_periods
-     set reserved_micros = reserved_micros + p_estimate_micros, updated_at = now()
+     set reserved_micros = reserved_micros + p_estimate_micros, calls_used = calls_used + 1, updated_at = now()
    where tenant_id = p_tenant and period_start = v_period
      and reserved_micros + unreconciled_micros + spent_micros + p_estimate_micros <= limit_micros
+     and (max_calls is null or calls_used < max_calls)
   returning * into v_row;
   if not found then
     delete from public.ai_reservations where id = v_id;
+    -- the cap of calls is reported first: it is the limit that does not depend on the size of the estimate
+    if exists (select 1 from public.ai_budget_periods where tenant_id = p_tenant and period_start = v_period and max_calls is not null and calls_used >= max_calls) then
+      return jsonb_build_object('ok', false, 'reason', 'call_limit_reached');
+    end if;
     return jsonb_build_object('ok', false, 'reason', 'budget_exceeded');
   end if;
   return jsonb_build_object('ok', true, 'reservationId', v_id, 'status', 'held', 'expiresAt', v_expires, 'periodStart', v_period, 'repeated', false);
@@ -180,6 +189,7 @@ declare
   r public.ai_reservations;
   v_actual bigint;
   v_over bigint;
+  v_billable int;
 begin
   select * into r from public.ai_reservations where id = p_reservation for update;
   if r.id is null then raise exception 'not found' using errcode = 'P0002'; end if;
@@ -199,13 +209,15 @@ begin
   on conflict (reservation_id, attempt_no) do nothing;
 
   -- what was spent is what is STORED for the reservation, so a replay or a repeated attempt number cannot count twice
-  select coalesce(sum(cost_micros) filter (where billable), 0) into v_actual from public.ai_usage_attempts where reservation_id = r.id;
+  select coalesce(sum(cost_micros) filter (where billable), 0), count(*) filter (where billable) into v_actual, v_billable from public.ai_usage_attempts where reservation_id = r.id;
   v_over := greatest(0, v_actual - r.amount_micros);
 
   update public.ai_budget_periods
      set reserved_micros = reserved_micros - case when r.status = 'held' then r.amount_micros else 0 end,
          unreconciled_micros = unreconciled_micros - case when r.status = 'expired_unreconciled' then r.amount_micros else 0 end,
          spent_micros = spent_micros + v_actual,
+         -- the reservation already holds ONE call: every further billable attempt (a retry or a fallback) is a call too
+         calls_used = calls_used + greatest(0, v_billable - 1),
          updated_at = now()
    where tenant_id = r.tenant_id and period_start = r.period_start;
   update public.ai_reservations set status = 'settled', settled_micros = v_actual, overage_micros = v_over, closed_at = now() where id = r.id;
@@ -213,7 +225,7 @@ begin
 end;
 $$;
 
--- Releases a HELD reservation whose call never reached a provider (the caller attests it). It is refused when any attempt was recorded and, always, for an expired one:
+-- Releases a HELD reservation whose call never reached a provider (the caller attests it); the call it held returns to the cap. It is refused when any attempt was recorded and, always, for an expired one:
 -- an expired reservation may have been spent and is only closed by settling it or by a written-off decision.
 create function public.release_ai_budget(p_reservation uuid)
 returns jsonb
@@ -228,7 +240,7 @@ begin
   perform private.require_write(r.tenant_id);
   if r.status <> 'held' then raise exception 'only a held reservation can be released' using errcode = '23514'; end if;
   if exists (select 1 from public.ai_usage_attempts where reservation_id = r.id) then raise exception 'attempts were recorded: settle it instead' using errcode = '23514'; end if;
-  update public.ai_budget_periods set reserved_micros = reserved_micros - r.amount_micros, updated_at = now() where tenant_id = r.tenant_id and period_start = r.period_start;
+  update public.ai_budget_periods set reserved_micros = reserved_micros - r.amount_micros, calls_used = greatest(0, calls_used - 1), updated_at = now() where tenant_id = r.tenant_id and period_start = r.period_start;
   update public.ai_reservations set status = 'released', closed_at = now() where id = r.id;
   return jsonb_build_object('ok', true, 'reservationId', r.id, 'status', 'released');
 end;
@@ -275,6 +287,25 @@ begin
 end;
 $$;
 
+-- The platform (server key) caps the number of calls of a period, on top of its money limit (null removes the cap). It needs the period's budget to be assigned first, and a cap
+-- cannot go below the calls already used. The company never sets its own cap. A cap is counted per reservation, so it assumes ONE attempt per request (no automatic retries).
+create function public.assign_ai_call_cap(p_tenant uuid, p_period date, p_max_calls int)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare v_rows int;
+begin
+  if p_period is null or p_period <> date_trunc('month', p_period)::date then raise exception 'the period is the first day of a month' using errcode = '23514'; end if;
+  if p_max_calls is not null and p_max_calls < 0 then raise exception 'invalid cap' using errcode = '22023'; end if;
+  update public.ai_budget_periods set max_calls = p_max_calls, updated_at = now()
+   where tenant_id = p_tenant and period_start = p_period and (p_max_calls is null or calls_used <= p_max_calls);
+  get diagnostics v_rows = row_count;
+  if v_rows = 0 then raise exception 'assign the period budget first, and a cap cannot be below the calls already used' using errcode = '23514'; end if;
+end;
+$$;
+
 -- Maintenance (server key): moves every held reservation past its expiry to "unreconciled". It NEVER frees room: the amount keeps counting against the limit until it is settled
 -- with the provider's attempts or written off. Returns how many it moved.
 create function public.expire_ai_reservations()
@@ -305,10 +336,10 @@ $$;
 revoke execute on function
   private.ai_budget_period(),
   public.reserve_ai_budget(uuid, text, bigint, text, int), public.settle_ai_budget(uuid, jsonb), public.release_ai_budget(uuid), public.write_off_ai_reservation(uuid, text),
-  public.assign_ai_budget(uuid, date, bigint), public.expire_ai_reservations()
+  public.assign_ai_budget(uuid, date, bigint), public.assign_ai_call_cap(uuid, date, int), public.expire_ai_reservations()
   from public, anon, authenticated, service_role;
 
 -- A person who can work the company's data reserves, settles and releases (the permission is checked inside); an owner or admin writes off.
 grant execute on function public.reserve_ai_budget(uuid, text, bigint, text, int), public.settle_ai_budget(uuid, jsonb), public.release_ai_budget(uuid), public.write_off_ai_reservation(uuid, text) to authenticated;
--- The server key assigns limits and runs the expiry: it never reads or writes a table.
-grant execute on function public.assign_ai_budget(uuid, date, bigint), public.expire_ai_reservations() to service_role;
+-- The server key assigns limits and call caps and runs the expiry: it never reads or writes a table.
+grant execute on function public.assign_ai_budget(uuid, date, bigint), public.assign_ai_call_cap(uuid, date, int), public.expire_ai_reservations() to service_role;

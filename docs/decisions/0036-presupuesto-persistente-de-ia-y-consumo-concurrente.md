@@ -116,3 +116,14 @@ Antes de encender el primer modelo, y al medir contención de la fila caliente o
 - ADR-0006 (datos y tenancy), ADR-0012 (AI Gateway), ADR-0015 (Backend Core en Supabase), ADR-0016 (proveedores reales detrás del Gateway).
 - `lib/ai/`, `lib/first-work-draft.ts` (`FIRST_WORK_AI`, `missingForModel`), `lib/contracts/platform/koe-ai-center.ts` (`AiState`).
 - `.claude/rules/ai.md` 14 y 15; `prompts/nex/first-work-draft.md` y su suite de evals.
+
+## Enmienda (2026-11-21): tope de llamadas por periodo
+
+Para la primera prueba de IA (30 llamadas facturables en total) la base cuenta también las **llamadas**, con el mismo mecanismo atómico que el dinero:
+
+- `ai_budget_periods.max_calls` (opcional, nulo = sin tope) y `calls_used`. `reserve_ai_budget` suma 1 a `calls_used` en el mismo `UPDATE` que comprueba el límite de dinero y exige `calls_used < max_calls`; si falla por el tope responde `call_limit_reached` (se informa primero) sin dejar fila.
+- `assign_ai_call_cap(p_tenant, p_period, p_max_calls)`: solo `service_role`; exige que el presupuesto del periodo ya esté asignado y que el tope no quede por debajo de las llamadas usadas; `null` lo quita. La empresa nunca fija su propio tope.
+- Una reserva repetida con la misma clave **no** gasta otra llamada. `release_ai_budget` devuelve su hueco (la llamada nunca llegó al proveedor). **El vencimiento y la cancelación con motivo no lo devuelven** (esa llamada pudo facturarse). `settle_ai_budget` suma las llamadas facturables **adicionales** (reintentos y respaldos) a la reserva, una sola vez.
+- **Supuesto:** una reserva es una llamada, es decir, **un intento por petición**; los intentos extra solo se descubren al liquidar.
+- Cota de entrada: `lib/ai/input-bound.ts` es una cota **conservadora, no un máximo garantizado por el proveedor**; lo único que el proveedor impone es la salida (`max_completion_tokens`).
+- Sigue **sin aplicarse** en ningún Supabase: la migración `20261118000100` se modificó antes de aplicarse (no hay nada que migrar de una versión anterior).

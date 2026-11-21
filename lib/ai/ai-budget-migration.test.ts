@@ -33,13 +33,13 @@ describe("AI budget migration (not applied)", () => {
 
   it("every function is security definer with an empty search_path, and only the right roles can run them", () => {
     const functions = [...code.matchAll(/create function (public|private)\.(\w+)/g)];
-    expect(functions.map((match) => match[2])).toEqual(["ai_budget_period", "reserve_ai_budget", "settle_ai_budget", "release_ai_budget", "write_off_ai_reservation", "assign_ai_budget", "expire_ai_reservations"]);
-    for (const name of ["reserve_ai_budget", "settle_ai_budget", "release_ai_budget", "write_off_ai_reservation", "assign_ai_budget", "expire_ai_reservations"]) {
+    expect(functions.map((match) => match[2])).toEqual(["ai_budget_period", "reserve_ai_budget", "settle_ai_budget", "release_ai_budget", "write_off_ai_reservation", "assign_ai_budget", "assign_ai_call_cap", "expire_ai_reservations"]);
+    for (const name of ["reserve_ai_budget", "settle_ai_budget", "release_ai_budget", "write_off_ai_reservation", "assign_ai_budget", "assign_ai_call_cap", "expire_ai_reservations"]) {
       expect(body(name), name).toMatch(/security definer\nset search_path = ''/);
     }
     expect(code).toMatch(/grant execute on function public\.reserve_ai_budget\(uuid, text, bigint, text, int\), public\.settle_ai_budget\(uuid, jsonb\), public\.release_ai_budget\(uuid\), public\.write_off_ai_reservation\(uuid, text\) to authenticated;/);
     // a company never assigns its own budget, nor runs the expiry: only the server key does
-    expect(code).toMatch(/grant execute on function public\.assign_ai_budget\(uuid, date, bigint\), public\.expire_ai_reservations\(\) to service_role;/);
+    expect(code).toMatch(/grant execute on function public\.assign_ai_budget\(uuid, date, bigint\), public\.assign_ai_call_cap\(uuid, date, int\), public\.expire_ai_reservations\(\) to service_role;/);
     expect(code.match(/grant execute[^;]*to authenticated;/g)?.length).toBe(1);
     expect(code.match(/grant execute[^;]*to service_role;/g)?.length).toBe(1);
   });
@@ -85,11 +85,27 @@ describe("AI budget migration (not applied)", () => {
     expect(writeOff).toContain("private.log_action");
   });
 
+  it("the cap of calls is checked in the same atomic UPDATE as the money, returned only by a release and never freed by the expiry", () => {
+    const reserve = body("reserve_ai_budget");
+    expect(reserve).toContain("and (max_calls is null or calls_used < max_calls)");
+    expect(reserve).toContain("calls_used = calls_used + 1");
+    expect(reserve).toContain("'call_limit_reached'");
+    expect(body("release_ai_budget")).toContain("calls_used = greatest(0, calls_used - 1)");
+    expect(body("settle_ai_budget")).toContain("calls_used = calls_used + greatest(0, v_billable - 1)");
+    expect(body("expire_ai_reservations")).not.toContain("calls_used");
+    expect(body("write_off_ai_reservation")).not.toContain("calls_used");
+    expect(body("assign_ai_call_cap")).toContain("calls_used <= p_max_calls");
+    expect(code).toContain("max_calls int check (max_calls is null or max_calls >= 0)");
+    expect(code.match(/set max_calls = p_max_calls/g)?.length).toBe(1); // only the platform function writes the cap
+  });
+
   it("the CI runs its SQL and concurrency tests", () => {
     const workflow = read(".github/workflows/rls-isolation.yml");
     expect(workflow).toContain("supabase/tests/ai_budget.sql");
     expect(workflow).toContain("supabase/tests/ai_budget_concurrency.sh");
     expect(read("supabase/tests/ai_budget_concurrency.sh")).toContain("EXACTLY 10 are granted");
+    expect(read("supabase/tests/ai_budget_concurrency.sh")).toContain("EXACTLY 30 are granted");
+    expect(read("supabase/tests/ai_budget.sql")).toContain("the 4th call was not refused by the cap");
     expect(read("supabase/tests/ai_budget.sql")).toContain("the expiry freed room");
   });
 });

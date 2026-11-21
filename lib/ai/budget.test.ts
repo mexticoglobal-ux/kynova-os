@@ -82,7 +82,7 @@ describe("the budget gate of one call", () => {
   });
 
   it("every refusal is false, with its reason, and no reservation id: nothing may be sent to a provider", async () => {
-    for (const reason of ["no_budget", "budget_exceeded", "already_closed"] as const) {
+    for (const reason of ["no_budget", "budget_exceeded", "call_limit_reached", "already_closed"] as const) {
       const gate = createBudgetGate(store({ reserve: vi.fn().mockResolvedValue({ ok: false, reason }) }), params);
       expect(await gate.reserve(), reason).toBe(false);
       expect(gate.refusal).toBe(reason);

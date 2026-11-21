@@ -35,9 +35,11 @@ export const FIRST_WORK_AI: FirstWorkAiConfig = {
 
 /**
  * The limits of the FIRST AI TEST (a proposal: nothing here turns a model on; `FIRST_WORK_AI.enabled` stays false).
- * - Input: a CEILING, not an estimate (see `inputTokenCeiling`). The output is capped by the provider itself (`max_completion_tokens`, sent by the adapter).
- * - Calls: at most `maxBillableCalls` billable calls IN TOTAL (evals + manual runs + any re-run), with ONE attempt per request (no automatic retries, so a request is at most one
- *   billable call and a re-run is a new request that counts). The provider's simulated failure case of the evals makes no call.
+ * - Input: `maxInputTokens` is compared with a CONSERVATIVE bound (`chatInputTokenBound` in lib/ai/input-bound.ts), not with a count and not with a limit the provider enforces. Whoever wires
+ *   the model passes it to the executor (`maxInputTokens`) and to `inputFits`, and sizes the reservation on it. The only limit the provider itself enforces is the OUTPUT one
+ *   (`max_completion_tokens`, sent by the adapter).
+ * - Calls: at most `maxBillableCalls` billable calls IN TOTAL (evals + manual runs + any re-run), counted in the database (`assign_ai_call_cap`, ADR-0036) with ONE attempt per
+ *   request (no automatic retries, so a request is at most one billable call and a re-run is a new request that counts). The provider's simulated failure case of the evals makes no call.
  * - Money: `budgetMicros` is the proposed period limit; it is assigned by `assign_ai_budget` only after approval, never here.
  */
 export const FIRST_WORK_TEST_LIMITS = {
@@ -47,19 +49,6 @@ export const FIRST_WORK_TEST_LIMITS = {
   maxBillableCalls: 30,
   budgetMicros: 100_000,
 } as const;
-
-/** Tokens the chat format adds around the text of the two messages (system, user) and the reply priming: OpenAI documents about 3 per message and 3 for the reply; 4 + 4 + 4 leaves margin. */
-export const CHAT_FORMAT_OVERHEAD_TOKENS = 12;
-
-/**
- * An upper bound (never an estimate) of the input tokens of a prompt for a byte-level BPE tokenizer such as the o200k_base of gpt-4o-mini: a text never takes more tokens
- * than it has UTF-8 bytes, because every single byte is itself a token. So the bound is the bytes of both messages plus the chat-format overhead. It is deliberately loose
- * (real text takes a small fraction of it); the provider's reported usage is the real count, and it is what the budget settles.
- */
-export function inputTokenCeiling(prompt: DraftPrompt): number {
-  const bytes = (text: string) => new TextEncoder().encode(text).length;
-  return bytes(prompt.system) + bytes(prompt.user) + CHAT_FORMAT_OVERHEAD_TOKENS;
-}
 
 /** What is still missing before a model may be called, in words. Empty only when every requirement is met. */
 export function missingForModel(config: FirstWorkAiConfig = FIRST_WORK_AI): string[] {
@@ -76,6 +65,7 @@ export function missingForModel(config: FirstWorkAiConfig = FIRST_WORK_AI): stri
 export type DraftDeps = {
   /** the prompt's "Instrucciones del sistema", loaded from prompts/ by whoever wires the model */ instructions?: string;
   /** one call to the model through lib/ai/ and the Gateway; returns the model's text */ ask?: (prompt: DraftPrompt) => Promise<string>;
+  /** true when the prompt is within the input limit, by the conservative bound of lib/ai (this module cannot import lib/ai); absent = no check here */ inputFits?: (prompt: DraftPrompt) => boolean;
   /** asks for the room in the company's persistent budget BEFORE the call; false when there is none or it cannot be checked */ budget?: { reserve: () => Promise<boolean> };
 };
 
@@ -120,9 +110,9 @@ export async function generateDraft(
 
   if (!config.enabled) return byRules("disabled");
   if (missingForModel(config).length > 0 || !deps.ask || !deps.instructions) return byRules("not_configured");
-  // the input is bounded BEFORE anything is reserved or sent: a prompt over the ceiling never reaches a provider
+  // the input is checked BEFORE anything is reserved or sent: a prompt over the limit never reaches a provider (the executor checks it again at the last moment)
   const prompt = buildProviderPrompt(deps.instructions, input, ctx.companyName);
-  if (inputTokenCeiling(prompt) > FIRST_WORK_TEST_LIMITS.maxInputTokens) return byRules("not_configured");
+  if (deps.inputFits && !deps.inputFits(prompt)) return byRules("not_configured");
   // the room in the budget is reserved before the call; without a granted reservation nothing is sent to a provider
   const granted = await (deps.budget?.reserve() ?? Promise.resolve(false)).catch(() => false);
   if (!granted) return byRules("budget_unavailable");

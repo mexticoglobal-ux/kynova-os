@@ -31,14 +31,16 @@ insert into auth.users (id, email) values
 insert into public.tenants (id, name) values
   ('30000000-0000-4000-8000-0000000000b1', 'Empresa Uno'),
   ('30000000-0000-4000-8000-0000000000b2', 'Empresa Dos'),
-  ('30000000-0000-4000-8000-0000000000b3', 'Empresa Tres');
+  ('30000000-0000-4000-8000-0000000000b3', 'Empresa Tres'),
+  ('30000000-0000-4000-8000-0000000000b4', 'Empresa Cuatro');
 
 insert into public.memberships (user_id, tenant_id, role) values
   ('30000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-0000000000b1', 'owner'),
   ('30000000-0000-4000-8000-000000000002', '30000000-0000-4000-8000-0000000000b1', 'member'),
   ('30000000-0000-4000-8000-000000000003', '30000000-0000-4000-8000-0000000000b1', 'viewer'),
   ('30000000-0000-4000-8000-000000000004', '30000000-0000-4000-8000-0000000000b2', 'owner'),
-  ('30000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-0000000000b3', 'owner');
+  ('30000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-0000000000b3', 'owner'),
+  ('30000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-0000000000b4', 'owner');
 
 -- ---------------------------------------------------------------------------
 -- Static checks: RLS, privileges, who can run what
@@ -60,7 +62,7 @@ begin
     if has_function_privilege('anon', t, 'execute') or has_function_privilege('service_role', t, 'execute') then raise exception 'FAIL: % is open to anon or the server key', t; end if;
   end loop;
   -- the platform assigns limits and runs the expiry; a company never does
-  foreach t in array array['public.assign_ai_budget(uuid, date, bigint)', 'public.expire_ai_reservations()'] loop
+  foreach t in array array['public.assign_ai_budget(uuid, date, bigint)', 'public.assign_ai_call_cap(uuid, date, int)', 'public.expire_ai_reservations()'] loop
     if not has_function_privilege('service_role', t, 'execute') then raise exception 'FAIL: the server key cannot run %', t; end if;
     if has_function_privilege('authenticated', t, 'execute') or has_function_privilege('anon', t, 'execute') then raise exception 'FAIL: % is open to a signed-in user', t; end if;
   end loop;
@@ -294,6 +296,86 @@ begin
   -- no direct write
   if pg_temp.state_of($q$insert into public.ai_budget_periods (tenant_id, period_start, limit_micros) values ('30000000-0000-4000-8000-0000000000b2', '2020-01-01', 999999)$q$) <> '42501' then raise exception 'FAIL: a company inserted its own budget'; end if;
   if pg_temp.state_of($q$update public.ai_budget_periods set limit_micros = 999999$q$) <> '42501' then raise exception 'FAIL: a company raised its own limit'; end if;
+  reset role;
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- Cap of calls (the first AI test: 30 billable calls in total): atomic with the money, idempotent, returned by a release, never freed by the expiry
+-- ---------------------------------------------------------------------------
+do $$
+declare res jsonb; k1 uuid; k3 uuid; used int;
+  t4 constant uuid := '30000000-0000-4000-8000-0000000000b4';
+  p constant date := date_trunc('month', now() at time zone 'utc')::date;
+begin
+  -- a cap needs the period's budget first
+  set local role service_role;
+  if pg_temp.state_of($q$select public.assign_ai_call_cap('30000000-0000-4000-8000-0000000000b4', date_trunc('month', now() at time zone 'utc')::date, 3)$q$) <> '23514' then raise exception 'FAIL: a cap was set before the budget'; end if;
+  perform public.assign_ai_budget(t4, p, 1000000);
+  if pg_temp.state_of($q$select public.assign_ai_call_cap('30000000-0000-4000-8000-0000000000b4', date_trunc('month', now() at time zone 'utc')::date, -1)$q$) <> '22023' then raise exception 'FAIL: a negative cap was accepted'; end if;
+  perform public.assign_ai_call_cap(t4, p, 3);
+  reset role;
+
+  -- a company never sets its own cap
+  perform pg_temp.as_user('30000000-0000-4000-8000-000000000001', 'budget-o@example.test');
+  if pg_temp.state_of($q$select public.assign_ai_call_cap('30000000-0000-4000-8000-0000000000b4', date_trunc('month', now() at time zone 'utc')::date, 999)$q$) <> '42501' then raise exception 'FAIL: a company set its own cap'; end if;
+  if pg_temp.state_of($q$update public.ai_budget_periods set max_calls = 999$q$) <> '42501' then raise exception 'FAIL: a company edited its cap directly'; end if;
+
+  -- 3 calls fit, the 4th is refused with its own reason, and the refusal leaves no row and uses no call
+  k1 := (public.reserve_ai_budget(t4, 'message.draft', 100, 'c-1', 300) ->> 'reservationId')::uuid;
+  perform public.reserve_ai_budget(t4, 'message.draft', 100, 'c-2', 300);
+  k3 := (public.reserve_ai_budget(t4, 'message.draft', 100, 'c-3', 300) ->> 'reservationId')::uuid;
+  res := public.reserve_ai_budget(t4, 'message.draft', 100, 'c-4', 300);
+  if res ->> 'ok' <> 'false' or res ->> 'reason' <> 'call_limit_reached' then raise exception 'FAIL: the 4th call was not refused by the cap (%)', res; end if;
+  reset role;
+  if (select calls_used from public.ai_budget_periods where tenant_id = t4) <> 3 then raise exception 'FAIL: calls_used is not 3'; end if;
+  if (select count(*) from public.ai_reservations where tenant_id = t4) <> 3 then raise exception 'FAIL: the refused call left a row'; end if;
+
+  -- a retry of an existing key is the same call: it finds its reservation even at the cap and does not use another
+  perform pg_temp.as_user('30000000-0000-4000-8000-000000000001', 'budget-o@example.test');
+  res := public.reserve_ai_budget(t4, 'message.draft', 100, 'c-1', 300);
+  if res ->> 'ok' <> 'true' or res ->> 'repeated' <> 'true' then raise exception 'FAIL: a retried key was refused or counted again (%)', res; end if;
+  reset role;
+  if (select calls_used from public.ai_budget_periods where tenant_id = t4) <> 3 then raise exception 'FAIL: a retried key used another call'; end if;
+
+  -- a call that never reached a provider is released: its slot returns, and a new request can use it
+  perform pg_temp.as_user('30000000-0000-4000-8000-000000000001', 'budget-o@example.test');
+  perform public.release_ai_budget(k3);
+  reset role;
+  if (select calls_used from public.ai_budget_periods where tenant_id = t4) <> 2 then raise exception 'FAIL: a release did not return its call'; end if;
+  perform pg_temp.as_user('30000000-0000-4000-8000-000000000001', 'budget-o@example.test');
+  res := public.reserve_ai_budget(t4, 'message.draft', 100, 'c-5', 300);
+  if res ->> 'ok' <> 'true' then raise exception 'FAIL: the returned call could not be reused (%)', res; end if;
+
+  -- a settlement that reports a retry AND a fallback (3 billable attempts) counts the 2 extra calls once: the cap is then over-used and refuses
+  perform public.settle_ai_budget(k1, '[{"attempt_no":1,"role":"primary","provider":"p1","model":"m1","input_tokens":1,"output_tokens":1,"cost_micros":1,"billable":true},{"attempt_no":2,"role":"retry","provider":"p1","model":"m1","input_tokens":1,"output_tokens":1,"cost_micros":1,"billable":true},{"attempt_no":3,"role":"fallback","provider":"p2","model":"m2","input_tokens":1,"output_tokens":1,"cost_micros":1,"billable":true}]'::jsonb);
+  perform public.settle_ai_budget(k1, '[{"attempt_no":1,"role":"primary","provider":"p1","model":"m1","input_tokens":1,"output_tokens":1,"cost_micros":1,"billable":true}]'::jsonb); -- a replay counts nothing
+  reset role;
+  select calls_used into used from public.ai_budget_periods where tenant_id = t4;
+  if used <> 5 then raise exception 'FAIL: extra billable attempts were not counted once (calls_used %)', used; end if;
+  perform pg_temp.as_user('30000000-0000-4000-8000-000000000001', 'budget-o@example.test');
+  res := public.reserve_ai_budget(t4, 'message.draft', 100, 'c-6', 300);
+  if res ->> 'reason' <> 'call_limit_reached' then raise exception 'FAIL: an over-used cap still granted a call (%)', res; end if;
+  reset role;
+
+  -- the expiry never frees a call
+  update public.ai_reservations set expires_at = now() - interval '1 minute' where tenant_id = t4 and idempotency_key = 'c-5';
+  set local role service_role;
+  perform public.expire_ai_reservations();
+  reset role;
+  if (select calls_used from public.ai_budget_periods where tenant_id = t4) <> 5 then raise exception 'FAIL: the expiry freed a call'; end if;
+  if (select status from public.ai_reservations where tenant_id = t4 and idempotency_key = 'c-5') <> 'expired_unreconciled' then raise exception 'FAIL: the reservation did not expire'; end if;
+
+  -- a cap cannot go below the calls already used; raising it or removing it is the platform's decision
+  set local role service_role;
+  if pg_temp.state_of($q$select public.assign_ai_call_cap('30000000-0000-4000-8000-0000000000b4', date_trunc('month', now() at time zone 'utc')::date, 4)$q$) <> '23514' then raise exception 'FAIL: a cap below the calls used was accepted'; end if;
+  perform public.assign_ai_call_cap(t4, p, 6);
+  reset role;
+  perform pg_temp.as_user('30000000-0000-4000-8000-000000000001', 'budget-o@example.test');
+  res := public.reserve_ai_budget(t4, 'message.draft', 100, 'c-7', 300);
+  if res ->> 'ok' <> 'true' then raise exception 'FAIL: a raised cap did not allow a call (%)', res; end if;
+  reset role;
+  set local role service_role;
+  perform public.assign_ai_call_cap(t4, p, null);
   reset role;
 end $$;
 
