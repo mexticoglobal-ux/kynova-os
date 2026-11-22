@@ -21,7 +21,7 @@ export function firstWorkAiConfigFor(tenantId: string, testTenant: string | unde
   return { ...FIRST_WORK_AI, enabled: true, provider: "openai", model: "gw-fast-1", pricesVerified: true, limitsDefined: true, persistentBudget: true };
 }
 
-export type FirstWorkCallLimits = { maxInputTokens: number; maxOutputTokens: number; reservationInputFactor: number };
+export type FirstWorkCallLimits = { maxInputTokens: number; maxOutputTokens: number };
 
 export type FirstWorkDepsParams = {
   store: BudgetStore;
@@ -35,7 +35,7 @@ export type FirstWorkDepsParams = {
 
 /** The deps for `generateDraft` and the controlled call behind them (whose `report()` says how the reservation ended). */
 export function buildFirstWorkDraftDeps(params: FirstWorkDepsParams): { deps: DraftDeps; controlled: ControlledCall } {
-  const { maxInputTokens, maxOutputTokens, reservationInputFactor } = params.limits;
+  const { maxInputTokens, maxOutputTokens } = params.limits;
   const controlled = createControlledCall({
     store: params.store,
     tenantId: params.tenantId,
@@ -44,7 +44,6 @@ export function buildFirstWorkDraftDeps(params: FirstWorkDepsParams): { deps: Dr
     modelId: params.config.model ?? "",
     maxInputTokens,
     maxOutputTokens,
-    reservationInputFactor,
     executor: { secrets: aiSecrets(params.env), ...params.executor },
   });
   // The prompt is still `draft` until its evals are green: it is delivered only here, for the one company the test switch names (the caller only builds these deps then).

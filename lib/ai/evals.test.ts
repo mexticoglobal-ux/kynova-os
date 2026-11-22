@@ -11,7 +11,7 @@ const SUITE = read("prompts/evals/nex/first-work-draft.yaml");
 const FIXTURE = read("prompts/evals/fixtures/first-work-draft.yaml");
 const T = "00000000-0000-4000-8000-0000000000b1";
 const CONFIG = firstWorkAiConfigFor(T, T);
-const LIMITS = { maxInputTokens: FIRST_WORK_TEST_LIMITS.maxInputTokens, maxOutputTokens: FIRST_WORK_TEST_LIMITS.maxOutputTokens, reservationInputFactor: FIRST_WORK_TEST_LIMITS.reservationInputFactor };
+const LIMITS = { maxInputTokens: FIRST_WORK_TEST_LIMITS.maxInputTokens, maxOutputTokens: FIRST_WORK_TEST_LIMITS.maxOutputTokens };
 
 /** The SAME path as the route: the controlled call (budget, call cap, input check, one attempt) behind generateDraft, with a simulated provider and a budget that behaves like the database. */
 function throughTheRoutePath(budget = memoryStore({ maxCalls: 30 }), provider = simulatedProvider(() => "ok", 0, echoAnswer)) {

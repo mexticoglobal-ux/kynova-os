@@ -48,12 +48,11 @@ export const FIRST_WORK_TEST_LIMITS = {
   maxAttemptsPerRequest: 1,
   maxBillableCalls: 30,
   budgetMicros: 100_000,
-  /**
-   * The money reserved before a call is priced on the input bound times this factor plus the full output cap. The factor is OUR margin over an estimate (the bound is not a guarantee of the
-   * provider); a call that still costs more is settled as overage (visible in the database), and every call is settled with the provider's own token report.
-   */
-  reservationInputFactor: 2,
 } as const;
+
+// What the money reserved before a call COVERS, and what it does not: the OUTPUT up to `maxOutputTokens` (the provider itself stops there and bills no more) and the INPUT up to the conservative
+// bound of lib/ai/input-bound.ts. The provider does not cap the input and its token counting for chat messages is documented only as an estimate, so the input part is an ESTIMATED cover,
+// not a guaranteed maximum: a call that costs more than was reserved is settled with the provider's own token report and recorded as overage (and flagged in the call's report).
 
 /** What is still missing before a model may be called, in words. Empty only when every requirement is met. */
 export function missingForModel(config: FirstWorkAiConfig = FIRST_WORK_AI): string[] {

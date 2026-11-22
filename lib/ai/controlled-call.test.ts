@@ -14,7 +14,7 @@ const T = "00000000-0000-4000-8000-0000000000b1";
 const RID = SIMULATED_RID;
 const PHRASES = SIMULATED_PHRASES;
 const CONFIG = firstWorkAiConfigFor(T, T); // the test switch names this company
-const LIMITS: { maxInputTokens: number; maxOutputTokens: number; reservationInputFactor: number } = { maxInputTokens: FIRST_WORK_TEST_LIMITS.maxInputTokens, maxOutputTokens: FIRST_WORK_TEST_LIMITS.maxOutputTokens, reservationInputFactor: FIRST_WORK_TEST_LIMITS.reservationInputFactor };
+const LIMITS: { maxInputTokens: number; maxOutputTokens: number } = { maxInputTokens: FIRST_WORK_TEST_LIMITS.maxInputTokens, maxOutputTokens: FIRST_WORK_TEST_LIMITS.maxOutputTokens };
 
 const draftThrough = async (budget: ReturnType<typeof memoryStore>, provider: ReturnType<typeof simulatedProvider>, requestId: string, over: { env?: Record<string, string>; limits?: typeof LIMITS } = {}) => {
   const { deps, controlled } = buildFirstWorkDraftDeps({
@@ -41,15 +41,16 @@ describe("one controlled call, with a simulated provider", () => {
     expect(provider.seen.prompts[0]?.user).toContain("<<<QUE_OFRECE"); // the person's words go only as delimited data
   });
 
-  it("the money reserved is priced on the input bound times our margin plus the full output cap: a conservative estimate, not a claimed maximum", async () => {
+  it("the money reserved covers the input bound plus the full output cap at the model's price, with NO multiplier: an estimated cover for the input, not a claimed maximum", async () => {
     const budget = memoryStore();
     const provider = simulatedProvider();
     const { report } = await draftThrough(budget, provider, RID(901));
     const native = NATIVE_MODELS["gw-fast-1"];
     if (!native) throw new Error("registry");
     const sentBound = chatInputTokenBound(provider.seen.prompts[0] as { system: string; user: string });
-    expect(report.reservedMicros).toBe(reservationMicros(native, sentBound, LIMITS.maxOutputTokens, LIMITS.reservationInputFactor));
-    expect(report.reservedMicros).toBeGreaterThan(costOfNative(native, sentBound, LIMITS.maxOutputTokens)); // above the bound itself, because of the factor
+    expect(report.reservedMicros).toBe(reservationMicros(native, sentBound, LIMITS.maxOutputTokens));
+    expect(report.reservedMicros).toBe(costOfNative(native, sentBound, LIMITS.maxOutputTokens)); // exactly the cover of the bound and the output cap: nothing multiplied
+    expect(report.inputOverBound).toBe(false); // the provider counted fewer input tokens (700) than the bound
   });
 
   it("a call without a reservation never reaches the provider: no budget assigned, exhausted money, exhausted call cap", async () => {
@@ -164,6 +165,18 @@ describe("one controlled call, with a simulated provider", () => {
     expect(report.reservation).toBe("pending");
     expect(budget.calls.release).toBe(0);
     expect(budget.state.callsUsed).toBe(1);
+  });
+
+  it("when the provider counts MORE input tokens than the bound, the report says so and the real cost is settled above the reservation (never hidden)", async () => {
+    const budget = memoryStore();
+    const provider = simulatedProvider();
+    const original = provider.adapter.complete.bind(provider.adapter);
+    provider.adapter.complete = async (call) => ({ ...(await original(call)), usage: { inputTokens: 9_000, outputTokens: 350 } }); // far above the bound
+    const { result, report } = await draftThrough(budget, provider, RID(4490));
+    expect(result.source).toBe("model");
+    expect(report.inputOverBound).toBe(true);
+    expect(report.reservation).toBe("settled");
+    expect(report.settledMicros ?? 0).toBeGreaterThan(report.reservedMicros ?? 0);
   });
 
   it("an answer without a token report is settled at the reserved worst case (it was billed, the amount is unknown)", async () => {

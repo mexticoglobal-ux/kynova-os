@@ -48,7 +48,7 @@ Los precios de la facturación real **no** se contrastaron con una factura (no h
 | **Salida** | **800** | **Es lo único que impone el proveedor**: el adaptador envía `max_completion_tokens: 800`. Si la respuesta se corta, no valida y cae a reglas (se factura hasta el tope) |
 | Intentos por petición | **1** | `retry.maxAttempts = 1` en la prueba; sin modelo de respaldo |
 
-Cálculo del peor caso por llamada con `gpt-4o-mini` (micros de dólar, precios de la sección 2): entrada 2 900 × 150 000 / 1 000 000 = **435**; salida 800 × 600 000 / 1 000 000 = **480**; total **915 µ$ ($0.000915)**. Típico (≈ 600 entrada + 400 salida): ≈ 330 µ$.
+**Reserva y coste, sin multiplicadores presentados como garantía.** Antes de llamar se reserva el precio de `gpt-4o-mini` para la cota de entrada **más** el tope de salida completo (`lib/ai/controlled-call.ts`). La **salida** queda cubierta de verdad (el proveedor se detiene en 800). La **entrada** queda cubierta **hasta la cota**, que es una estimación conservadora: **no se puede garantizar** que el proveedor no cuente más (no limita la entrada y su recuento de mensajes está documentado como estimación). Por eso el coste se presenta como **estimado** y no como máximo. Cálculo (µ$, precios de la sección 2): con la cota del tope (2 900) entrada 2 900 × 150 000 / 1 000 000 = **435** + salida 800 × 600 000 / 1 000 000 = **480** = **915 µ$ ($0.000915) por llamada**; con un prompt típico (cota ≈ 1 650) ≈ 247 + 480 ≈ **727 µ$**. Lo real se liquida con los tokens que informe el proveedor (típico ≈ 330 µ$). Si el proveedor contara más entrada que la cota, el exceso queda como `overage_micros` y el informe lo marca (`inputOverBound`).
 
 ## 4. Máximo total de llamadas facturables y presupuesto
 
@@ -93,18 +93,14 @@ Solo datos ficticios: empresa «Empresa Ficticia A» y las dos frases de captaci
 8. **Criterio de salida**: formato 1.0 y seguridad 1.0; exactitud ≥ 0.9; fidelidad ≥ 0.95; coste/latencia ≥ 0.9. Si algo falla: la IA se apaga y se ajusta el prompt (sigue en `draft`; solo pasa a `active` con evals en verde).
 9. **Apagar** al terminar: `enabled=false`, borrar el secreto del Preview, dejar el límite en 0.
 
-## 7. Proyecto de desarrollo y migraciones: consulta exacta de solo lectura
+## 7. Proyecto de desarrollo y migraciones
 
-**Proyecto.** La documentación del repositorio solo dice «proyecto Supabase desechable»; **no registra su ref ni su URL**, y no se leen `.env*`. Jeffrey debe confirmar en Supabase › Project Settings › General el **Reference ID** del proyecto de desarrollo antes de ejecutar nada.
+**Proyecto identificado (2026-11-21).** Se leyó **solo** la URL pública de Supabase de la configuración local (`.env.local` y `.dev.vars` del repositorio de trabajo, ambos ignorados por git) y se extrajo el **Reference ID: `hrridjfbrkewpengrmmh`** (los dos archivos coinciden). No se imprimió ningún otro dato ni clave. **No se pudo compararlo con el proyecto abierto en el navegador:** no hay navegador conectado en esta sesión. Jeffrey debe confirmar que el panel de Supabase que usa muestra ese mismo Reference ID (Project Settings › General) antes de ejecutar la consulta.
 
-**Qué migraciones están aplicadas no se deduce de que una pantalla funcione.** Se comprueba con la consulta del repositorio **[docs/backend/migraciones-aplicadas.sql](../backend/migraciones-aplicadas.sql)**, que solo contiene `SELECT` (no crea, cambia ni borra) y se ejecuta en el SQL Editor del proyecto. Se generó a partir de `supabase/migrations/*.sql` (109 objetos: tablas y funciones que cada migración crea; se excluye `private.apply_tenant_rls`, que `20261106000300` borra).
+**Estado de las migraciones: SIN VERIFICAR.** No hay acceso de lectura a ese proyecto desde esta sesión (no hay conector de Supabase y no se usan claves). Se distinguen dos cosas distintas:
+- **Objetos presentes:** lo que existe en la base (tablas, funciones, columnas).
+- **Migraciones registradas:** lo que el registro de la CLI (`supabase_migrations.schema_migrations`) dice haber aplicado. Una migración pegada a mano tiene objetos pero no registro.
 
-- **Parte 0** (opcional): `supabase_migrations.schema_migrations`, el registro de la CLI. Si no existe, no es un fallo: solo dice que no se aplicó con la CLI.
-- **Parte 1:** por migración, objetos esperados, existentes y faltantes, y el estado `completa`, `ausente` o `PARCIAL: revisar`.
-- **Parte 2:** detalle por objeto (los que faltan primero).
-- **Parte 3:** tablas de `public` que no pertenecen a ninguna migración (restos del spike, etc.).
-- **Parte 4:** columnas que añaden `20261102000000` y `20261106000100` (no crean objetos, así que la parte 1 sola no las distingue; por eso `20261102000000` puede salir «completa» con solo `tenancy_core`).
+La consulta de solo lectura que responde ambas está en [docs/backend/migraciones-aplicadas.sql](../backend/migraciones-aplicadas.sql) (se entrega también en la respuesta de la sesión, para pegarla sin buscar el archivo) y las instrucciones en [docs/backend/ejecutar-migraciones-aplicadas.md](../backend/ejecutar-migraciones-aplicadas.md). Devuelve una fila por migración (8): `objetos` (completos / ausentes / PARCIAL), `registro_cli` (registrada / no registrada / no hay registro de la CLI) y los objetos que faltan.
 
-**Validación de la consulta (hecha):** se ejecutó en el PostgreSQL 16.16 local desechable. Sobre la base con las 8 migraciones: las 8 salen `completa` (6, 4, 13, 17, 13, 37, 8 y 10 objetos). Sobre una base con solo `20261031000000`: salen `completa` las dos primeras y `ausente` las otras seis, con los objetos faltantes listados. **No se ha ejecutado contra ningún Supabase.**
-
-**Estado real de las migraciones del proyecto de desarrollo: SIN VERIFICAR.** Hasta que Jeffrey ejecute la consulta y pegue el resultado, ninguna se da por aplicada ni por pendiente. Lo único que es seguro: `20261118000100_ai_budget.sql` no se ha aplicado por nadie (lo habría hecho yo, y no lo hice). **No se aplica nada ni se despliega Preview hasta la aprobación final.**
+**Validación de la consulta (hecha en PostgreSQL 16.16 local, no en Supabase):** con las 8 migraciones y sin registro → 8 «objetos completos / no hay registro de la CLI»; con las 8 y un registro simulado de 2 versiones → «registrada» solo en esas 2 y «no registrada» en las otras 6 (objetos presentes sin registro); con solo `tenancy_core` → las 6 siguientes «objetos ausentes» con la lista de faltantes. `20261118000100_ai_budget.sql` no la ha aplicado nadie.

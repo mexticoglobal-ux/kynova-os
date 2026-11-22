@@ -3,8 +3,10 @@
 //
 // What it guarantees, and how:
 //  - Nothing reaches a provider unless a reservation was GRANTED first (the database checks the money and the call cap in one atomic step). A repeated request id is not granted again.
-//  - The input is checked before reserving (`fits`) and again by the executor before sending. The bound is a CONSERVATIVE ESTIMATE (see input-bound.ts), never presented as a maximum
-//    the provider guarantees; the money reserved is priced on it times a margin of ours, and what the call really cost (the provider's own token report) is what gets settled.
+//  - The input is checked before reserving (`fits`) and again by the executor before sending. The bound is a CONSERVATIVE ESTIMATE (see input-bound.ts), never presented as a maximum the
+//    provider guarantees. The money reserved BEFORE the call covers that bound (at the model's price) plus the full output cap: the output part is enforced by the provider (it stops at
+//    max_completion_tokens), the input part is an estimated cover. No multiplier is applied and none is claimed as a guarantee. What the call really cost (the provider's own token report) is
+//    what gets settled; a cost above the reservation is recorded as overage, and `report().inputOverBound` says when the provider counted more input tokens than the bound.
 //  - ONE real attempt: one model in the chain, `retry.maxAttempts = 1`, and `maxProviderCalls = 1` in the executor, which refuses a second call before starting it. No retry, no fallback.
 //  - The reservation is released ONLY when it is known that nothing was sent. If the outcome is uncertain (a timeout, a dropped connection, a server error, an unreadable answer, a
 //    settlement that failed) the reservation stays HELD: it expires to "unreconciled", keeps counting against the money and the cap, and is reconciled later with the provider's evidence
@@ -31,7 +33,6 @@ export type ControlledCallParams = {
   /** the registry key of the ONE model (never a provider's own id) */ modelId: string;
   /** the input limit, compared with the conservative bound */ maxInputTokens: number;
   /** sent to the provider as its own output cap */ maxOutputTokens: number;
-  /** the margin applied to the input bound when pricing the reservation */ reservationInputFactor: number;
   /** a request's time limit in ms */ maxTimeMs?: number;
   executor: Omit<ExecutorDeps, "maxInputTokens" | "maxProviderCalls" | "onAttempt">;
   now?: () => Date;
@@ -45,14 +46,18 @@ export type ControlledCall = {
   /** the one provider attempt; returns the answer or throws (and has already settled, released or left pending the reservation, as it must) */
   ask(prompt: ProviderPrompt): Promise<string>;
   /** what happened, in words and figures (no text, no key) */
-  readonly report: () => { reservation: ReservationEnd; providerCalls: number; reservationId: string | undefined; refusal: string | undefined; reservedMicros: number | undefined; settledMicros: number | undefined };
+  readonly report: () => {
+    reservation: ReservationEnd; providerCalls: number; reservationId: string | undefined; refusal: string | undefined; reservedMicros: number | undefined; settledMicros: number | undefined;
+    /** true when the provider reported more input tokens than the conservative bound (the bound was not a cover for that call); undefined when it reported none */ inputOverBound: boolean | undefined;
+  };
 };
 
 /** A rejection the provider itself answered before processing anything (rate limit, bad key, bad request): no charge, but a call was made, so its slot in the cap stays used. */
 const REJECTED_BY_PROVIDER: readonly ProviderErrorKind[] = ["rateLimited", "auth", "badRequest"];
 
-export function reservationMicros(native: NativeModel, inputBound: number, maxOutputTokens: number, factor: number): number {
-  return Math.max(1, costOfNative(native, Math.ceil(inputBound * factor), maxOutputTokens));
+/** What is reserved before a call: the model's price for the input bound plus the full output cap. At least 1. */
+export function reservationMicros(native: NativeModel, inputBound: number, maxOutputTokens: number): number {
+  return Math.max(1, costOfNative(native, inputBound, maxOutputTokens));
 }
 
 export function createControlledCall(params: ControlledCallParams): ControlledCall {
@@ -63,6 +68,7 @@ export function createControlledCall(params: ControlledCallParams): ControlledCa
   let providerCalls = 0;
   let reservedMicros: number | undefined;
   let settledMicros: number | undefined;
+  let inputOverBound: boolean | undefined;
   let gate: ReturnType<typeof createBudgetGate> | undefined;
 
   const request = (inputTokens: number): GatewayRequest => ({
@@ -92,7 +98,7 @@ export function createControlledCall(params: ControlledCallParams): ControlledCa
     budget: {
       async reserve() {
         if (!native || !native.chat || !MODEL_PROVIDER[params.modelId]) return false; // an unknown model never reserves
-        const estimate = reservationMicros(native, boundSeen ?? params.maxInputTokens, params.maxOutputTokens, params.reservationInputFactor);
+        const estimate = reservationMicros(native, boundSeen ?? params.maxInputTokens, params.maxOutputTokens);
         gate = createBudgetGate(params.store, { tenantId: params.tenantId, purposeId: params.purposeId, idempotencyKey: params.idempotencyKey, estimateMicros: estimate });
         const granted = await gate.reserve();
         if (granted) { reservation = "pending"; reservedMicros = estimate; }
@@ -144,7 +150,8 @@ export function createControlledCall(params: ControlledCallParams): ControlledCa
       if (outcome.status === "ok" && execution.text !== null) {
         // a call that was made and answered: the provider's own token report when it gave one, otherwise the reserved worst case (it was billed, the amount is not known)
         const reported = outcome.tokenSource === "provider";
-        if (await settle(reported ? row(outcome.inputTokens, outcome.outputTokens, true) : row(Math.ceil((boundSeen ?? bound) * params.reservationInputFactor), params.maxOutputTokens, true))) reservation = "settled";
+        if (reported) inputOverBound = outcome.inputTokens > bound;
+        if (await settle(reported ? row(outcome.inputTokens, outcome.outputTokens, true) : row(bound, params.maxOutputTokens, true))) reservation = "settled";
         return execution.text;
       }
       if (attempt.errorKind && REJECTED_BY_PROVIDER.includes(attempt.errorKind)) {
@@ -155,6 +162,6 @@ export function createControlledCall(params: ControlledCallParams): ControlledCa
       reservation = "pending";
       throw new Error("uncertain outcome");
     },
-    report: () => ({ reservation, providerCalls, reservationId: gate?.reservationId, refusal: gate?.refusal, reservedMicros, settledMicros }),
+    report: () => ({ reservation, providerCalls, reservationId: gate?.reservationId, refusal: gate?.refusal, reservedMicros, settledMicros, inputOverBound }),
   };
 }
