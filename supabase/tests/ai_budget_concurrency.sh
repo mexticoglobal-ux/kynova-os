@@ -6,6 +6,7 @@
 #   2. 20 sessions that use the SAME idempotency key create ONE reservation and reserve its amount ONCE.
 #   3. Settling the same reservation from 10 sessions at once counts its attempts once.
 #   4. With a cap of 30 calls (and plenty of money) and 60 sessions asking at once, EXACTLY 30 are granted, 30 are refused with 'call_limit_reached', and the 31st request is refused.
+# Every reserve and settle runs as the SERVER (service_role): no signed-in user may record consumption (see ai_budget.sql for the negative tests). The user who asked is named in the call.
 # Fictitious data only. It creates its own company and user and removes nothing else.
 set -euo pipefail
 
@@ -23,17 +24,13 @@ set role service_role;
 select public.assign_ai_budget('$T', date_trunc('month', now() at time zone 'utc')::date, 1000);
 SQL
 
-as_user() { # prints the SQL that makes the session act as the owner
-  cat <<SQL
-set role authenticated;
-select set_config('request.jwt.claim.sub', '$U', false);
-select set_config('request.jwt.claims', '{"sub":"$U","email":"conc@example.test"}', false);
-SQL
+as_server() { # prints the SQL that makes the session act as the SERVER (the service role: the only one that may reserve, settle or release)
+  echo "set role service_role;"
 }
 
 # 1. 40 distinct keys at once; the limit fits 10
 for i in $(seq 1 40); do
-  ( { as_user; echo "select public.reserve_ai_budget('$T', 'message.draft', 100, 'conc-$i', 300) ->> 'ok';"; } | psql_admin -f - | tail -n1 > "$TMP/r$i" ) &
+  ( { as_server; echo "select public.reserve_ai_budget('$T', '$U', 'message.draft', 100, 'conc-$i', 300) ->> 'ok';"; } | psql_admin -f - | tail -n1 > "$TMP/r$i" ) &
 done
 wait
 granted=$(cat "$TMP"/r* | grep -c '^true$' || true)
@@ -49,7 +46,7 @@ SQL
 
 # 2. 20 sessions, one key
 for i in $(seq 1 20); do
-  ( { as_user; echo "select public.reserve_ai_budget('$T', 'message.draft', 100, 'same-key', 300) ->> 'ok';"; } | psql_admin -f - | tail -n1 > "$TMP/s$i" ) &
+  ( { as_server; echo "select public.reserve_ai_budget('$T', '$U', 'message.draft', 100, 'same-key', 300) ->> 'ok';"; } | psql_admin -f - | tail -n1 > "$TMP/s$i" ) &
 done
 wait
 rows=$(psql_admin -c "select count(*) from public.ai_reservations where tenant_id = '$T' and idempotency_key = 'same-key'")
@@ -61,7 +58,7 @@ echo "ok: one key, one reservation, reserved once"
 RID=$(psql_admin -c "select id from public.ai_reservations where tenant_id = '$T' and idempotency_key = 'same-key'")
 ATT='[{"attempt_no":1,"role":"primary","provider":"p1","model":"m1","input_tokens":10,"output_tokens":5,"cost_micros":40,"billable":true},{"attempt_no":2,"role":"fallback","provider":"p2","model":"m2","input_tokens":10,"output_tokens":5,"cost_micros":25,"billable":true}]'
 for i in $(seq 1 10); do
-  ( { as_user; echo "select public.settle_ai_budget('$RID', '$ATT'::jsonb) ->> 'settledMicros';"; } | psql_admin -f - | tail -n1 > "$TMP/t$i" ) &
+  ( { as_server; echo "select public.settle_ai_budget('$RID', '$ATT'::jsonb) ->> 'settledMicros';"; } | psql_admin -f - | tail -n1 > "$TMP/t$i" ) &
 done
 wait
 spent=$(psql_admin -c "select spent_micros from public.ai_budget_periods where tenant_id = '$T'")
@@ -78,7 +75,7 @@ select public.assign_ai_budget('$T2', date_trunc('month', now() at time zone 'ut
 select public.assign_ai_call_cap('$T2', date_trunc('month', now() at time zone 'utc')::date, 30);
 SQL
 for i in $(seq 1 60); do
-  ( { as_user; echo "select coalesce(public.reserve_ai_budget('$T2', 'message.draft', 915, 'cap-$i', 300) ->> 'reason', 'granted');"; } | psql_admin -f - | tail -n1 > "$TMP/c$i" ) &
+  ( { as_server; echo "select coalesce(public.reserve_ai_budget('$T2', '$U', 'message.draft', 915, 'cap-$i', 300) ->> 'reason', 'granted');"; } | psql_admin -f - | tail -n1 > "$TMP/c$i" ) &
 done
 wait
 granted=$(psql_admin -c "select count(*) from public.ai_reservations where tenant_id = '$T2' and status = 'held'")
@@ -86,7 +83,7 @@ used=$(psql_admin -c "select calls_used from public.ai_budget_periods where tena
 refused=$(cat "$TMP"/c* | grep -c '^call_limit_reached$' || true)
 if [ "$granted" -ne 30 ] || [ "$used" -ne 30 ]; then echo "FAIL: cap granted=$granted calls_used=$used (want 30 and 30)"; exit 1; fi
 if [ "$refused" -ne 30 ]; then echo "FAIL: $refused sessions saw call_limit_reached (want 30)"; exit 1; fi
-extra=$( { as_user; echo "select public.reserve_ai_budget('$T2', 'message.draft', 915, 'cap-31st', 300) ->> 'reason';"; } | psql_admin -f - | tail -n1)
+extra=$( { as_server; echo "select public.reserve_ai_budget('$T2', '$U', 'message.draft', 915, 'cap-31st', 300) ->> 'reason';"; } | psql_admin -f - | tail -n1)
 if [ "$extra" != "call_limit_reached" ]; then echo "FAIL: the 31st call was not refused (got '$extra')"; exit 1; fi
 echo "ok: the cap held under 60 concurrent sessions (EXACTLY 30 are granted, 30 refused, the 31st refused)"
 echo "ai_budget_concurrency: all checks passed"

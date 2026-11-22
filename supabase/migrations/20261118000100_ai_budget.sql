@@ -1,5 +1,7 @@
 -- AI budget per company (ADR-0036, option D): where the consumption of AI is kept, so that a company's limit is real across requests, instances and concurrent calls.
--- Three tables with RLS from the moment they exist and the functions that write them. Members never write: every change goes through a function that checks the right to do it.
+-- Three tables with RLS from the moment they exist and the functions that write them. NOBODY writes directly, and no signed-in user runs a function that records consumption: reserving, settling,
+-- releasing and writing off are SERVER-ONLY functions (service_role, which cannot read or write a table), because a signed-in user could otherwise declare zero cost, free a reservation while its
+-- call is in flight or reopen the budget. The company's right to ask for a generation is checked BEFORE, by the route (session and role), and again inside reserve_ai_budget for the user it names.
 -- Figures only (micros of a dollar, token counts): never a prompt, an answer or any other content.
 --
 -- How it works: a call RESERVES its worst case before reaching a provider (one atomic UPDATE with the limit in its WHERE), and SETTLES with the provider's attempts afterwards.
@@ -7,13 +9,13 @@
 --   * The same idempotency key never reserves twice (a retried request finds its reservation).
 --   * Every billable provider attempt is recorded, retries and fallbacks included; settling twice never counts an attempt twice.
 --   * A reservation that expires is NOT released: its amount moves to "unreconciled" and keeps counting against the limit, because the provider call may have happened. It
---     frees room only when it is settled with the provider's attempts, or written off by an owner/admin with a written reason.
---   * Nothing here chooses a plan, a price or an amount: limits are assigned by the platform (service role) and the micros of each call come from the caller.
+--     frees room only when it is settled with the provider's attempts, or written off by the PLATFORM (server key) with a written reason: a decision of the company never reopens the platform's budget.
+--   * Nothing here chooses a plan, a price or an amount: limits are assigned by the platform (service role) and the micros of each call come from the server that makes the call.
 --
 -- NOT APPLIED to any remote project: review first (AGENTS.md 7.11). Apply only to a disposable development project from the SQL editor.
 --
 -- Reversal plan (development only, destroys the budget records): drop the functions public.reserve_ai_budget, settle_ai_budget, release_ai_budget, write_off_ai_reservation,
--- assign_ai_budget, expire_ai_reservations and private.ai_budget_period; then drop the tables ai_usage_attempts, ai_reservations and ai_budget_periods, in that order.
+-- assign_ai_budget, assign_ai_call_cap, expire_ai_reservations and private.ai_budget_period and private.member_can_write; then drop the tables ai_usage_attempts, ai_reservations and ai_budget_periods, in that order.
 
 -- ---------------------------------------------------------------------------
 -- Tables
@@ -114,10 +116,25 @@ stable
 set search_path = ''
 as $$ select date_trunc('month', now() at time zone 'utc')::date; $$;
 
+-- Whether a user holds a write role (owner, admin or member) in an ACTIVE company: the same rule as private.can_write, for a user the SERVER names, because the server key has no session of its own.
+create function private.member_can_write(p_user uuid, p_tenant uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1 from public.memberships m join public.tenants t on t.id = m.tenant_id
+    where m.tenant_id = p_tenant and m.user_id = p_user and m.role = any (array['owner', 'admin', 'member']) and t.status = 'active'
+  );
+$$;
+
 -- Reserves room for ONE call of a company, before it reaches a provider. Answers a jsonb: {ok, reservationId, status, expiresAt, periodStart, repeated} or {ok: false, reason}.
 -- reason: 'no_budget' (nothing assigned for this month: the budget is 0), 'budget_exceeded', 'call_limit_reached' (the period's cap of calls is used up), 'already_closed' (the key belongs to a reservation that is no longer held).
 -- Atomic: the limit is in the WHERE of the single UPDATE, and the row lock serializes concurrent calls of the same company. Idempotent by key: a retry never reserves twice.
-create function public.reserve_ai_budget(p_tenant uuid, p_purpose text, p_estimate_micros bigint, p_idempotency_key text, p_ttl_seconds int default 300)
+-- SERVER ONLY (service_role): the server names the user who asked (p_requested_by), which is checked again here against the company's memberships, and sets the estimate itself.
+create function public.reserve_ai_budget(p_tenant uuid, p_requested_by uuid, p_purpose text, p_estimate_micros bigint, p_idempotency_key text, p_ttl_seconds int default 300)
 returns jsonb
 language plpgsql
 security definer
@@ -130,7 +147,7 @@ declare
   v_row public.ai_budget_periods;
   v_expires timestamptz;
 begin
-  perform private.require_write(p_tenant);
+  if p_requested_by is null or not private.member_can_write(p_requested_by, p_tenant) then raise exception 'forbidden' using errcode = '42501'; end if;
   if p_estimate_micros is null or p_estimate_micros <= 0 or p_estimate_micros > 1000000000000 then raise exception 'invalid estimate' using errcode = '22023'; end if;
   if p_idempotency_key is null or char_length(p_idempotency_key) not between 1 and 200 then raise exception 'invalid idempotency key' using errcode = '22023'; end if;
   if p_purpose is null or p_purpose !~ '^[a-z][a-z0-9._-]{0,79}$' then raise exception 'invalid purpose' using errcode = '22023'; end if;
@@ -143,7 +160,7 @@ begin
 
   v_expires := now() + make_interval(secs => p_ttl_seconds);
   insert into public.ai_reservations (tenant_id, period_start, purpose_id, amount_micros, idempotency_key, requested_by, expires_at)
-  values (p_tenant, v_period, p_purpose, p_estimate_micros, p_idempotency_key, (select auth.uid()), v_expires)
+  values (p_tenant, v_period, p_purpose, p_estimate_micros, p_idempotency_key, p_requested_by, v_expires)
   on conflict (tenant_id, idempotency_key) do nothing
   returning id into v_id;
 
@@ -178,7 +195,8 @@ $$;
 -- Settles a reservation with the attempts the provider layer made: p_attempts is an array (at most 20) of
 -- {attempt_no, role, provider, model, input_tokens, output_tokens, cost_micros, billable}. EVERY billable attempt counts (retries and fallbacks too). Works on a held reservation and
 -- on an expired one (that is how it is reconciled: it needs at least one attempt as evidence). Idempotent: an attempt number is stored once and a settled reservation answers
--- the same again. The part of the reservation that was not spent returns to the budget; a cost above the reservation is recorded as overage and counts as spent.
+-- the same again. The part of the reservation that was not spent returns to the budget; a cost above the reservation is recorded as overage and counts as spent. SERVER ONLY: only the server
+-- that made the call knows what it cost.
 create function public.settle_ai_budget(p_reservation uuid, p_attempts jsonb)
 returns jsonb
 language plpgsql
@@ -193,7 +211,6 @@ declare
 begin
   select * into r from public.ai_reservations where id = p_reservation for update;
   if r.id is null then raise exception 'not found' using errcode = 'P0002'; end if;
-  perform private.require_write(r.tenant_id);
   if r.status = 'settled' then
     return jsonb_build_object('ok', true, 'reservationId', r.id, 'status', r.status, 'settledMicros', r.settled_micros, 'overageMicros', r.overage_micros, 'repeated', true);
   end if;
@@ -226,7 +243,7 @@ end;
 $$;
 
 -- Releases a HELD reservation whose call never reached a provider (the caller attests it); the call it held returns to the cap. It is refused when any attempt was recorded and, always, for an expired one:
--- an expired reservation may have been spent and is only closed by settling it or by a written-off decision.
+-- an expired reservation may have been spent and is only closed by settling it or by a written-off decision. SERVER ONLY: a signed-in user cannot free a reservation while its call is in flight.
 create function public.release_ai_budget(p_reservation uuid)
 returns jsonb
 language plpgsql
@@ -237,7 +254,6 @@ declare r public.ai_reservations;
 begin
   select * into r from public.ai_reservations where id = p_reservation for update;
   if r.id is null then raise exception 'not found' using errcode = 'P0002'; end if;
-  perform private.require_write(r.tenant_id);
   if r.status <> 'held' then raise exception 'only a held reservation can be released' using errcode = '23514'; end if;
   if exists (select 1 from public.ai_usage_attempts where reservation_id = r.id) then raise exception 'attempts were recorded: settle it instead' using errcode = '23514'; end if;
   update public.ai_budget_periods set reserved_micros = reserved_micros - r.amount_micros, calls_used = greatest(0, calls_used - 1), updated_at = now() where tenant_id = r.tenant_id and period_start = r.period_start;
@@ -246,8 +262,9 @@ begin
 end;
 $$;
 
--- An owner or admin closes an expired reservation without a settlement, with a written reason (for instance, the provider confirmed there was no charge). The amount returns to
--- the budget and the decision is recorded in the action log. This is the only way an unreconciled amount stops counting without a settlement.
+-- The PLATFORM (server key) closes an expired reservation without a settlement, with a written reason (for instance, the provider confirmed in writing that there was no charge). The amount
+-- returns to the budget and the decision is recorded in the action log as a system action. A company's own decision never reopens the platform's budget: it can only ask the platform. This
+-- is the only way an unreconciled amount stops counting without a settlement. The calls it used stay counted.
 create function public.write_off_ai_reservation(p_reservation uuid, p_note text)
 returns jsonb
 language plpgsql
@@ -258,12 +275,11 @@ declare r public.ai_reservations;
 begin
   select * into r from public.ai_reservations where id = p_reservation for update;
   if r.id is null then raise exception 'not found' using errcode = 'P0002'; end if;
-  perform private.require_admin(r.tenant_id);
   if r.status <> 'expired_unreconciled' then raise exception 'only an expired, unreconciled reservation can be written off' using errcode = '23514'; end if;
   if p_note is null or char_length(btrim(p_note)) not between 10 and 500 then raise exception 'a written reason of 10 to 500 characters is required' using errcode = '22023'; end if;
   update public.ai_budget_periods set unreconciled_micros = unreconciled_micros - r.amount_micros, updated_at = now() where tenant_id = r.tenant_id and period_start = r.period_start;
   update public.ai_reservations set status = 'written_off', note = btrim(p_note), closed_at = now() where id = r.id;
-  perform private.log_action(r.tenant_id, 'ai.budget.written_off', 3::smallint, 'Se canceló una reserva de IA vencida sin liquidación', btrim(p_note));
+  perform private.log_action(r.tenant_id, 'ai.budget.written_off', 3::smallint, 'Se canceló una reserva de IA vencida sin liquidación', btrim(p_note), p_actor_type => 'system');
   return jsonb_build_object('ok', true, 'reservationId', r.id, 'status', 'written_off');
 end;
 $$;
@@ -334,12 +350,12 @@ $$;
 -- ---------------------------------------------------------------------------
 
 revoke execute on function
-  private.ai_budget_period(),
-  public.reserve_ai_budget(uuid, text, bigint, text, int), public.settle_ai_budget(uuid, jsonb), public.release_ai_budget(uuid), public.write_off_ai_reservation(uuid, text),
+  private.ai_budget_period(), private.member_can_write(uuid, uuid),
+  public.reserve_ai_budget(uuid, uuid, text, bigint, text, int), public.settle_ai_budget(uuid, jsonb), public.release_ai_budget(uuid), public.write_off_ai_reservation(uuid, text),
   public.assign_ai_budget(uuid, date, bigint), public.assign_ai_call_cap(uuid, date, int), public.expire_ai_reservations()
   from public, anon, authenticated, service_role;
 
--- A person who can work the company's data reserves, settles and releases (the permission is checked inside); an owner or admin writes off.
-grant execute on function public.reserve_ai_budget(uuid, text, bigint, text, int), public.settle_ai_budget(uuid, jsonb), public.release_ai_budget(uuid), public.write_off_ai_reservation(uuid, text) to authenticated;
--- The server key assigns limits and call caps and runs the expiry: it never reads or writes a table.
-grant execute on function public.assign_ai_budget(uuid, date, bigint), public.assign_ai_call_cap(uuid, date, int), public.expire_ai_reservations() to service_role;
+-- NO signed-in role runs any of these: not reserve, settle, release or write-off (they record or free consumption), and not the platform's assignments. Only the server key does, and it never
+-- reads or writes a table (the privileges on the tables were revoked above): it can run exactly these functions.
+grant execute on function public.reserve_ai_budget(uuid, uuid, text, bigint, text, int), public.settle_ai_budget(uuid, jsonb), public.release_ai_budget(uuid), public.write_off_ai_reservation(uuid, text),
+  public.assign_ai_budget(uuid, date, bigint), public.assign_ai_call_cap(uuid, date, int), public.expire_ai_reservations() to service_role;

@@ -16,7 +16,7 @@ const LIMITS = { maxInputTokens: FIRST_WORK_TEST_LIMITS.maxInputTokens, maxOutpu
 /** The SAME path as the route: the controlled call (budget, call cap, input check, one attempt) behind generateDraft, with a simulated provider and a budget that behaves like the database. */
 function throughTheRoutePath(budget = memoryStore({ maxCalls: 30 }), provider = simulatedProvider(() => "ok", 0, echoAnswer)) {
   const run: EvalRun = async (input, context) => {
-    const { deps } = buildFirstWorkDraftDeps({ store: budget.store, tenantId: T, requestId: context.requestId, config: CONFIG, limits: LIMITS, env: { OPENAI_API_KEY: "sk-" + "x".repeat(30) }, executor: { registry: provider.registry, sleep: async () => undefined } });
+    const { deps } = buildFirstWorkDraftDeps({ store: budget.store, tenantId: T, requestedBy: "00000000-0000-4000-8000-0000000000a1", requestId: context.requestId, config: CONFIG, limits: LIMITS, env: { OPENAI_API_KEY: "sk-" + "x".repeat(30) }, executor: { registry: provider.registry, sleep: async () => undefined } });
     return generateDraft(input, { companyName: context.companyName }, deps, CONFIG);
   };
   return { run, budget, provider };

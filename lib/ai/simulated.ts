@@ -20,6 +20,7 @@ export function memoryStore(options: { limit?: number | null; maxCalls?: number 
     async reserve(input): Promise<ReserveOutcome | null> {
       calls.reserve += 1;
       if (state.limit === null) return { ok: false, reason: "no_budget" };
+      if (!input.requestedBy) return null; // the database refuses a reservation that names no user
       const existing = rows.get(input.idempotencyKey);
       if (existing) return { ok: true, reservationId: existing.id, periodStart: "2026-11-01", expiresAt: "2026-11-21T12:05:00.000Z", repeated: true };
       if (state.maxCalls !== null && state.callsUsed >= state.maxCalls) return { ok: false, reason: "call_limit_reached" };

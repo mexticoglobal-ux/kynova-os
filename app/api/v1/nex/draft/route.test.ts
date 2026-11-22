@@ -1,11 +1,17 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ config: vi.fn(), getUser: vi.fn(), rpc: vi.fn() }));
+const mocks = vi.hoisted(() => ({ config: vi.fn(), getUser: vi.fn(), rpc: vi.fn(), budgetRpc: vi.fn() }));
 vi.mock("@/lib/db/supabase-spike", () => ({
   getSupabaseSpikeConfig: mocks.config,
   createSupabaseSpikeServerClient: async () => ({ auth: { getUser: mocks.getUser }, rpc: mocks.rpc }),
 }));
+
+// the budget is recorded with the SERVER's client, never the user's: the route gets it from createAiBudgetServerStore, which here is backed by its own recorder (budgetRpc)
+vi.mock("@/lib/ai/budget-server", async () => {
+  const { createAiBudgetStore } = await import("@/lib/db/ai-budget");
+  return { createAiBudgetServerStore: () => createAiBudgetStore({ rpc: mocks.budgetRpc } as never) };
+});
 
 import { POST } from "./route";
 
@@ -21,6 +27,7 @@ beforeEach(() => {
   mocks.config.mockReset().mockReturnValue({ url: "https://x.supabase.co", publishableKey: "k" });
   mocks.getUser.mockReset().mockResolvedValue({ data: { user: { id: "u1", email: "o@example.test" } }, error: null });
   mocks.rpc.mockReset().mockResolvedValue(session("owner"));
+  mocks.budgetRpc.mockReset().mockResolvedValue({ data: null, error: { code: "42501" } });
 });
 
 describe("POST /api/v1/nex/draft", () => {
@@ -75,8 +82,10 @@ describe("POST /api/v1/nex/draft with the first AI test switched on for one comp
   const completion = () => new Response(JSON.stringify({ choices: [{ message: { content: ANSWER }, finish_reason: "stop" }], usage: { prompt_tokens: 650, completion_tokens: 300 } }), { status: 200, headers: { "content-type": "application/json" } });
   const granted = { ok: true, reservationId: "00000000-0000-4000-8000-0000000000d1", periodStart: "2026-11-01", expiresAt: "2026-11-21T12:05:00.000Z", repeated: false };
   const settled = { ok: true, reservationId: granted.reservationId, settledMicros: 280, overageMicros: 0, repeated: false };
-  const rpcNames = () => mocks.rpc.mock.calls.map((args) => args[0]);
-  const withBudget = (reserve: unknown) => mocks.rpc.mockImplementation(async (name: string) => (name === "session_bootstrap" ? session("owner") : name === "reserve_ai_budget" ? { data: reserve, error: null } : name === "settle_ai_budget" ? { data: settled, error: null } : { data: { ok: true }, error: null }));
+  // the budget's functions are run by the SERVER's client (budgetRpc); the user's own client (rpc) only ever reads the session
+  const rpcNames = () => mocks.budgetRpc.mock.calls.map((args) => args[0]);
+  const userClientOnlyReadsTheSession = () => expect(mocks.rpc.mock.calls.map((args) => args[0])).toEqual(["session_bootstrap"]);
+  const withBudget = (reserve: unknown) => mocks.budgetRpc.mockImplementation(async (name: string) => (name === "reserve_ai_budget" ? { data: reserve, error: null } : name === "settle_ai_budget" ? { data: settled, error: null } : { data: { ok: true }, error: null }));
   const switchOn = (tenant: string = T) => { vi.stubEnv("NEX_AI_FIRST_TEST_TENANT", tenant); vi.stubEnv("OPENAI_API_KEY", "sk-" + "x".repeat(30)); };
 
   it("is OFF without the variable: no budget call, no provider call, the rules draft saying it is disabled", async () => {
@@ -85,7 +94,8 @@ describe("POST /api/v1/nex/draft with the first AI test switched on for one comp
     withBudget(granted);
     const body = (await (await call({ tenantId: T, requestId: REQ, ...PHRASES })).json()) as Body;
     expect(body).toMatchObject({ source: "rules", reason: "disabled" });
-    expect(rpcNames()).toEqual(["session_bootstrap"]);
+    expect(rpcNames()).toEqual([]);
+    userClientOnlyReadsTheSession();
     expect(fetchSpy).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
     vi.unstubAllEnvs();
@@ -96,7 +106,8 @@ describe("POST /api/v1/nex/draft with the first AI test switched on for one comp
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async () => completion());
     withBudget(granted);
     expect(((await (await call({ tenantId: T, ...PHRASES })).json()) as Body).reason).toBe("disabled");
-    expect(rpcNames()).toEqual(["session_bootstrap"]);
+    expect(rpcNames()).toEqual([]);
+    userClientOnlyReadsTheSession();
     expect(fetchSpy).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
     vi.unstubAllEnvs();
@@ -108,13 +119,14 @@ describe("POST /api/v1/nex/draft with the first AI test switched on for one comp
     withBudget(granted);
     const body = (await (await call({ tenantId: T, requestId: REQ, ...PHRASES })).json()) as Body;
     expect(body).toMatchObject({ source: "model", reason: null });
-    expect(rpcNames()).toEqual(["session_bootstrap", "reserve_ai_budget", "settle_ai_budget"]);
+    expect(rpcNames()).toEqual(["reserve_ai_budget", "settle_ai_budget"]);
+    userClientOnlyReadsTheSession(); // the user's own client never reserved, settled or released anything
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     expect(String(fetchSpy.mock.calls[0]?.[0])).toContain("api.openai.com/v1/chat/completions");
-    const reserveArgs = mocks.rpc.mock.calls.find((args) => args[0] === "reserve_ai_budget")?.[1] as Record<string, unknown>;
-    expect(reserveArgs).toMatchObject({ p_tenant: T, p_purpose: "message.draft", p_idempotency_key: REQ });
+    const reserveArgs = mocks.budgetRpc.mock.calls.find((args) => args[0] === "reserve_ai_budget")?.[1] as Record<string, unknown>;
+    expect(reserveArgs).toMatchObject({ p_tenant: T, p_requested_by: "u1", p_purpose: "message.draft", p_idempotency_key: REQ }); // the user this route verified from the session
     expect(Number(reserveArgs.p_estimate_micros)).toBeGreaterThan(0);
-    const settleArgs = mocks.rpc.mock.calls.find((args) => args[0] === "settle_ai_budget")?.[1] as { p_attempts: { attempt_no: number; billable: boolean; input_tokens: number; output_tokens: number }[] };
+    const settleArgs = mocks.budgetRpc.mock.calls.find((args) => args[0] === "settle_ai_budget")?.[1] as { p_attempts: { attempt_no: number; billable: boolean; input_tokens: number; output_tokens: number }[] };
     expect(settleArgs.p_attempts).toHaveLength(1);
     expect(settleArgs.p_attempts[0]).toMatchObject({ attempt_no: 1, billable: true, input_tokens: 650, output_tokens: 300 });
     // the key is sent to the provider only in its header, never in what the route answers
@@ -127,11 +139,11 @@ describe("POST /api/v1/nex/draft with the first AI test switched on for one comp
     for (const reason of ["no_budget", "budget_exceeded", "call_limit_reached"]) {
       switchOn();
       const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async () => completion());
-      mocks.rpc.mockReset();
+      mocks.budgetRpc.mockReset();
       withBudget({ ok: false, reason });
       const body = (await (await call({ tenantId: T, requestId: REQ, ...PHRASES })).json()) as Body;
       expect(body, reason).toMatchObject({ source: "rules", reason: "budget_unavailable" });
-      expect(rpcNames(), reason).toEqual(["session_bootstrap", "reserve_ai_budget"]);
+      expect(rpcNames(), reason).toEqual(["reserve_ai_budget"]);
       expect(fetchSpy, reason).not.toHaveBeenCalled();
       fetchSpy.mockRestore();
       vi.unstubAllEnvs();
@@ -154,7 +166,7 @@ describe("POST /api/v1/nex/draft with the first AI test switched on for one comp
     withBudget(granted);
     const body = (await (await call({ tenantId: T, requestId: REQ, ...PHRASES })).json()) as Body;
     expect(body).toMatchObject({ source: "rules", reason: "provider_error" });
-    expect(rpcNames()).toEqual(["session_bootstrap", "reserve_ai_budget"]);
+    expect(rpcNames()).toEqual(["reserve_ai_budget"]);
     expect(fetchSpy).toHaveBeenCalledTimes(1); // no retry
     fetchSpy.mockRestore();
     vi.unstubAllEnvs();
@@ -167,7 +179,17 @@ describe("POST /api/v1/nex/draft with the first AI test switched on for one comp
     withBudget(granted);
     const body = (await (await call({ tenantId: T, requestId: REQ, ...PHRASES })).json()) as Body;
     expect(body).toMatchObject({ source: "rules", reason: "provider_error" });
-    expect(rpcNames()).toEqual(["session_bootstrap", "reserve_ai_budget", "release_ai_budget"]);
+    expect(rpcNames()).toEqual(["reserve_ai_budget", "release_ai_budget"]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+    vi.unstubAllEnvs();
+  });
+
+  it("if the server cannot record the budget (its functions are refused or unreachable), nothing is sent to the provider", async () => {
+    switchOn();
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async () => completion());
+    // the default of this file: every budget call is answered with permission denied
+    expect(((await (await call({ tenantId: T, requestId: REQ, ...PHRASES })).json()) as Body)).toMatchObject({ source: "rules", reason: "budget_unavailable" });
     expect(fetchSpy).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
     vi.unstubAllEnvs();

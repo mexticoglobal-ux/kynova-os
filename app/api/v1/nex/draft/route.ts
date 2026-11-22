@@ -1,8 +1,7 @@
 import { api, fail, invalid, ok, readBody } from "@/lib/api/handler";
-import { buildFirstWorkDraftDeps, firstWorkAiConfigFor } from "@/lib/ai/first-work";
+import { buildFirstWorkDraftDeps, createAiBudgetServerStore, firstWorkAiConfigFor } from "@/lib/ai/first-work";
 import { can } from "@/lib/contracts/backend";
 import { parseDraftInput } from "@/lib/contracts/first-work-draft";
-import { createAiBudgetStore } from "@/lib/db/ai-budget";
 import { FIRST_WORK_TEST_LIMITS, generateDraft } from "@/lib/first-work-draft";
 
 export const dynamic = "force-dynamic";
@@ -13,9 +12,10 @@ export const dynamic = "force-dynamic";
 // phrases and the company's name. It stores nothing and logs no content.
 // THE MODEL IS OFF. `firstWorkAiConfigFor` returns the shipped configuration (everything off) unless the deployment variable NEX_AI_FIRST_TEST_TENANT holds the id of THIS
 // company; without it the answer is always the rules draft (`source: "rules", reason: "disabled"`), and neither the budget nor a provider is touched. With it, the model is
-// reached only through ONE controlled call (lib/ai/controlled-call.ts): a reservation in the company's persistent budget (money and call cap) comes first, one provider attempt,
+// reached only through ONE controlled call (lib/ai/controlled-call.ts): a reservation in the company's persistent budget (money and call cap) comes first, made by the SERVER (the service
+// key through the Backend Core's client; the user's own client cannot reserve, settle or release), naming the user this route verified, one provider attempt,
 // no retry, no fallback; anything that does not go through ends in the rules draft with its reason. Turning it on is a separate decision (docs/modules/nex-primera-prueba-ia.md).
-export const POST = api(async ({ db, client, request }) => {
+export const POST = api(async ({ db, userId, request }) => {
   const input = parseDraftInput(await readBody(request));
   if (!input) return invalid();
   const session = await db.bootstrap();
@@ -25,8 +25,10 @@ export const POST = api(async ({ db, client, request }) => {
   const config = firstWorkAiConfigFor(input.tenantId, process.env.NEX_AI_FIRST_TEST_TENANT);
   if (!config.enabled) return ok(await generateDraft(phrases, { companyName: membership.name }));
   const { deps } = buildFirstWorkDraftDeps({
-    store: createAiBudgetStore(client),
+    // the budget is recorded with the SERVER client, never the user's: a signed-in user cannot run the functions that record or free consumption
+    store: createAiBudgetServerStore(process.env),
     tenantId: input.tenantId,
+    requestedBy: userId,
     requestId: input.requestId ?? crypto.randomUUID(),
     config,
     limits: FIRST_WORK_TEST_LIMITS,

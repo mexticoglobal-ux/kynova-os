@@ -33,14 +33,14 @@ describe("AI budget migration (not applied)", () => {
 
   it("every function is security definer with an empty search_path, and only the right roles can run them", () => {
     const functions = [...code.matchAll(/create function (public|private)\.(\w+)/g)];
-    expect(functions.map((match) => match[2])).toEqual(["ai_budget_period", "reserve_ai_budget", "settle_ai_budget", "release_ai_budget", "write_off_ai_reservation", "assign_ai_budget", "assign_ai_call_cap", "expire_ai_reservations"]);
+    expect(functions.map((match) => match[2])).toEqual(["ai_budget_period", "member_can_write", "reserve_ai_budget", "settle_ai_budget", "release_ai_budget", "write_off_ai_reservation", "assign_ai_budget", "assign_ai_call_cap", "expire_ai_reservations"]);
     for (const name of ["reserve_ai_budget", "settle_ai_budget", "release_ai_budget", "write_off_ai_reservation", "assign_ai_budget", "assign_ai_call_cap", "expire_ai_reservations"]) {
       expect(body(name), name).toMatch(/security definer\nset search_path = ''/);
     }
-    expect(code).toMatch(/grant execute on function public\.reserve_ai_budget\(uuid, text, bigint, text, int\), public\.settle_ai_budget\(uuid, jsonb\), public\.release_ai_budget\(uuid\), public\.write_off_ai_reservation\(uuid, text\) to authenticated;/);
-    // a company never assigns its own budget, nor runs the expiry: only the server key does
-    expect(code).toMatch(/grant execute on function public\.assign_ai_budget\(uuid, date, bigint\), public\.assign_ai_call_cap\(uuid, date, int\), public\.expire_ai_reservations\(\) to service_role;/);
-    expect(code.match(/grant execute[^;]*to authenticated;/g)?.length).toBe(1);
+    // THE TRUST BOUNDARY: nothing that records, frees or reconciles consumption (reserve, settle, release, write-off), and nothing the platform assigns, is granted to a signed-in user: only the server key runs them
+    expect(code).toMatch(/grant execute on function public\.reserve_ai_budget\(uuid, uuid, text, bigint, text, int\), public\.settle_ai_budget\(uuid, jsonb\), public\.release_ai_budget\(uuid\), public\.write_off_ai_reservation\(uuid, text\),\n  public\.assign_ai_budget\(uuid, date, bigint\), public\.assign_ai_call_cap\(uuid, date, int\), public\.expire_ai_reservations\(\) to service_role;/);
+    expect(code.match(/grant execute[^;]*to authenticated;/g)).toBeNull();
+    for (const name of ["reserve_ai_budget", "settle_ai_budget", "release_ai_budget", "write_off_ai_reservation"]) expect(body(name), name).not.toMatch(/require_write|require_admin|auth\.uid/);
     expect(code.match(/grant execute[^;]*to service_role;/g)?.length).toBe(1);
   });
 
@@ -57,7 +57,9 @@ describe("AI budget migration (not applied)", () => {
     expect(reserve).toContain("reserved_micros + unreconciled_micros + spent_micros + p_estimate_micros <= limit_micros");
     expect(reserve.match(/update public\.ai_budget_periods/g)?.length).toBe(1);
     expect(reserve).toContain("on conflict (tenant_id, idempotency_key) do nothing");
-    expect(reserve).toContain("perform private.require_write(p_tenant)");
+    // the server names the user, and the database checks that user against the company's memberships
+    expect(reserve).toContain("p_requested_by is null or not private.member_can_write(p_requested_by, p_tenant)");
+    expect(code).toContain("create function private.member_can_write(p_user uuid, p_tenant uuid)");
     expect(code).toContain("unique (tenant_id, idempotency_key)");
   });
 
@@ -80,7 +82,7 @@ describe("AI budget migration (not applied)", () => {
     expect(body("release_ai_budget")).toContain("only a held reservation can be released");
     expect(body("settle_ai_budget")).toContain("reconciling an expired reservation needs the attempts the provider reported");
     const writeOff = body("write_off_ai_reservation");
-    expect(writeOff).toContain("perform private.require_admin(r.tenant_id)");
+    expect(writeOff).toContain("p_actor_type => 'system'"); // a platform decision, logged as a system action
     expect(writeOff).toContain("char_length(btrim(p_note)) not between 10 and 500");
     expect(writeOff).toContain("private.log_action");
   });

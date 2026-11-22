@@ -11,6 +11,7 @@ import { NATIVE_MODELS, costOfNative } from "./providers";
 import { SIMULATED_RID, SIMULATED_PHRASES, memoryStore, simulatedProvider } from "./simulated";
 
 const T = "00000000-0000-4000-8000-0000000000b1";
+const USER = "00000000-0000-4000-8000-0000000000a1";
 const RID = SIMULATED_RID;
 const PHRASES = SIMULATED_PHRASES;
 const CONFIG = firstWorkAiConfigFor(T, T); // the test switch names this company
@@ -18,7 +19,7 @@ const LIMITS: { maxInputTokens: number; maxOutputTokens: number } = { maxInputTo
 
 const draftThrough = async (budget: ReturnType<typeof memoryStore>, provider: ReturnType<typeof simulatedProvider>, requestId: string, over: { env?: Record<string, string>; limits?: typeof LIMITS } = {}) => {
   const { deps, controlled } = buildFirstWorkDraftDeps({
-    store: budget.store, tenantId: T, requestId, config: CONFIG, limits: over.limits ?? LIMITS,
+    store: budget.store, tenantId: T, requestedBy: USER, requestId, config: CONFIG, limits: over.limits ?? LIMITS,
     env: over.env ?? { OPENAI_API_KEY: "sk-" + "x".repeat(30) },
     executor: { registry: provider.registry, sleep: async () => undefined },
   });

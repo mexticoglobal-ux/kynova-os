@@ -70,7 +70,7 @@ function store(over: Partial<BudgetStore> = {}): BudgetStore & { reserve: Return
   const granted: ReserveOutcome = { ok: true, reservationId: RID, periodStart: "2026-11-01", expiresAt: "2026-11-18T12:05:00.000Z", repeated: false };
   return { reserve: vi.fn().mockResolvedValue(granted), settle: vi.fn().mockResolvedValue({ ok: true, reservationId: RID, settledMicros: 5300, overageMicros: 0, repeated: false }), release: vi.fn().mockResolvedValue(true), ...over } as never;
 }
-const params = { tenantId: "t1", purposeId: "message.draft", idempotencyKey: "req-1", estimateMicros: 16000 };
+const params = { tenantId: "t1", requestedBy: "u1", purposeId: "message.draft", idempotencyKey: "req-1", estimateMicros: 16000 };
 
 describe("the budget gate of one call", () => {
   it("is granted only when the store grants it, and passes the request's own idempotency key and estimate", async () => {
@@ -78,7 +78,7 @@ describe("the budget gate of one call", () => {
     const gate = createBudgetGate(s, params);
     expect(await gate.reserve()).toBe(true);
     expect(gate.reservationId).toBe(RID);
-    expect(s.reserve).toHaveBeenCalledWith({ tenantId: "t1", purposeId: "message.draft", estimateMicros: 16000, idempotencyKey: "req-1" });
+    expect(s.reserve).toHaveBeenCalledWith({ tenantId: "t1", requestedBy: "u1", purposeId: "message.draft", estimateMicros: 16000, idempotencyKey: "req-1" });
   });
 
   it("every refusal is false, with its reason, and no reservation id: nothing may be sent to a provider", async () => {

@@ -6,6 +6,7 @@ import type { BudgetStore } from "@/lib/contracts/ai-budget";
 import type { EnvSource } from "@/lib/backend/env";
 import { FIRST_WORK_AI, type DraftDeps, type FirstWorkAiConfig } from "@/lib/first-work-draft";
 import { createControlledCall, type ControlledCall } from "./controlled-call";
+export { createAiBudgetServerStore } from "./budget-server";
 import type { ExecutorDeps } from "./executor";
 import { instructionsOf } from "./prompts";
 import { aiSecrets } from "./secrets";
@@ -24,8 +25,9 @@ export function firstWorkAiConfigFor(tenantId: string, testTenant: string | unde
 export type FirstWorkCallLimits = { maxInputTokens: number; maxOutputTokens: number };
 
 export type FirstWorkDepsParams = {
-  store: BudgetStore;
+  /** the SERVER's budget store, never the user's client */ store: BudgetStore;
   tenantId: string;
+  /** the user the server verified from the session */ requestedBy: string;
   /** the id of THIS request: the same id never makes a second model call */ requestId: string;
   config: FirstWorkAiConfig;
   limits: FirstWorkCallLimits;
@@ -39,6 +41,7 @@ export function buildFirstWorkDraftDeps(params: FirstWorkDepsParams): { deps: Dr
   const controlled = createControlledCall({
     store: params.store,
     tenantId: params.tenantId,
+    requestedBy: params.requestedBy,
     purposeId: params.config.purposeId,
     idempotencyKey: params.requestId,
     modelId: params.config.model ?? "",

@@ -26,8 +26,9 @@ import type { ProviderErrorKind, ProviderPrompt } from "./types";
 export type ReservationEnd = "none" | "released" | "settled" | "settled_no_charge" | "pending";
 
 export type ControlledCallParams = {
-  store: BudgetStore;
+  /** the SERVER's budget store (see lib/db/ai-budget.ts): nothing that records or frees consumption is ever done with the user's own client */ store: BudgetStore;
   tenantId: string;
+  /** the user the server verified from the session and who asked for this generation */ requestedBy: string;
   purposeId: string;
   /** identifies THIS request: the same id never makes a second call */ idempotencyKey: string;
   /** the registry key of the ONE model (never a provider's own id) */ modelId: string;
@@ -99,7 +100,7 @@ export function createControlledCall(params: ControlledCallParams): ControlledCa
       async reserve() {
         if (!native || !native.chat || !MODEL_PROVIDER[params.modelId]) return false; // an unknown model never reserves
         const estimate = reservationMicros(native, boundSeen ?? params.maxInputTokens, params.maxOutputTokens);
-        gate = createBudgetGate(params.store, { tenantId: params.tenantId, purposeId: params.purposeId, idempotencyKey: params.idempotencyKey, estimateMicros: estimate });
+        gate = createBudgetGate(params.store, { tenantId: params.tenantId, requestedBy: params.requestedBy, purposeId: params.purposeId, idempotencyKey: params.idempotencyKey, estimateMicros: estimate });
         const granted = await gate.reserve();
         if (granted) { reservation = "pending"; reservedMicros = estimate; }
         return granted;

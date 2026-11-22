@@ -26,7 +26,8 @@ export type SettleOutcome = { ok: true; reservationId: string; settledMicros: nu
 
 /** What the AI layer needs from wherever the budget lives (the database, in `lib/db/ai-budget.ts`; a fake in tests). A null answer means "could not tell": the caller does not call a provider. */
 export interface BudgetStore {
-  reserve(input: { tenantId: string; purposeId: string; estimateMicros: number; idempotencyKey: string; ttlSeconds?: number }): Promise<ReserveOutcome | null>;
+  /** `requestedBy` is the user the SERVER verified from the session: the database checks again that this user may work the company's data. */
+  reserve(input: { tenantId: string; requestedBy: string; purposeId: string; estimateMicros: number; idempotencyKey: string; ttlSeconds?: number }): Promise<ReserveOutcome | null>;
   settle(reservationId: string, attempts: readonly BudgetAttemptRow[]): Promise<SettleOutcome | null>;
   release(reservationId: string): Promise<boolean>;
 }

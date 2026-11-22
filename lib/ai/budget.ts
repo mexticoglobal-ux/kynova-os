@@ -95,14 +95,14 @@ export type BudgetGate = {
 };
 
 /** The gate for ONE call of a company. `idempotencyKey` identifies the request: a retry of the same request passes the same key, so it never reserves twice AND is never granted a second call (`refusal: "repeated"`). */
-export function createBudgetGate(store: BudgetStore, params: { tenantId: string; purposeId: string; idempotencyKey: string; estimateMicros: number; ttlSeconds?: number }): BudgetGate {
+export function createBudgetGate(store: BudgetStore, params: { tenantId: string; requestedBy: string; purposeId: string; idempotencyKey: string; estimateMicros: number; ttlSeconds?: number }): BudgetGate {
   let reservationId: string | undefined;
   let refusal: ReserveRefusal | "unavailable" | "repeated" | undefined;
   return {
     get reservationId() { return reservationId; },
     get refusal() { return refusal; },
     async reserve() {
-      const outcome = await store.reserve({ tenantId: params.tenantId, purposeId: params.purposeId, estimateMicros: params.estimateMicros, idempotencyKey: params.idempotencyKey, ...(params.ttlSeconds ? { ttlSeconds: params.ttlSeconds } : {}) }).catch(() => null);
+      const outcome = await store.reserve({ tenantId: params.tenantId, requestedBy: params.requestedBy, purposeId: params.purposeId, estimateMicros: params.estimateMicros, idempotencyKey: params.idempotencyKey, ...(params.ttlSeconds ? { ttlSeconds: params.ttlSeconds } : {}) }).catch(() => null);
       if (!outcome) { refusal = "unavailable"; return false; }
       if (!outcome.ok) { refusal = outcome.reason; return false; }
       // the key was reserved before: that request already has its call (made, in flight or pending). Granting it again would send a SECOND call under one reservation.

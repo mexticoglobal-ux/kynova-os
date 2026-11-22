@@ -31,6 +31,14 @@ describe("lib/ai is the only place that talks to an AI provider", () => {
     expect(importers).toEqual(["app/api/v1/nex/draft/route.ts"]);
     expect(read("app/api/v1/nex/draft/route.ts").match(/from\s+["']@\/lib\/ai[^"']*["']/g)).toEqual(['from "@/lib/ai/first-work"']);
   });
+  it("records and frees consumption only through the SERVER's budget store: the functions are named only in lib/db/ai-budget.ts and the user's client is never given to it", () => {
+    const named = all.filter((file) => /\b(reserve_ai_budget|settle_ai_budget|release_ai_budget|write_off_ai_reservation)\b/.test(read(file)) && !file.startsWith("lib/ai/") && file !== "lib/contracts/ai-budget.ts");
+    expect(named).toEqual(["lib/db/ai-budget.ts"]);
+    // createAiBudgetStore (which wraps ANY client) is used only by the server store (and defined in its own file); nobody else wraps a client with it
+    expect(all.filter((file) => file !== "lib/db/ai-budget.ts" && /\bcreateAiBudgetStore\b/.test(read(file)))).toEqual(["lib/ai/budget-server.ts"]);
+    expect(read("lib/ai/budget-server.ts")).toContain("serviceClient()");
+    expect(read("app/api/v1/nex/draft/route.ts")).toContain("createAiBudgetServerStore(process.env)");
+  });
   it("reads no environment variable directly: secrets come through the Secrets Manager", () => {
     expect(source(walk("lib/ai")).filter((file) => /process\.env/.test(read(file)))).toEqual([]);
   });
