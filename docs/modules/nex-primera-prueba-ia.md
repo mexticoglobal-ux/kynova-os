@@ -81,17 +81,41 @@ El tope de 30 manda (27 450 µ$ < 100 000 µ$). **Un solo intento, comprobado an
 
 Solo datos ficticios: empresa «Empresa Ficticia A» y las dos frases de captación (qué ofrece / a quién se dirige) de `prompts/evals/fixtures/first-work-draft.yaml`. **Sin prospectos, sin datos de clientes, sin datos de otra empresa** (el caso `mezcla-tenants-01` usa un marcador ficticio para comprobar que no se filtra).
 
-## 6. Pasos pendientes (en este orden; ninguno está hecho)
+## 6. Preparación de Preview y pasos exactos (nada de esto está hecho)
 
-1. **Decidir y aprobar** esta propuesta (modelo, límites de entrada/salida, 30 llamadas facturables en total, presupuesto de $0.10) **y ejecutar la consulta de la §7 (instrucciones en `docs/backend/ejecutar-migraciones-aplicadas.md`) para conocer el estado real de las migraciones**.
-2. **Cuenta de proveedor** (Jeffrey): proyecto de OpenAI con límite de gasto propio; crear la clave **fuera del repositorio**.
-3. **Secretos** (ninguno cargado): `OPENAI_API_KEY` **y `SUPABASE_SERVICE_ROLE_KEY`** solo como secretos de Wrangler del entorno de Preview. La segunda es la clave de servidor que **únicamente** ejecuta las funciones de presupuesto (reservar, liquidar, liberar, conciliar): en esta base no puede leer ni escribir tablas, y los usuarios autenticados ya no pueden ejecutar esas funciones (ADR-0036, enmienda 2026-11-22). Nunca en el repositorio, en `.dev.vars` versionado ni en logs
-4. **Migración**: aplicar `20261118000100_ai_budget.sql` en el proyecto de desarrollo (con aprobación; ver §7) y asignar el límite de $0.10 al mes UTC de la empresa de prueba con `assign_ai_budget` (solo con la clave de servidor, fuera del repositorio).
-5. **Conectar el presupuesto**: `createBudgetGate` → `budget.reserve/settle` en `app/api/v1/nex/draft` y el `ask` por `lib/ai/` (código nuevo: requiere aprobación; hoy no está conectado a `askAi`), con `maxAttempts = 1`, `maxOutputTokens = 800`, la reserva calculada con `inputTokenCeiling` y el contador de 30 llamadas de la base (`assign_ai_call_cap`), que rechaza la 31, más `maxInputTokens` en el ejecutor (**el contador y la guarda ya están escritos y probados; falta conectarlos a la ruta**).
-6. **Configuración de la prueba**: `FIRST_WORK_AI` con `provider`, `model = gw-fast-1`, `pricesVerified`, `limitsDefined`, `persistentBudget`, y un interruptor **propio de la prueba** (variable de Wrangler en Preview, limitada al id de la empresa de prueba) para que solo esa prueba pueda activarse; por defecto `enabled` sigue en `false`.
-7. **Evals**: no existe un ejecutor (`prompts/evals/README.md` define el formato, pero no hay script). Hay que escribir uno mínimo, con tope de 18 llamadas (6 casos con modelo × 3; el fallo simulado no llama), o ejecutar los casos a mano. Fijar en la suite `providers`, `budget.max_tokens` y `budget.max_cost_usd` ($0.10).
-8. **Criterio de salida**: formato 1.0 y seguridad 1.0; exactitud ≥ 0.9; fidelidad ≥ 0.95; coste/latencia ≥ 0.9. Si algo falla: la IA se apaga y se ajusta el prompt (sigue en `draft`; solo pasa a `active` con evals en verde).
-9. **Apagar** al terminar: `enabled=false`, borrar el secreto del Preview, dejar el límite en 0.
+Estado hoy: las migraciones están aplicadas en el proyecto `hrridjfbrkewpengrmmh` (verificación de ChatGPT con el conector de Supabase), **sin presupuesto asignado, sin claves cargadas, con el interruptor apagado y sin despliegue de esta versión en Preview**. Las cifras de coste de entrada son **estimaciones**: el proveedor no limita la entrada y su recuento de mensajes está documentado como estimación. Tampoco se verificó que las alertas o límites de gasto del proveedor corten el gasto de forma dura: se tratan como avisos, no como tope. Los topes que sí imponemos son los de la base: el presupuesto propuesto de **US$0.10 (100 000 µ$)** y el tope de **30 llamadas**, ambos **todavía sin asignar**.
+
+**Orden (cada paso con su autorización; ninguno se ejecuta solo):**
+
+1. **Elegir la empresa ficticia.** Debe existir en el proyecto de desarrollo y el usuario de prueba debe ser miembro con rol `owner`, `admin` o `member`. Su UUID se lee en Supabase (Table Editor › `tenants`); **no se inventa ni se copia de documentos**. En lo que sigue se escribe `<UUID_EMPRESA>`.
+2. **Presupuesto y tope (SQL Editor del proyecto; solo tras autorización).** Las funciones son solo del servidor y el SQL Editor corre con el rol dueño, que sí puede ejecutarlas:
+   ```sql
+   select public.assign_ai_budget('<UUID_EMPRESA>', date_trunc('month', now() at time zone 'utc')::date, 100000);
+   select public.assign_ai_call_cap('<UUID_EMPRESA>', date_trunc('month', now() at time zone 'utc')::date, 30);
+   ```
+   Sin esto el presupuesto es 0 y la prueba responde por reglas aunque todo lo demás esté encendido.
+3. **Proveedor.** Proyecto de OpenAI propio de la prueba, con el límite de gasto mensual más bajo que permita. La clave se crea ahí y **no se escribe en archivos del repositorio**.
+4. **Secretos solo de Preview** (el valor se pide por teclado; nunca va en la línea de comandos ni en un archivo):
+   ```bash
+   npx wrangler secret put OPENAI_API_KEY --env preview
+   npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY --env preview
+   ```
+   `SUPABASE_URL` y `SUPABASE_PUBLISHABLE_KEY` ya existen en Preview (la sesión funciona con ellas). La clave de servicio solo ejecuta las funciones de presupuesto; en esta base no puede leer ni escribir tablas (ADR-0036).
+5. **El interruptor, limitado a una empresa.** Variable (no secreto) `NEX_AI_FIRST_TEST_TENANT` = `<UUID_EMPRESA>` en el Worker `kynova-os-preview` (panel de Cloudflare › Workers › kynova-os-preview › Settings › Variables). El `wrangler.jsonc` tiene `keep_vars: true`, así que un despliegue no la borra. **No se escribe en el repositorio.** Sin la variable, o para cualquier otra empresa, la ruta responde por reglas sin tocar presupuesto ni proveedor.
+6. **Desplegar esta versión en Preview** (`npm run deploy`, que solo despliega a Preview; requiere autorización). Hasta aquí ninguna llamada ha salido.
+7. **Evals.** Primero el dry-run, que no hace ninguna llamada de red ni a la base: `npm run evals:first-work` (valida la suite y las fixtures y muestra el plan: 18 llamadas reales y 3 casos simulados sin proveedor, con la reserva estimada de cada una). El modo real exige activación explícita y las variables en la **terminal actual** (no en archivos; cerrar la terminal al terminar): `KYNOVA_EVALS_CONFIRM=run-real-calls`, `NEX_AI_FIRST_TEST_TENANT`, `KYNOVA_EVALS_USER_ID` (UUID de un miembro de esa empresa), `OPENAI_API_KEY`, `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` y `SUPABASE_SERVICE_ROLE_KEY`; después `npm run evals:first-work -- --real`. Usa la misma ruta controlada que la API (reserva, tope de 30, un intento sin reintentos ni respaldo, validación de la salida), comparte el contador con las pruebas manuales y **no puede reiniciarlo**. Si falta algo, termina nombrando qué falta (nunca imprime valores) y sin llamar al proveedor. `--run-id <UUID>` reanuda una ejecución interrumpida sin repetir llamadas.
+8. **Pruebas manuales** en Preview con las dos frases ficticias (hasta 6; el contador de 30 es compartido: 18 evals + 6 manuales + 6 de reserva).
+9. **Criterio de salida:** formato 1.0 y seguridad 1.0; exactitud ≥ 0.9; fidelidad ≥ 0.95; coste/latencia ≥ 0.9; y la rúbrica revisada por una persona. Si algo falla, se apaga y se ajusta el prompt (sigue en `draft`).
+
+**Cómo apagar la prueba al terminar (o ante cualquier duda):**
+1. **Quitar el interruptor:** borrar la variable `NEX_AI_FIRST_TEST_TENANT` del Worker de Preview. Es el apagado inmediato: la ruta vuelve a responder por reglas.
+2. **Borrar los secretos:** `npx wrangler secret delete OPENAI_API_KEY --env preview` y `npx wrangler secret delete SUPABASE_SERVICE_ROLE_KEY --env preview`; revocar la clave en el proyecto de OpenAI.
+3. **Cerrar el tope** (SQL Editor): dejar el tope en las llamadas ya usadas, de modo que ninguna reserva nueva sea posible:
+   ```sql
+   select public.assign_ai_call_cap('<UUID_EMPRESA>', date_trunc('month', now() at time zone 'utc')::date,
+     (select calls_used from public.ai_budget_periods where tenant_id = '<UUID_EMPRESA>' and period_start = date_trunc('month', now() at time zone 'utc')::date));
+   ```
+4. **Revisar reservas pendientes** (resultado incierto: quedan retenidas y siguen contando): `select id, status, amount_micros, created_at from public.ai_reservations where tenant_id = '<UUID_EMPRESA>' and status in ('held', 'expired_unreconciled');`. Se concilian con la evidencia del proveedor (`settle_ai_budget`) o, con un motivo escrito y la decisión de la plataforma, se cancelan (`write_off_ai_reservation`); nunca se borran a mano.
 
 ## 7. Proyecto de desarrollo y migraciones
 

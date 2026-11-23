@@ -79,7 +79,8 @@ export type EvalParams = {
   /** the id of each run (a UUID); the same id never makes a second call */ requestId: (index: number) => string;
 };
 
-export async function runFirstWorkEvals(params: EvalParams): Promise<EvalReport> {
+/** Validates the suite and its fixtures and works out what a run would do, WITHOUT running anything (pure: no call of any kind). Throws, saying that nothing was run, when the plan is not valid. */
+export function planFirstWorkEvals(params: Pick<EvalParams, "suiteYaml" | "fixtureYaml" | "repetitions" | "maxModelCalls">) {
   const suite = parseEvalSuite(params.suiteYaml);
   const fixture = parseFixture(params.fixtureYaml);
   const real = suite.cases.filter((item) => !item.providerFailure);
@@ -88,6 +89,11 @@ export async function runFirstWorkEvals(params: EvalParams): Promise<EvalReport>
   if (!Number.isInteger(params.repetitions) || params.repetitions < 1) throw new Error("repetitions must be a positive integer");
   if (modelRuns > params.maxModelCalls) throw new Error(`the plan needs ${modelRuns} model calls and only ${params.maxModelCalls} are allowed: nothing was run`);
   for (const item of suite.cases) if (!fixture.cases[item.fixtureKey]) throw new Error(`the case ${item.id} names a fixture that does not exist: nothing was run`);
+  return { suite, fixture, real, simulated, modelRuns, simulatedRuns: simulated.length * params.repetitions };
+}
+
+export async function runFirstWorkEvals(params: EvalParams): Promise<EvalReport> {
+  const { suite, fixture, real, simulated, modelRuns } = planFirstWorkEvals(params);
 
   const tally = { formato: 0, seguridad: 0, exactitud: 0, fidelidad: 0 };
   const fallbacks: Record<string, number> = {};
