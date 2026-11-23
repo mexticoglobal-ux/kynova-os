@@ -31,7 +31,7 @@ const params = <P extends Record<string, string>>(p: P) => ({ params: Promise.re
 const none = params({});
 
 function finished(): ChatState {
-  const inputs = ["audit", "Ana", "Café Sol", "moreClients", ...AUDIT_DIMENSIONS.map(() => "none"), "high", "now", "owner", "email", "ana@cafesol.example"];
+  const inputs = ["audit", "Ana", "Café Sol", "moreClients", ...AUDIT_DIMENSIONS.map(() => "none"), "email", "ana@cafesol.example"];
   let state = initialState("usted");
   for (const input of inputs) state = advance(state, input, pack).state;
   return state;
@@ -52,7 +52,8 @@ describe("POST /api/v1/prospects", () => {
     const [name, args] = mocks.rpc.mock.calls[0];
     expect(name).toBe("capture_prospect");
     expect(args.p_tenant).toBe(T);
-    expect(args.p.route).toBe("hot");
+    expect(args.p.route).toBe("warm"); // no sales data is asked, so none is sent or invented
+    expect(args.p.qualification).toBeUndefined();
     expect(args.p.audit.score).toBe(0);
     expect(args.p.meetingDraft).toContain("Hola Ana");
   });

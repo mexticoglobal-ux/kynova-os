@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { AUDIT_DIMENSIONS } from "@/lib/contracts/audit";
 import { NOVA_DRAFT_PACK as pack } from "@/lib/audit-packs/nova-draft";
-import { advance, greeting, initialState, promptFor, validate, type ChatState, type Say } from "./guided-chat";
+import { advance, buildHandoff, greeting, initialState, parseChatState, promptFor, validate, type ChatState, type Say } from "./guided-chat";
 
 function run(inputs: string[], treatment: "usted" | "tu" = "usted") {
   let state: ChatState = initialState(treatment);
@@ -27,13 +27,13 @@ describe("guided chat", () => {
   });
 
   it("runs the whole path: discover, audit, result, qualify, contact, handoff", () => {
-    const { state, said } = run(["audit", "Ana", "Café Sol", "moreClients", ...auditInputs("none"), "high", "now", "owner", "email", "ana@cafesol.com"]);
+    const { state, said } = run(["audit", "Ana", "Café Sol", "moreClients", ...auditInputs("none"), "email", "ana@cafesol.com"]);
     expect(state.step).toBe("end");
     expect(promptFor(state).kind).toBe("end");
     const result = said.find((s) => s.kind === "result");
     expect(result).toMatchObject({ kind: "result", score: 0, band: "initial", infrastructure: "none" });
     const handoff = handoffOf(said);
-    expect(handoff.route).toBe("hot");
+    expect(handoff.route).toBe("warm");
     expect(handoff.contact).toEqual({ name: "Ana", method: "email", value: "ana@cafesol.com" });
     expect(handoff.audit?.topGaps).toEqual(["capture", "web", "followUp"]);
     expect(handoff.services.length).toBeGreaterThan(0);
@@ -48,14 +48,47 @@ describe("guided chat", () => {
     expect(kinds.filter((k) => k === "working")).toHaveLength(4);
   });
 
-  it("grades by the client's rules and never calls a demo handoff 'sent'", () => {
-    const cold = run(["audit", "Ana", "", "unsure", ...auditInputs("optimized"), "unknown", "exploring", "none", "none"]);
-    expect(handoffOf(cold.said).route).toBe("cold");
-    const warm = run(["audit", "Ana", "", "unsure", ...auditInputs("defined"), "medium", "soon", "influencer", "phone", "+506 8888 7777"]);
-    expect(handoffOf(warm.said).route).toBe("warm");
-    const texts = [...cold.said, ...warm.said].map((s) => (s.kind === "text" ? s.text : "")).join(" ");
+  it("asks nothing about budget, timing or who decides: after the diagnosis it gives a concrete next step and offers an OPTIONAL contact", () => {
+    const { state, said } = run(["audit", "Ana", "Café Sol", "moreClients", ...auditInputs("none")]);
+    expect(state.step).toBe("contactMethod");
+    const texts = said.map((s) => (s.kind === "text" ? s.text : "")).join(" ");
+    expect(texts).toMatch(/Su siguiente paso:/);
+    expect(texts).toContain("«Conseguir más clientes»"); // built from what the person said
+    expect(texts).toContain("Es opcional");
+    expect(texts).not.toMatch(/tres preguntas|presupuesto|para cuándo|qué papel|decisión/i);
+    // the contact step is offered with a way out, and leaving it ends the conversation without blocking
+    const options = promptFor(state);
+    expect(options.kind === "choice" ? options.options.map((o) => o.label) : []).toContain("Prefiero no dejar mi contacto");
+    expect(run(["audit", "Ana", "Café Sol", "moreClients", ...auditInputs("none"), "none"]).state.step).toBe("end");
+  });
+
+  it("does not penalise a prospect for what was never asked: a diagnosis with or without a contact is warm, with no points and no invented answers", () => {
+    const withContact = run(["audit", "Ana", "", "unsure", ...auditInputs("defined"), "phone", "+506 8888 7777"]);
+    const without = run(["audit", "Ana", "", "unsure", ...auditInputs("optimized"), "none"]);
+    for (const result of [withContact, without]) {
+      const handoff = handoffOf(result.said);
+      expect(handoff.route).toBe("warm");
+      expect(handoff.qualification).toBeUndefined();
+      expect(result.state.budget).toBeUndefined();
+      expect(result.state.timeline).toBeUndefined();
+      expect(result.state.role).toBeUndefined();
+      expect(handoff.reasons.join(" ")).toContain("no se usaron para clasificarlo");
+    }
+    expect(handoffOf(without.said).nextStep).toBe("Sin medio de contacto: esperar a que el prospecto vuelva a escribir");
+    expect(handoffOf(withContact.said).nextStep).toMatch(/^Contactar y proponer una llamada/);
+    const texts = [...withContact.said, ...without.said].map((s) => (s.kind === "text" ? s.text : "")).join(" ");
     expect(texts).toContain("no se envió nada");
     expect(texts).not.toMatch(/ya compart[íi]|enviado al equipo/i);
+  });
+
+  it("history is kept: a conversation that already carries the old answers keeps its old score, and one saved at a retired step continues at the contact", () => {
+    const old = { ...run(["audit", "Ana", "", "unsure", ...auditInputs("none"), "email", "ana@cafesol.com"]).state, budget: "high", timeline: "now", role: "owner" } as const;
+    const handoff = buildHandoff(old, pack);
+    expect(handoff.route).toBe("hot");
+    expect(handoff.qualification?.points).toBe(9);
+    for (const step of ["qualBudget", "qualTimeline", "qualRole"]) {
+      expect(parseChatState({ step, treatment: "usted", auditIndex: 8, answers: {} })?.step).toBe("contactMethod");
+    }
   });
 
   it("hands a question to a person without inventing an answer", () => {
@@ -75,7 +108,7 @@ describe("guided chat", () => {
   });
 
   it("validates free text and contact details before accepting them", () => {
-    const state = run(["audit", "Ana", "", "unsure", ...auditInputs("none"), "high", "now", "owner", "email"]).state;
+    const state = run(["audit", "Ana", "", "unsure", ...auditInputs("none"), "email"]).state;
     expect(state.step).toBe("contactValue");
     expect(validate(state, "no es un correo")).not.toBeNull();
     expect(validate(state, "ana@cafesol.com")).toBeNull();

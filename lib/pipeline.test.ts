@@ -18,7 +18,7 @@ function handoffFor(inputs: string[]): Handoff {
   return found.handoff;
 }
 
-const hotChat = ["audit", "Ana", "Café Sol", "moreClients", ...AUDIT_DIMENSIONS.map(() => "none"), "high", "now", "owner", "email", "ana@cafesol.example"];
+const hotChat = ["audit", "Ana", "Café Sol", "moreClients", ...AUDIT_DIMENSIONS.map(() => "none"), "email", "ana@cafesol.example"];
 
 describe("architecture: channels", () => {
   it("only the web chat exists today; every other channel and payment rail is declared as planned", () => {
@@ -47,9 +47,9 @@ describe("seed leads", () => {
 });
 
 describe("lead from a conversation handoff", () => {
-  it("turns a hot handoff into a prioritized lead with a drafted meeting request", () => {
+  it("turns a finished diagnosis with a contact into a warm lead (no sales data was asked) with a drafted meeting request", () => {
     const lead = leadFromHandoff(handoffFor(hotChat), pack, "chat-1");
-    expect(lead).toMatchObject({ id: "chat-1", channel: "webChat", arrival: "session", company: "Café Sol", contactName: "Ana", grade: "hot", priority: "high", stage: "new", score: 0 });
+    expect(lead).toMatchObject({ id: "chat-1", channel: "webChat", arrival: "session", company: "Café Sol", contactName: "Ana", grade: "warm", priority: "medium", stage: "new", score: 0, points: null });
     expect(lead.status).toMatch(/^Café Sol está empezando/);
     expect(lead.services.length).toBeGreaterThan(0);
     expect(lead.approval?.kind).toBe("meeting");
@@ -59,9 +59,9 @@ describe("lead from a conversation handoff", () => {
 
   it("prepares no meeting request without a contact, or for a person-only request", () => {
     expect(leadFromHandoff(handoffFor(["human", "Pedro", "none"]), pack, "chat-2")).toMatchObject({ grade: "human", approval: null, score: null, company: "Pedro" });
-    const coldChat = ["audit", "Ana", "", "unsure", ...AUDIT_DIMENSIONS.map(() => "optimized"), "unknown", "exploring", "none", "none"];
+    const coldChat = ["audit", "Ana", "", "unsure", ...AUDIT_DIMENSIONS.map(() => "optimized"), "none"];
     const cold = leadFromHandoff(handoffFor(coldChat), pack, "chat-3");
-    expect(cold).toMatchObject({ grade: "cold", priority: "low", approval: null, contact: null });
+    expect(cold).toMatchObject({ grade: "warm", priority: "medium", approval: null, contact: null }); // not penalised for leaving no contact: it simply waits
     expect(cold.nextAction).toContain("Sin medio de contacto");
   });
 });
@@ -104,7 +104,8 @@ describe("ordering and executive summary", () => {
   it("shows high priority first and a new arrival ahead of older leads of the same priority", () => {
     const fresh = leadFromHandoff(handoffFor(hotChat), pack, "chat-1");
     const sorted = sortLeads([...seedLeads(pack), fresh]);
-    expect(sorted[0].id).toBe("chat-1");
+    expect(sorted[0].priority).toBe("high");
+    expect(sorted.filter((lead) => lead.priority === "medium")[0].id).toBe("chat-1");
     expect(sorted.at(-1)?.priority).toBe("low");
   });
 

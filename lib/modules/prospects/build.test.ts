@@ -23,25 +23,25 @@ function run(inputs: string[]): ChatState {
   return state;
 }
 
-const hot = ["audit", "Ana", "Café Sol", "moreClients", ...AUDIT_DIMENSIONS.map(() => "none"), "high", "now", "owner", "email", "ana@cafesol.example"];
+const hot = ["audit", "Ana", "Café Sol", "moreClients", ...AUDIT_DIMENSIONS.map(() => "none"), "email", "ana@cafesol.example"];
 
 describe("prospect payload", () => {
   it("recomputes the score, grade and services from the closed answers", () => {
     const payload = payloadOf(run(hot));
-    expect(payload.route).toBe("hot");
+    expect(payload.route).toBe("warm"); // no sales data was asked: finishing the diagnosis is the interest shown
     expect(payload.audit?.score).toBe(0);
     expect(payload.audit?.band).toBe("initial");
     expect(payload.audit?.answers.web).toBe("none");
     expect(payload.audit?.result.gaps.length).toBeGreaterThan(0);
     expect(payload.services.length).toBeGreaterThan(0);
     expect(payload.contact).toEqual({ method: "email", value: "ana@cafesol.example" });
-    expect(payload.qualification).toMatchObject({ budget: "high", points: 9 });
+    expect(payload.qualification).toBeUndefined(); // no budget, timing or decision role: nothing invented and no points
     expect(payload.noticeVersion).toMatch(/guided-chat/);
   });
 
   it("prepares the meeting request only for hot or warm prospects with a contact", () => {
     expect(String((buildProspectPayload(run(hot), [], pack) as Record<string, unknown>).meetingDraft)).toContain("Hola Ana");
-    const cold = ["audit", "Ana", "", "unsure", ...AUDIT_DIMENSIONS.map(() => "optimized"), "unknown", "exploring", "none", "none"];
+    const cold = ["audit", "Ana", "", "unsure", ...AUDIT_DIMENSIONS.map(() => "optimized"), "none"];
     expect((buildProspectPayload(run(cold), [], pack) as Record<string, unknown>).meetingDraft).toBeUndefined();
     expect((buildProspectPayload(run(["human", "Pedro", "email", "pedro@example.test"]), [], pack) as Record<string, unknown>).meetingDraft).toBeUndefined();
   });

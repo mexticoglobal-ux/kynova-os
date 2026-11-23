@@ -77,7 +77,7 @@ Evaluación **autodeclarada** de la madurez digital: ocho dimensiones, cuatro ni
 
 **Paso 2 — Servicios del catálogo.** Cada servicio del cliente declara qué dimensiones resuelve y para qué etapas encaja (`CatalogService`). `recommendServices` ordena por la suma de impactos de las brechas que cierra y **descarta los que no encajan con la etapa**. Cada recomendación explica por qué (qué brechas cierra). Sin brechas, NEX lo dice y no inventa una venta.
 
-**Paso 3 — Calificación del prospecto.** Cuatro factores: presupuesto, plazo, rol de decisión y si dejó un contacto. Los puntos y los umbrales **son del cliente** (`QualificationRules`); por defecto, caliente desde 7 puntos y tibio desde 4, sobre 9.
+**Decisión de producto (2026-11-24): el chat ya no pregunta presupuesto, plazo ni quién decide** (el usuario rechazó ese interrogatorio comercial). **Paso 3 — Calificación del prospecto (revisado).** Tras el diagnóstico NEX da un **siguiente paso concreto** construido con lo que la persona ya contó (lo primero que dice el diagnóstico, su prioridad y los servicios que cierran sus brechas) y ofrece dejar un **medio de contacto opcional**, sin bloquear a quien no lo facilite. Sin datos de presupuesto, plazo ni decisión **no se juzga la temperatura**: completar el diagnóstico es el interés mostrado, así que el prospecto es **tibio**, sin puntos y sin respuestas inventadas; no dejar contacto no lo baja, solo lo deja **«En espera»**. Nada se infiere del rol que la persona tiene en KYNOVA. Una conversación guardada que ya traía esas tres respuestas conserva su puntuación anterior (`QualificationRules` sigue existiendo para ella y para los prospectos de demostración).
 
 **Paso 4 — Ruta.**
 
@@ -100,8 +100,8 @@ Evaluación **autodeclarada** de la madurez digital: ocho dimensiones, cuatro ni
 | 4. Preguntas frecuentes | Respuestas **aprobadas por Nova**; si no hay respuesta aprobada, se traspasa | NEX no inventa precios, plazos ni promesas |
 | 5. Mini-audit | Las ocho preguntas, de a una, con opción de omitir | Unos dos minutos; se guarda lo respondido |
 | 6. Resultado | Business Score, tres brechas y los servicios de Nova que las cierran, con el porqué | Lenguaje prudente: "según lo que nos indicó" |
-| 7. Calificación | Presupuesto, plazo, rol y contacto | El contacto se pide solo en este punto |
-| 8. Ruta | Caliente, tibio o frío (sección 5) | Las reglas son de Nova |
+| 7. Siguiente paso y contacto | Un siguiente paso concreto y un medio de contacto **opcional** | Sin presupuesto, plazo ni autoridad de decisión; sin contacto queda «En espera» |
+| 8. Ruta | Tibio por haber completado el diagnóstico (caliente o frío solo para conversaciones históricas con las tres respuestas antiguas) |
 | 9. Cierre | Se confirma al visitante qué pasará y cuándo | Fuera de horario, se promete respuesta en el siguiente horario de atención |
 
 **Paquete de traspaso a Nova** ("un cliente preparado, no una conversación sin contexto"): quién es y cómo contactarle, qué pidió, las respuestas del audit, Business Score y brechas, servicios recomendados con su porqué, calificación con sus puntos, qué se le dijo y qué falta, siguiente paso sugerido y por qué se escala.

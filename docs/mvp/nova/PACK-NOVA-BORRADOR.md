@@ -54,7 +54,7 @@ Las respuestas son de Nova. La estructura es una hipótesis; **ninguna respuesta
 
 ## 4. Criterios de calificación
 
-Reglas por defecto del motor, a ajustar por Nova. Puntos: presupuesto (desconocido 0, bajo 1, medio 2, alto 3), plazo (explorando 0, más adelante 1, pronto 2, ahora 3), rol de decisión (ninguno 0, influye 1, decide 2), contacto dejado (1). **Caliente desde 7, tibio desde 4**, sobre 9.
+Reglas por defecto del motor, a ajustar por Nova. **Hoy el chat no pregunta presupuesto, plazo ni rol de decisión** (decisión de producto del 2026-11-24): estas reglas solo se aplican a conversaciones históricas que ya traen esas respuestas y a los prospectos de demostración. Puntos: presupuesto (desconocido 0, bajo 1, medio 2, alto 3), plazo (explorando 0, más adelante 1, pronto 2, ahora 3), rol de decisión (ninguno 0, influye 1, decide 2), contacto dejado (1). **Caliente desde 7, tibio desde 4**, sobre 9.
 
 | Decisión de Nova | Valor |
 |------------------|-------|

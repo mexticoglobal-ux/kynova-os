@@ -38,9 +38,6 @@ export type Step =
   | "businessName"
   | "challenge"
   | "audit"
-  | "qualBudget"
-  | "qualTimeline"
-  | "qualRole"
   | "contactMethod"
   | "contactValue"
   | "end";
@@ -55,6 +52,7 @@ export type ChatState = {
   businessName?: string;
   challenge?: Challenge;
   question?: string;
+  // Kept only so that what a conversation already recorded is not lost: nothing in the chat asks for these any more.
   budget?: Budget;
   timeline?: Timeline;
   role?: DecisionRole;
@@ -62,7 +60,9 @@ export type ChatState = {
   contact?: string;
 };
 
-const STEPS: readonly Step[] = ["start", "question", "name", "businessName", "challenge", "audit", "qualBudget", "qualTimeline", "qualRole", "contactMethod", "contactValue", "end"];
+// The chat no longer asks about budget, timing or who decides (product decision, 2026-11-24). A conversation saved before it may still carry those steps: it continues at the contact.
+const RETIRED_STEPS: readonly string[] = ["qualBudget", "qualTimeline", "qualRole"];
+const STEPS: readonly Step[] = ["start", "question", "name", "businessName", "challenge", "audit", "contactMethod", "contactValue", "end"];
 const oneOfList = <T extends string>(list: readonly T[], value: unknown): value is T => typeof value === "string" && (list as readonly string[]).includes(value);
 const shortText = (value: unknown, max: number): string | undefined | null =>
   value === undefined ? undefined : typeof value === "string" && value.length <= max ? value : null;
@@ -71,7 +71,8 @@ const shortText = (value: unknown, max: number): string | undefined | null =>
 export function parseChatState(value: unknown): ChatState | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
   const v = value as Record<string, unknown>;
-  if (!oneOfList(STEPS, v.step) || !oneOfList(TREATMENTS, v.treatment)) return null;
+  const step = typeof v.step === "string" && RETIRED_STEPS.includes(v.step) ? "contactMethod" : v.step;
+  if (!oneOfList(STEPS, step) || !oneOfList(TREATMENTS, v.treatment)) return null;
   if (!Number.isInteger(v.auditIndex) || (v.auditIndex as number) < 0 || (v.auditIndex as number) > AUDIT_DIMENSIONS.length) return null;
   if (v.intent !== undefined && !oneOfList(INTENTS, v.intent)) return null;
   if (v.challenge !== undefined && !oneOfList(CHALLENGES, v.challenge)) return null;
@@ -94,7 +95,7 @@ export function parseChatState(value: unknown): ChatState | null {
     }
   }
   return {
-    step: v.step,
+    step,
     treatment: v.treatment,
     auditIndex: v.auditIndex as number,
     answers,
@@ -147,26 +148,6 @@ export const CHALLENGE_LABEL: Record<Challenge, string> = {
   saveTime: "Ahorrar tiempo en tareas repetitivas",
   organize: "Organizar mejor el negocio",
   unsure: "Todavía no lo tengo claro",
-};
-
-const BUDGET_LABEL: Record<Budget, string> = {
-  unknown: "Todavía no lo he definido",
-  low: "Un presupuesto pequeño",
-  medium: "Un presupuesto moderado",
-  high: "Un presupuesto amplio",
-};
-
-const TIMELINE_LABEL: Record<Timeline, string> = {
-  now: "Lo antes posible",
-  soon: "En el próximo mes o dos",
-  later: "Más adelante este año",
-  exploring: "Solo estoy explorando",
-};
-
-const ROLE_LABEL: Record<DecisionRole, string> = {
-  owner: "Yo tomo la decisión",
-  influencer: "Participo en la decisión",
-  none: "Estoy reuniendo información para otra persona",
 };
 
 const METHOD_LABEL: Record<ContactMethod, string> = {
@@ -236,12 +217,6 @@ export function promptFor(state: ChatState): Prompt {
       const dimension = AUDIT_DIMENSIONS[state.auditIndex];
       return { kind: "choice", options: MATURITY_LEVELS.map((level) => ({ id: level, label: DIMENSION_COPY[dimension].options[level] })) };
     }
-    case "qualBudget":
-      return { kind: "choice", options: (Object.keys(BUDGET_LABEL) as Budget[]).map((id) => ({ id, label: BUDGET_LABEL[id] })) };
-    case "qualTimeline":
-      return { kind: "choice", options: (Object.keys(TIMELINE_LABEL) as Timeline[]).map((id) => ({ id, label: TIMELINE_LABEL[id] })) };
-    case "qualRole":
-      return { kind: "choice", options: (Object.keys(ROLE_LABEL) as DecisionRole[]).map((id) => ({ id, label: ROLE_LABEL[id] })) };
     case "contactMethod":
       return { kind: "choice", options: CONTACT_METHODS.map((id) => ({ id, label: METHOD_LABEL[id] })) };
     case "contactValue": {
@@ -338,7 +313,7 @@ export function advance(state: ChatState, input: string, pack: ClientPack, persi
         next = { ...state, answers, auditIndex: state.auditIndex + 1 };
         text(pick(state.treatment, DIMENSION_COPY[AUDIT_DIMENSIONS[next.auditIndex]].prompt));
       } else {
-        next = { ...state, answers, step: "qualBudget" };
+        next = { ...state, answers, step: "contactMethod" };
         for (const step of ANALYSIS_STEPS) say.push({ kind: "working", text: pick(state.treatment, step) });
         if (isAuditComplete(answers)) {
           const result = runAudit(answers);
@@ -351,30 +326,19 @@ export function advance(state: ChatState, input: string, pack: ClientPack, persi
             status: scoreStatus(result, state.treatment, state.businessName),
             summary,
           });
+          // A concrete next step from what the person already told: the first thing the diagnosis says to do, their own priority and the services that close their gaps.
+          const services = summary.services.map((service) => pack.services[service.serviceId]?.name).filter((name): name is string => Boolean(name)).slice(0, 2);
+          const priority = state.challenge && state.challenge !== "unsure" ? t(` Va en la línea de lo que me dijo: «${CHALLENGE_LABEL[state.challenge]}».`, ` Va en la línea de lo que me dijiste: «${CHALLENGE_LABEL[state.challenge]}».`) : "";
+          const help = services.length > 0 ? t(` Para eso, el equipo de ${pack.brand} puede ayudarle con ${services.join(" y ")}.`, ` Para eso, el equipo de ${pack.brand} puede ayudarte con ${services.join(" y ")}.`) : "";
+          text(t(`Su siguiente paso: ${summary.first}${priority}${help}`, `Tu siguiente paso: ${summary.first}${priority}${help}`));
         }
-        text(t("Para que el equipo prepare una propuesta realista, tres preguntas más. Primero: ¿qué presupuesto mensual maneja aproximadamente?", "Para que el equipo prepare una propuesta realista, tres preguntas más. Primero: ¿qué presupuesto mensual manejas aproximadamente?"));
+        text(
+          t(
+            `Si quiere que el equipo de ${pack.brand} continúe con usted, puede dejar un medio de contacto. Es opcional: si prefiere no hacerlo, su resumen queda guardado igual y esperamos a que vuelva a escribir. ¿Cómo prefiere que le contacten?`,
+            `Si quieres que el equipo de ${pack.brand} continúe contigo, puedes dejar un medio de contacto. Es opcional: si prefieres no hacerlo, tu resumen queda guardado igual y esperamos a que vuelvas a escribir. ¿Cómo prefieres que te contacten?`,
+          ),
+        );
       }
-      break;
-    }
-    case "qualBudget": {
-      const budget = (Object.keys(BUDGET_LABEL) as Budget[]).find((id) => id === value);
-      if (!budget) return { state, say };
-      next = { ...state, budget, step: "qualTimeline" };
-      text(t("¿Para cuándo le gustaría empezar?", "¿Para cuándo te gustaría empezar?"));
-      break;
-    }
-    case "qualTimeline": {
-      const timeline = (Object.keys(TIMELINE_LABEL) as Timeline[]).find((id) => id === value);
-      if (!timeline) return { state, say };
-      next = { ...state, timeline, step: "qualRole" };
-      text(t("¿Qué papel tiene en la decisión?", "¿Qué papel tienes en la decisión?"));
-      break;
-    }
-    case "qualRole": {
-      const role = (Object.keys(ROLE_LABEL) as DecisionRole[]).find((id) => id === value);
-      if (!role) return { state, say };
-      next = { ...state, role, step: "contactMethod" };
-      text(t("Gracias. ¿Cómo prefiere que le contacte el equipo de Nova?", "Gracias. ¿Cómo prefieres que te contacte el equipo de Nova?"));
       break;
     }
     case "contactMethod": {
@@ -404,6 +368,7 @@ export function advance(state: ChatState, input: string, pack: ClientPack, persi
 export function buildHandoff(state: ChatState, pack: ClientPack): Handoff {
   const answers = isAuditComplete(state.answers) ? state.answers : undefined;
   const result = answers ? runAudit(answers) : undefined;
+  // Only a conversation that ALREADY carries the three old answers keeps its old score. Nothing is asked, assumed or inferred for the others (and the role someone has in KYNOVA says nothing about who decides).
   const qualification = state.budget && state.timeline && state.role ? qualifyLead({ budget: state.budget, timeline: state.timeline, decisionRole: state.role, hasContact: Boolean(state.contact) }) : undefined;
   const method = state.contactMethod && state.contactMethod !== "none" ? state.contactMethod : null;
   const reasons: string[] = [];
@@ -419,14 +384,20 @@ export function buildHandoff(state: ChatState, pack: ClientPack): Handoff {
     route = "human";
     reasons.push("Pregunta sin respuesta aprobada: necesita a una persona.");
   } else {
-    route = qualification?.grade ?? "cold";
-    reasons.push(`Prospecto ${{ hot: "caliente", warm: "tibio", cold: "frío" }[route as "hot" | "warm" | "cold"]} (${qualification?.points ?? 0} puntos).`);
+    // Without sales data the temperature is not judged: finishing the diagnosis is the interest the person showed, so the team treats it as a warm prospect. Not leaving a contact does not lower it.
+    route = qualification?.grade ?? "warm";
+    if (qualification) reasons.push(`Prospecto ${{ hot: "caliente", warm: "tibio", cold: "frío" }[route as "hot" | "warm" | "cold"]} (${qualification.points} puntos).`);
+    else reasons.push("Completó el diagnóstico y contó su prioridad: el equipo puede continuar con eso.", "No se le preguntó presupuesto, plazo ni quién decide: no se usaron para clasificarlo.");
   }
   if (!state.contact) reasons.push("No dejó un medio de contacto: no se le puede escribir.");
 
+  const services = result ? buildSummary(result, { catalog: pack.catalog }).services.map((service) => service.serviceId) : [];
+  const firstService = services[0] ? pack.services[services[0]]?.name : undefined;
   const nextStep =
     !state.contact && route !== "human"
       ? NO_CONTACT_ACTION
+      : !qualification && route === "warm"
+      ? `Contactar y proponer una llamada${firstService ? ` para hablar de ${firstService}` : ""}${state.challenge && state.challenge !== "unsure" ? ` (su prioridad: ${CHALLENGE_LABEL[state.challenge]})` : ""}.`
       : route === "hot"
       ? "Contactar cuanto antes y proponer una llamada."
       : route === "warm"
@@ -444,7 +415,7 @@ export function buildHandoff(state: ChatState, pack: ClientPack): Handoff {
     business: { name: state.businessName, challenge: state.challenge ? CHALLENGE_LABEL[state.challenge] : undefined },
     question: state.question,
     audit: result && answers ? { score: result.score, band: result.band, infrastructure: result.infrastructure, topGaps: result.gaps.slice(0, 3).map((gap) => gap.dimension), answers } : undefined,
-    services: result ? buildSummary(result, { catalog: pack.catalog }).services.map((service) => service.serviceId) : [],
+    services,
     qualification,
     nextStep,
   };

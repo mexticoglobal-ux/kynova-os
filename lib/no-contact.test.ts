@@ -20,8 +20,8 @@ const level = AUDIT_DIMENSIONS.map(() => "none");
 const texts = (said: Say[]) => said.map((s) => (s.kind === "text" ? s.text : "")).join(" ");
 const handoffOf = (said: Say[]) => said.flatMap((s) => (s.kind === "handoff" ? [s.handoff] : []))[0];
 
-const WITHOUT_CONTACT = ["audit", "Ana", "Café Sol", "moreClients", ...level, "high", "now", "owner", "none"];
-const WITH_CONTACT = ["audit", "Ana", "Café Sol", "moreClients", ...level, "high", "now", "owner", "email", "ana@cafesol.example"];
+const WITHOUT_CONTACT = ["audit", "Ana", "Café Sol", "moreClients", ...level, "none"];
+const WITH_CONTACT = ["audit", "Ana", "Café Sol", "moreClients", ...level, "email", "ana@cafesol.example"];
 
 describe("a prospect who left no way to reach them", () => {
   it("is not promised a call or a message: the next step and the closing say so", () => {

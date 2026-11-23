@@ -40,14 +40,11 @@ describe("Guided chat", () => {
     expect(result).toHaveTextContent("Café Sol está empezando a construir su base digital");
     expect(result).toHaveTextContent("Lo primero que recomiendo");
 
-    await choose("Un presupuesto amplio");
-    await choose("Lo antes posible");
-    await choose("Yo tomo la decisión");
     await choose("Por correo electrónico");
     await type(/Escriba su correo electrónico/, "ana@cafesol.com");
 
     const handoff = await screen.findByTestId("handoff", {}, { timeout: 4000 });
-    expect(handoff).toHaveTextContent("Prospecto caliente");
+    expect(handoff).toHaveTextContent("Completó el diagnóstico");
     expect(handoff).toHaveTextContent("ana@cafesol.com");
     expect(handoff).toHaveTextContent("Business Score");
     expect(screen.getByText(/no se envió nada/)).toBeInTheDocument();

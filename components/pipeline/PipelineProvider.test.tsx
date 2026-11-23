@@ -34,7 +34,7 @@ function Probe({ onReady }: { onReady: (value: ReturnType<typeof usePipeline>) =
 }
 
 function finished(): ChatState {
-  const inputs = ["audit", "Ana", "Café Sol", "moreClients", ...AUDIT_DIMENSIONS.map(() => "none"), "high", "now", "owner", "email", "ana@cafesol.example"];
+  const inputs = ["audit", "Ana", "Café Sol", "moreClients", ...AUDIT_DIMENSIONS.map(() => "none"), "email", "ana@cafesol.example"];
   let state = initialState("usted");
   for (const input of inputs) state = advance(state, input, pack).state;
   return state;
