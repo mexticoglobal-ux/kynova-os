@@ -51,6 +51,21 @@ describe("Guided chat", () => {
     expect(await screen.findByRole("button", { name: "Empezar de nuevo" })).toBeInTheDocument();
   }, 30000);
 
+  it("a diagnosis that ends with no contact is titled 'En espera: sin medio de contacto', not as a call to propose", async () => {
+    setup();
+    await choose("Quiero un diagnóstico de mi negocio");
+    await type(/Escriba su nombre/, "Luis");
+    await type(/Nombre de su negocio/, "Taller Norte");
+    await choose("Conseguir más clientes");
+    for (const dimension of AUDIT_DIMENSIONS) await choose(DIMENSION_COPY[dimension].options.none);
+    await screen.findByTestId("result", {}, { timeout: 4000 });
+    await choose("Prefiero no dejar mi contacto");
+    const handoff = await screen.findByTestId("handoff", {}, { timeout: 4000 });
+    expect(handoff).toHaveTextContent("En espera: sin medio de contacto");
+    expect(handoff).toHaveTextContent("Sin medio de contacto: esperar a que el prospecto vuelva a escribir");
+    expect(handoff).not.toHaveTextContent(/proponer una llamada/);
+  }, 30000);
+
   it("rejects an invalid email without moving on", async () => {
     setup();
     await choose("Prefiero hablar con una persona");

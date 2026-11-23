@@ -23,6 +23,10 @@ const ROUTE_LABEL: Record<Route, string> = {
   human: "Lo atiende una persona",
 };
 
+// What the handoff card says it is. A prospect nobody can write to is "En espera" (the same words as the next action and the lead in Ventas), whatever the route: a title that proposes a call would promise what cannot be done.
+const WAITING_LABEL = "En espera: sin medio de contacto";
+const routeLabel = (handoff: Handoff): string => (!handoff.contact && handoff.route !== "human" ? WAITING_LABEL : ROUTE_LABEL[handoff.route]);
+
 const METHOD_NAME = { email: "Correo", whatsapp: "WhatsApp", phone: "Teléfono" } as const;
 
 // Pace of NEX's messages, so the conversation reads like someone working and not like a page that appears at once.
@@ -247,7 +251,7 @@ function HandoffCard({ handoff, pack }: { handoff: Handoff; pack: ClientPack }) 
   return (
     <section className="w-full rounded-2xl border border-primary/30 bg-primary/10 p-4" data-testid="handoff" aria-label="Traspaso para el equipo">
       <p className="text-xs uppercase tracking-wide text-primary-soft">{`Traspaso para ${pack.brand}`}</p>
-      <h3 className="mt-1 font-medium">{ROUTE_LABEL[handoff.route]}</h3>
+      <h3 className="mt-1 font-medium">{routeLabel(handoff)}</h3>
       <dl className="mt-3 grid gap-2 text-sm">
         {rows.map(([label, value]) => (
           <div key={label} className="grid gap-0.5 sm:grid-cols-[9rem_1fr] sm:gap-3">
