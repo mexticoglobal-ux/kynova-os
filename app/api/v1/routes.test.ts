@@ -14,6 +14,7 @@ import { POST as postProspect } from "./prospects/route";
 import { POST as postClient, GET as getClients } from "./clients/route";
 import { PATCH as patchClient } from "./clients/[id]/route";
 import { POST as winLead } from "./leads/[id]/win/route";
+import { PATCH as patchLeadStatus } from "./leads/[id]/status/route";
 import { POST as decide } from "./approvals/[id]/route";
 import { POST as postCompany } from "./companies/route";
 import { DELETE as deleteCompany } from "./companies/[id]/route";
@@ -95,6 +96,14 @@ describe("clients", () => {
   it("archives through a patch and never deletes", async () => {
     expect((await patchClient(post(`/api/v1/clients/${ID}`, { tenantId: T, status: "inactive" }, "PATCH"), params({ id: ID }))).status).toBe(200);
     expect(mocks.rpc).toHaveBeenCalledWith("update_client", { p_customer: ID, p: { status: "inactive" } });
+  });
+});
+
+describe("PATCH /api/v1/leads/:id/status", () => {
+  it("records the follow-up through advance_lead and refuses a status that is not allowed", async () => {
+    expect((await patchLeadStatus(post(`/api/v1/leads/${ID}/status`, { status: "working" }, "PATCH"), params({ id: ID }))).status).toBe(200);
+    expect(mocks.rpc).toHaveBeenCalledWith("advance_lead", { p_lead: ID, p_status: "working", p_reason: null });
+    expect((await patchLeadStatus(post(`/api/v1/leads/${ID}/status`, { status: "converted" }, "PATCH"), params({ id: ID }))).status).toBe(400);
   });
 });
 

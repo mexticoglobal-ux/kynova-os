@@ -88,3 +88,21 @@ describe("digestFromServer", () => {
     expect(result.total).toBe(5);
   });
 });
+
+describe("a prospect the team is following up", () => {
+  const NOW = new Date("2026-11-07T00:00:00Z");
+  const SESSION = new Date("2026-11-07T00:00:00Z");
+  it("carries the recorded follow-up from the database status, and only from it", () => {
+    expect(leadFromDto(dto({ status: "working" }), pack, SESSION, NOW).inFollowUp).toBe(true);
+    expect(leadFromDto(dto({ status: "new" }), pack, SESSION, NOW).inFollowUp).toBe(false);
+    expect(leadFromDto(dto({ status: "qualified" }), pack, SESSION, NOW).inFollowUp).toBe(false);
+  });
+
+  it("a prospect without any contact keeps its waiting action, followed up or not (nothing invented)", () => {
+    for (const status of ["new", "working"] as const) {
+      const lead = leadFromDto(dto({ status, email: null, phone: null }), pack, SESSION, NOW);
+      expect(lead.contact).toBeNull();
+      expect(lead.nextAction).toBe("Sin medio de contacto: esperar a que el prospecto vuelva a escribir");
+    }
+  });
+});

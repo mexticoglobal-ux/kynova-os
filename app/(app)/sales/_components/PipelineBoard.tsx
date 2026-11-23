@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import clsx from "clsx";
-import { Bot, CalendarCheck, ChevronDown, ChevronUp, Inbox, ShieldCheck, Sparkles, UserCheck } from "lucide-react";
+import { Bot, CalendarCheck, ChevronDown, ChevronUp, ClipboardCheck, Inbox, ShieldCheck, Sparkles, UserCheck } from "lucide-react";
 import type { Lead, Priority } from "@/lib/contracts/pipeline";
 import { executiveSummary } from "@/lib/pipeline";
 import { CHANNEL_LABEL, GRADE_LABEL, METHOD_LABEL, PRIORITY_LABEL, STAGE_LABEL } from "@/lib/pipeline-copy";
@@ -71,7 +71,7 @@ export function PipelineBoard() {
 }
 
 function LeadCard({ lead, open, onToggle, packBrand, index }: { lead: Lead; open: boolean; onToggle: () => void; packBrand: string; index: number }) {
-  const { pack, approveMeeting, discardMeeting, winLead, canWrite, canDecide, mode } = usePipeline();
+  const { pack, approveMeeting, discardMeeting, winLead, startFollowUp, canWrite, canDecide, mode } = usePipeline();
   const ref = useRef<HTMLLIElement>(null);
   const [confirmingWin, setConfirmingWin] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -79,6 +79,8 @@ function LeadCard({ lead, open, onToggle, packBrand, index }: { lead: Lead; open
     if (open) ref.current?.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
   }, [open]);
   const brief = executiveSummary(lead, pack);
+  // A prospect with no way to be reached stays "En espera" until they write again, whatever the team records: nothing can be sent to them.
+  const waiting = !lead.contact && lead.grade !== "human";
 
   async function run(action: () => Promise<void>) {
     setBusy(true);
@@ -105,6 +107,17 @@ function LeadCard({ lead, open, onToggle, packBrand, index }: { lead: Lead; open
               <Badge tone="primary" className="ml-2">
                 Nuevo
               </Badge>
+            )}
+            {waiting ? (
+              <Badge tone="warning" className="ml-2">
+                En espera
+              </Badge>
+            ) : (
+              lead.inFollowUp && (
+                <Badge tone="success" className="ml-2">
+                  En seguimiento
+                </Badge>
+              )
             )}
           </h3>
           <p className="text-xs text-ink-muted">{`${CHANNEL_LABEL[lead.channel]} · ${GRADE_LABEL[lead.grade]}`}</p>
@@ -138,6 +151,12 @@ function LeadCard({ lead, open, onToggle, packBrand, index }: { lead: Lead; open
           {open ? "Ocultar resumen ejecutivo" : "Ver resumen ejecutivo"}
           {open ? <ChevronUp aria-hidden className="h-4 w-4" /> : <ChevronDown aria-hidden className="h-4 w-4" />}
         </button>
+        {canWrite && lead.stage !== "won" && !lead.inFollowUp && (
+          <Button variant="secondary" disabled={busy} onClick={() => void run(() => startFollowUp(lead.id))}>
+            <ClipboardCheck aria-hidden className="h-4 w-4" />
+            {busy ? "Registrando…" : "Registrar seguimiento"}
+          </Button>
+        )}
         {canWrite && lead.stage !== "won" && lead.grade !== "human" && (
           <>
             {confirmingWin ? (
@@ -159,6 +178,13 @@ function LeadCard({ lead, open, onToggle, packBrand, index }: { lead: Lead; open
           </>
         )}
       </div>
+      {lead.stage !== "won" && (lead.inFollowUp || waiting) && (
+        <p className="mt-2 text-xs text-ink-muted" data-testid="follow-up-note">
+          {waiting
+            ? `${lead.inFollowUp ? "Seguimiento registrado. " : ""}Sin medio de contacto: sigue en espera hasta que el prospecto vuelva a escribir. Registrar el seguimiento no envía nada.`
+            : "Seguimiento registrado: el equipo está trabajando este prospecto. No se envió ningún mensaje."}
+        </p>
+      )}
       {confirmingWin && <p className="mt-2 text-xs text-ink-muted">Crea la oportunidad, la marca como ganada y registra al cliente. Es una decisión comercial: la tomas tú.</p>}
 
       {open && (

@@ -36,6 +36,8 @@ type PipelineContextValue = {
   approveMeeting: (id: string) => Promise<void>;
   discardMeeting: (id: string) => Promise<void>;
   winLead: (id: string) => Promise<void>;
+  /** Marks a prospect as being followed up by the team (PATCH /api/v1/leads/:id/status, status "working"). It does not contact the prospect. */
+  startFollowUp: (id: string) => Promise<void>;
   refresh: () => Promise<void>;
 };
 
@@ -83,6 +85,7 @@ function DemoPipeline({ children, pack, seed }: { children: ReactNode; pack: Cli
       approveMeeting: async (id) => setLeads((current) => approveMeeting(current, id)),
       discardMeeting: async (id) => setLeads((current) => discardMeeting(current, id)),
       winLead: async (id) => setLeads((current) => current.map((lead) => (lead.id === id ? { ...lead, stage: "won", approval: null, nextAction: "Cliente: dar la bienvenida" } : lead))),
+      startFollowUp: async (id) => setLeads((current) => current.map((lead) => (lead.id === id ? { ...lead, inFollowUp: true } : lead))),
       refresh: async () => undefined,
     }),
     [pack, leads, focusId],
@@ -170,6 +173,7 @@ function BackendPipeline({ children, pack, tenantId }: { children: ReactNode; pa
         if (lead?.approvalId) await act(`/api/v1/approvals/${lead.approvalId}`, { approve: false });
       },
       winLead: async (id) => void (await act(`/api/v1/leads/${id}/win`, {})),
+      startFollowUp: async (id) => void (await act(`/api/v1/leads/${id}/status`, { status: "working" }, "PATCH")),
       refresh,
     };
   }, [pack, leads, server, loading, error, session, focusId, tenantId, refresh, act]);

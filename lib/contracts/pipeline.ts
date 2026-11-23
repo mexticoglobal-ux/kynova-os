@@ -68,6 +68,8 @@ export type Lead = {
   approval: MeetingApproval | null;
   // The database id of the pending approval (backend mode only).
   approvalId?: string;
+  // The team has started working this prospect (status "working"): a decision of the team, recorded in the activity log. It sends nothing to the prospect.
+  inFollowUp?: boolean;
 };
 
 // Normalised shape every conversation channel must produce. The web chat's handoff already has it (see lib/pipeline.ts).

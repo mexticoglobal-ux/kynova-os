@@ -49,6 +49,7 @@ export function leadFromDto(dto: LeadDto, pack: ClientPack, sessionStartedAt: Da
     challenge: dto.challenge ?? undefined,
     question: dto.question ?? undefined,
     stage: stageOf(dto, now),
+    inFollowUp: dto.status === "working",
     // A lead stored before the rule existed may still say to call or write: without a contact it cannot be done.
     nextAction: !contact && grade !== "human" ? NO_CONTACT_ACTION : (dto.nextActionText ?? "Decidir cómo continuar con este prospecto"),
     owner: dto.ownerName ?? (grade === "hot" || grade === "human" ? OWNER_TEAM : OWNER_NEX),

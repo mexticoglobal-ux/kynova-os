@@ -97,6 +97,21 @@ describe("pipeline in backend mode", () => {
     ]);
   });
 
+  it("records a follow-up with the status route and reloads from the server, so it survives a refresh of the page", async () => {
+    let value!: ReturnType<typeof usePipeline>;
+    render(
+      <PipelineProvider backend={{ tenantId: T }} seed={false}>
+        <Probe onReady={(v) => (value = v)} />
+      </PipelineProvider>,
+    );
+    await screen.findByText("1 leads");
+    calls.length = 0;
+    await act(async () => value.startFollowUp("l1"));
+    expect(calls.filter((call) => call.method === "PATCH").map((call) => [call.path, call.body])).toEqual([["/api/v1/leads/l1/status", { status: "working" }]]);
+    // after the change the leads are read again from the API, not kept in memory
+    expect(calls.some((call) => call.method === "GET" && call.path === `/api/v1/leads?tenantId=${T}`)).toBe(true);
+  });
+
   it("shows an understandable error when the server refuses", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 403, json: async () => ({ error: "forbidden" }) }) as Response));
     let value!: ReturnType<typeof usePipeline>;
