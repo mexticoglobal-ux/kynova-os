@@ -33,6 +33,9 @@ function installServer() {
   return { calls, status };
 }
 
+/** The text of a card's "Estado" field. */
+const estado = (id: string): string => within(screen.getByTestId(`lead-${id}`)).getByText("Estado").parentElement?.querySelector("dd")?.textContent ?? "";
+
 const mount = () => render(<PipelineProvider backend={{ tenantId: T }} seed={false}><PipelineBoard /></PipelineProvider>);
 const card = (id: string) => screen.findByTestId(`lead-${id}`);
 
@@ -44,16 +47,21 @@ describe("Ventas: registrar el seguimiento de un prospecto y conservarlo al reca
     const { calls } = installServer();
     mount();
     const first = within(await card("l1"));
-    expect(first.queryByText("En seguimiento")).toBeNull();
+    expect(first.queryByText("En seguimiento", { selector: "span" })).toBeNull();
+    expect(estado("l1")).toBe("Nuevo");
     await userEvent.click(first.getByRole("button", { name: "Registrar seguimiento" }));
-    await waitFor(() => expect(within(screen.getByTestId("lead-l1")).getByText("En seguimiento")).toBeInTheDocument());
+    await waitFor(() => expect(estado("l1")).toBe("En seguimiento"));
+    expect(within(screen.getByTestId("lead-l1")).getByText("En seguimiento", { selector: "span" })).toBeInTheDocument();
     expect(calls.filter((call) => call.method === "PATCH")).toEqual([{ path: "/api/v1/leads/l1/status", method: "PATCH", body: { status: "working" } }]);
     expect(within(screen.getByTestId("lead-l1")).queryByRole("button", { name: "Registrar seguimiento" })).toBeNull();
+    // the field "Estado" says it too (it used to keep saying "Nuevo")
+    expect(estado("l1")).toBe("En seguimiento");
     expect(screen.getByTestId("lead-l1").textContent).toContain("No se envió ningún mensaje");
     // reload: a new mount reads the status the server kept
     cleanup();
     mount();
-    expect(within(await card("l1")).getByText("En seguimiento")).toBeInTheDocument();
+    expect(within(await card("l1")).getByText("En seguimiento", { selector: "span" })).toBeInTheDocument();
+    expect(estado("l1")).toBe("En seguimiento"); // read from the stored status after the reload
     expect(screen.queryByText(/enviado a|mensaje enviado/i)).toBeNull();
   });
 
@@ -61,18 +69,21 @@ describe("Ventas: registrar el seguimiento de un prospecto y conservarlo al reca
     installServer();
     mount();
     const waiting = within(await card("l2"));
-    expect(waiting.getByText("En espera")).toBeInTheDocument();
+    expect(waiting.getByText("En espera", { selector: "span" })).toBeInTheDocument();
+    expect(estado("l2")).toBe("En espera");
     expect(waiting.getByText(/sin contacto/)).toBeInTheDocument();
     await userEvent.click(waiting.getByRole("button", { name: "Registrar seguimiento" }));
     await waitFor(() => expect(screen.getByTestId("lead-l2").textContent).toContain("Seguimiento registrado"));
     const after = within(screen.getByTestId("lead-l2"));
-    expect(after.getByText("En espera")).toBeInTheDocument();
+    expect(after.getByText("En espera", { selector: "span" })).toBeInTheDocument();
+    expect(estado("l2")).toBe("En espera");
     expect(after.queryByText("En seguimiento")).toBeNull();
     expect(screen.getByTestId("lead-l2").textContent).toContain("Registrar el seguimiento no envía nada");
     cleanup();
     mount();
     const reloaded = within(await card("l2"));
-    expect(reloaded.getByText("En espera")).toBeInTheDocument();
+    expect(reloaded.getByText("En espera", { selector: "span" })).toBeInTheDocument();
+    expect(estado("l2")).toBe("En espera");
     expect(screen.getByTestId("lead-l2").textContent).toContain("Sin medio de contacto: esperar a que el prospecto vuelva a escribir");
   });
 

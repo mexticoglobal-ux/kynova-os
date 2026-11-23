@@ -128,7 +128,7 @@ function LeadCard({ lead, open, onToggle, packBrand, index }: { lead: Lead; open
       <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 lg:grid-cols-4">
         <Field label="Contacto">{lead.contact ? `${lead.contactName} · ${METHOD_LABEL[lead.contact.method]}` : `${lead.contactName} · sin contacto`}</Field>
         <Field label="Business Score">{lead.score !== null && lead.band ? `${lead.score} / 100 · ${BAND_COPY[lead.band].label}` : "Sin diagnóstico"}</Field>
-        <Field label="Estado">{STAGE_LABEL[lead.stage]}</Field>
+        <Field label="Estado">{waiting ? "En espera" : STAGE_LABEL[lead.stage]}</Field>
         <Field label="Responsable">{lead.owner}</Field>
         <Field label="Servicios recomendados" wide>
           {lead.services.length > 0 ? lead.services.map((id) => pack.services[id]?.name ?? id).join(", ") : "—"}
@@ -151,7 +151,7 @@ function LeadCard({ lead, open, onToggle, packBrand, index }: { lead: Lead; open
           {open ? "Ocultar resumen ejecutivo" : "Ver resumen ejecutivo"}
           {open ? <ChevronUp aria-hidden className="h-4 w-4" /> : <ChevronDown aria-hidden className="h-4 w-4" />}
         </button>
-        {canWrite && lead.stage !== "won" && !lead.inFollowUp && (
+        {canWrite && lead.stage !== "won" && lead.grade !== "human" && !lead.inFollowUp && (
           <Button variant="secondary" disabled={busy} onClick={() => void run(() => startFollowUp(lead.id))}>
             <ClipboardCheck aria-hidden className="h-4 w-4" />
             {busy ? "Registrando…" : "Registrar seguimiento"}

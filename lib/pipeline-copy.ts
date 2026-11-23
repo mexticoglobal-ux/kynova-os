@@ -4,6 +4,7 @@ import type { ChannelStatus, ConversationChannel, Grade, PaymentRail, Priority, 
 
 export const STAGE_LABEL: Record<Stage, string> = {
   new: "Nuevo",
+  following: "En seguimiento",
   needsFollowUp: "Necesita seguimiento",
   meetingRequested: "Reunión solicitada",
   won: "Cliente",

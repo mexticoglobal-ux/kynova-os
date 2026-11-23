@@ -11,11 +11,15 @@ import type { AuditBand, AuditDimension, Infrastructure } from "@/lib/contracts/
 const BANDS: readonly AuditBand[] = ["initial", "basic", "intermediate", "advanced"];
 const INFRA: readonly Infrastructure[] = ["none", "partial", "established"];
 
+/** The team recorded a follow-up: stored status "working". A lead that asked for a person is stored as "working" from the start, which is not a follow-up anyone recorded for it. */
+const followedUp = (dto: LeadDto): boolean => dto.status === "working" && dto.grade !== "human";
+
 function stageOf(dto: LeadDto, now: Date): Stage {
   if (dto.status === "converted") return "won";
   if (dto.status === "working" && dto.meetingApproved) return "meetingRequested";
   const due = dto.nextActionAt ? new Date(dto.nextActionAt).getTime() : null;
   if (dto.status !== "new" && due !== null && due < now.getTime()) return "needsFollowUp";
+  if (followedUp(dto)) return "following";
   return "new";
 }
 
@@ -49,7 +53,7 @@ export function leadFromDto(dto: LeadDto, pack: ClientPack, sessionStartedAt: Da
     challenge: dto.challenge ?? undefined,
     question: dto.question ?? undefined,
     stage: stageOf(dto, now),
-    inFollowUp: dto.status === "working",
+    inFollowUp: followedUp(dto),
     // A lead stored before the rule existed may still say to call or write: without a contact it cannot be done.
     nextAction: !contact && grade !== "human" ? NO_CONTACT_ACTION : (dto.nextActionText ?? "Decidir cómo continuar con este prospecto"),
     owner: dto.ownerName ?? (grade === "hot" || grade === "human" ? OWNER_TEAM : OWNER_NEX),

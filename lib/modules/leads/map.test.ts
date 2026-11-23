@@ -106,3 +106,24 @@ describe("a prospect the team is following up", () => {
     }
   });
 });
+
+describe("the stage a card shows for a followed-up prospect", () => {
+  const NOW = new Date("2026-11-07T00:00:00Z");
+  const SESSION = new Date("2026-11-07T00:00:00Z");
+  it("a recorded follow-up (stored status working) is the stage 'following', so the Estado is not 'Nuevo' after a reload", () => {
+    expect(leadFromDto(dto({ status: "new", grade: "warm" }), pack, SESSION, NOW).stage).toBe("new");
+    expect(leadFromDto(dto({ status: "working", grade: "warm" }), pack, SESSION, NOW).stage).toBe("following");
+  });
+
+  it("a prospect that asked for a person is stored as working from the start: that is not a follow-up recorded for it", () => {
+    const lead = leadFromDto(dto({ status: "working", grade: "human" }), pack, SESSION, NOW);
+    expect(lead.stage).toBe("new");
+    expect(lead.inFollowUp).toBe(false);
+  });
+
+  it("keeps the stages that outrank it: an approved meeting, an overdue next action and a customer", () => {
+    expect(leadFromDto(dto({ status: "working", meetingApproved: true }), pack, SESSION, NOW).stage).toBe("meetingRequested");
+    expect(leadFromDto(dto({ status: "working", nextActionAt: "2026-11-01T00:00:00Z" }), pack, SESSION, NOW).stage).toBe("needsFollowUp");
+    expect(leadFromDto(dto({ status: "converted" }), pack, SESSION, NOW).stage).toBe("won");
+  });
+});

@@ -27,7 +27,7 @@ export const CHANNEL_STATUS: Record<ConversationChannel | PaymentRail, ChannelSt
   sinpe: "planned",
 };
 
-export const STAGES = ["new", "needsFollowUp", "meetingRequested", "won"] as const;
+export const STAGES = ["new", "following", "needsFollowUp", "meetingRequested", "won"] as const;
 export type Stage = (typeof STAGES)[number];
 
 export const PRIORITIES = ["high", "medium", "low"] as const;
