@@ -1,6 +1,6 @@
 # Conexión real de un canal de YouTube (solo lectura)
 
-> Estado (2026-11-24): implementada, probada y **desplegada en Preview** (Worker `kynova-os-preview`, versión `76d21a3f`, ADR-0038). Las rutas nuevas responden, pero la conexión real **todavía no funciona** porque faltan: las variables de Supabase en Preview, la llave de servicio, la migración en la base de desarrollo y la configuración de Google. Los valores los escribe la persona responsable directamente en Cloudflare, Google y Supabase: nunca por chat.
+> Estado (2026-11-24): implementada, **desplegada en Preview** (Worker `kynova-os-preview`, versión `76d21a3f` al desplegar; ADR-0038) y con la **migración aplicada** en el Supabase de desarrollo. **YouTube todavía NO está conectado:** faltan cuatro valores en Preview (la llave publicable y la de servicio de Supabase y las dos de Google), la configuración de Google y completar el consentimiento hasta ver el nombre e id reales del canal. Los valores los escribe la persona responsable: nunca por chat.
 
 ## Qué hace
 - Un propietario o administrador pulsa **Conectar canal de YouTube** en `/platform/connected-apps`, autoriza en Google y vuelve a KYNOVA.
@@ -16,17 +16,17 @@
 | **URL de Preview** | `https://kynova-os-preview.novamarketingstudiocr.workers.dev` | `docs/STATE.md` (sección Plataforma) |
 | **Callback para Google (copiar tal cual)** | `https://kynova-os-preview.novamarketingstudiocr.workers.dev/api/v1/connections/youtube/callback` | URL + ruta del código |
 | Supabase de desarrollo | proyecto `hrridjfbrkewpengrmmh` (kynova-spike-desechable) | `docs/STATE.md`, Sprint 67 |
-| Secretos en Preview ahora | `SPIKE_SECRET_CANARY` y `KYNOVA_ENCRYPTION_KEY` (nombres leídos con `npx wrangler secret list --env preview`; nunca los valores) | Cloudflare, 2026-11-24 |
-| Variables de Supabase en Preview | **ninguna** (`SUPABASE_URL` y `SUPABASE_PUBLISHABLE_KEY` no figuran en la versión activa) | `wrangler versions view`, 2026-11-24 |
+| Secretos en Preview ahora (solo nombres) | `KYNOVA_ENCRYPTION_KEY`, `SPIKE_SECRET_CANARY`, `SUPABASE_URL` | `wrangler secret list`, 2026-11-24 |
+| Faltan en Preview | `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | — |
 | Versión activa de Preview | `76d21a3f-6725-49c4-84ac-65741ff7231a` (desplegada por el flujo `deploy-preview` desde `042e1b5`) | Cloudflare |
 
 Estado real del entorno (verificado el 2026-11-24):
 - **`KYNOVA_ENCRYPTION_KEY`: creada hoy** en Preview con una llave AES-256 generada en el momento y enviada directamente a Cloudflare, **sin imprimirla ni guardarla en ningún lado**. Antes no existía ninguna, así que no se reemplazó ni se rotó nada, y ninguna ruta ni pantalla cifraba datos con ella (el cifrado del Backend Core, incluido `lib/backend/integration/archive.ts`, es una biblioteca que nadie usa todavía: si algún día se conecta compartirá este nombre de llave y habrá que decidirlo con un ADR). **No existe copia de respaldo**: si algún día se pierde o se cambia, los permisos guardados dejan de abrirse y la pantalla pide autorizar de nuevo; no se pierde nada más.
-- **Faltan** `SUPABASE_SERVICE_ROLE_KEY`, `GOOGLE_CLIENT_ID` y `GOOGLE_CLIENT_SECRET`.
-- **Preview no tiene variables de Supabase** (`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`): por eso `/api/v1/me` y las rutas de YouTube responden `503 not_configured` y el inicio de sesión no puede funcionar todavía. Es un requisito previo de esta función (no de YouTube): sin sesión no hay quien conecte un canal.
-- **El código ya está en Preview**: `/login` y `/platform/connected-apps` responden 200 y las cinco rutas de YouTube existen (`503 not_configured` mientras falten las variables; nunca 404). Un POST a `start`, `verify` o `disconnect` sin configuración devuelve 503, no ejecuta nada.
+- `SUPABASE_URL` ya está guardada. Sin la llave publicable, `/api/v1/me` y las rutas de YouTube siguen respondiendo `503 not_configured` y no se puede iniciar sesión.
+- **El código ya está en Preview**: `/login` y `/platform/connected-apps` responden 200 y las cinco rutas de YouTube existen (nunca 404). Sin configuración, los POST a `start`, `verify` o `disconnect` devuelven 503 y no ejecutan nada.
 
 ## La migración y sus dependencias
+> **Ya aplicada** el 2026-11-24 (ver el paso 3). No volver a aplicarla; lo que sigue queda como registro de la comprobación previa.
 `supabase/migrations/20261128000100_connector_connections.sql` usa únicamente objetos de estas migraciones, que **ya están aplicadas** en el proyecto `hrridjfbrkewpengrmmh` según el registro del Sprint 67 (las ocho migraciones verificadas por ChatGPT con su conector de Supabase; no las verifiqué yo):
 - `20261031000000_tenancy_core.sql`: tablas `tenants` y `memberships`, función `private.touch_updated_at`.
 - `20261106000100_backend_foundations.sql`: `private.has_role`, `private.is_admin`, `private.protect_identity`, `private.audit_row` y la tabla `audit_log`.
@@ -52,23 +52,24 @@ Si algún valor no coincide, no se aplica: se revisa primero qué falta. Reversi
 3. «Credenciales → Crear credenciales → ID de cliente de OAuth» → **Aplicación web**. En «URI de redireccionamiento autorizados» pegar exactamente: `https://kynova-os-preview.novamarketingstudiocr.workers.dev/api/v1/connections/youtube/callback` (y, solo si vas a probar en tu máquina, `http://localhost:3000/api/v1/connections/youtube/callback`).
 4. Copiar el **ID de cliente** (termina en `.apps.googleusercontent.com`) y el **secreto de cliente**. No los pegues en el chat ni en ningún archivo del repositorio.
 
-### 2. Variables y secretos de Preview que faltan (los escribes tú; cada comando pide el valor sin mostrarlo)
+### 2. Los cuatro valores que faltan en Preview (entrada oculta; nunca por chat)
+Desde la raíz del repositorio (rama `feat/beta-dashboard-v1`), en PowerShell, con la sesión de Wrangler iniciada. Cada orden guarda **un** valor, no lo muestra ni lo escribe en ningún archivo, y **rechaza** un valor con forma equivocada (por ejemplo, una llave de servicio donde va la publicable, o de otro proyecto):
 ```
-npx wrangler secret put SUPABASE_URL --env preview
-npx wrangler secret put SUPABASE_PUBLISHABLE_KEY --env preview
-npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY --env preview
-npx wrangler secret put GOOGLE_CLIENT_ID --env preview
-npx wrangler secret put GOOGLE_CLIENT_SECRET --env preview
+powershell -ExecutionPolicy Bypass -File scripts/set-preview-secret.ps1 -Name SUPABASE_PUBLISHABLE_KEY -FromLocalEnv
+powershell -ExecutionPolicy Bypass -File scripts/set-preview-secret.ps1 -Name SUPABASE_SERVICE_ROLE_KEY
+powershell -ExecutionPolicy Bypass -File scripts/set-preview-secret.ps1 -Name GOOGLE_CLIENT_ID
+powershell -ExecutionPolicy Bypass -File scripts/set-preview-secret.ps1 -Name GOOGLE_CLIENT_SECRET
 ```
-- `SUPABASE_URL`: `https://hrridjfbrkewpengrmmh.supabase.co` (la dirección del proyecto de desarrollo; no es secreta). `SUPABASE_PUBLISHABLE_KEY`: la llave **publicable** de ese proyecto (Supabase → Project Settings → API; es pública por diseño, la protege el RLS).
-- `SUPABASE_SERVICE_ROLE_KEY`: la llave `service_role` del mismo proyecto. **Salta el RLS: solo en el servidor** y solo por este comando.
-- `GOOGLE_CLIENT_ID` y `GOOGLE_CLIENT_SECRET`: los del paso 1.
-- `KYNOVA_ENCRYPTION_KEY` **ya está** (no la repitas: reemplazarla invalidaría los permisos guardados).
-- Comprobar sin ver valores: `npx wrangler secret list --env preview` debe mostrar los cinco nombres nuevos más `KYNOVA_ENCRYPTION_KEY` y `SPIKE_SECRET_CANARY`.
+- La primera toma `SUPABASE_PUBLISHABLE_KEY` de tu `.env.local`; si no está ahí, quita `-FromLocalEnv` y pégala desde Supabase → Project Settings → API (`hrridjfbrkewpengrmmh`).
+- La segunda es la llave `service_role` (o `sb_secret_…`) del mismo proyecto: **salta el RLS**, solo en el servidor.
+- Las dos de Google salen del paso 1.
+- Alternativa sin el script: `npx wrangler secret put <NOMBRE> --env preview` (también oculta la entrada, sin comprobar la forma).
+- El script está comprobado solo en sintaxis; si falla, usa la alternativa y avisa.
+- **No ejecutes** nada para `KYNOVA_ENCRYPTION_KEY`: ya está y reemplazarla invalidaría los permisos guardados.
 - En Supabase (Authentication → URL Configuration), la URL de Preview debe figurar como **Site URL** o en «Redirect URLs», y el correo de inicio de sesión debe poder enviarse: con el SMTP por defecto de Supabase solo reciben correo los miembros del equipo del proyecto.
 
-### 3. Base de datos (migración remota: requiere tu aprobación explícita)
-Ejecutar la consulta de dependencias de arriba y, si coincide, aplicar `supabase/migrations/20261128000100_connector_connections.sql` en el SQL Editor del proyecto `hrridjfbrkewpengrmmh`. Después, verificar de forma de solo lectura que existen `public.oauth_states` y `public.connector_connections` con RLS activado y que `authenticated` y `anon` **no** pueden ejecutar `begin_connector_oauth`, `complete_connector_oauth`, `get_connector_secret`, `mark_connector_state` ni `disconnect_connector`.
+### 3. Base de datos — hecho
+La migración se aplicó en `hrridjfbrkewpengrmmh` (**verificado por ChatGPT con su conector de Supabase**, no por Claude): `20261128000100_connector_connections.sql` quedó registrada como **`20261124204920` — `connector_connections`**; tablas `oauth_states` y `connector_connections` con RLS, permisos de funciones comprobados, sin acceso directo para `anon`, `authenticated` ni `service_role`, ambas vacías. **No volver a aplicarla.**
 
 ### 4. Código en Preview — hecho
 Desplegado el 2026-11-24 por el flujo `deploy-preview` (Linux; el Worker no se puede compilar en Windows: módulo nativo `sharp`). Para volver a desplegar, el mismo disparador: un commit con `[deploy-preview]` en el mensaje empujado a `ci/linux-validation-on-main`. Los secretos nuevos se aplican por sí solos al guardarlos; no hace falta redesplegar.
