@@ -52,21 +52,24 @@ Si algún valor no coincide, no se aplica: se revisa primero qué falta. Reversi
 3. «Credenciales → Crear credenciales → ID de cliente de OAuth» → **Aplicación web**. En «URI de redireccionamiento autorizados» pegar exactamente: `https://kynova-os-preview.novamarketingstudiocr.workers.dev/api/v1/connections/youtube/callback` (y, solo si vas a probar en tu máquina, `http://localhost:3000/api/v1/connections/youtube/callback`).
 4. Copiar el **ID de cliente** (termina en `.apps.googleusercontent.com`) y el **secreto de cliente**. No los pegues en el chat ni en ningún archivo del repositorio.
 
-### 2. Los cuatro valores que faltan en Preview (entrada oculta; nunca por chat)
-Desde la raíz del repositorio (rama `feat/beta-dashboard-v1`), en PowerShell, con la sesión de Wrangler iniciada. Cada orden guarda **un** valor, no lo muestra ni lo escribe en ningún archivo, y **rechaza** un valor con forma equivocada (por ejemplo, una llave de servicio donde va la publicable, o de otro proyecto):
+### 2. Los cuatro valores que faltan en Preview (comando estándar de Wrangler; nunca por chat)
+Desde el **worktree correcto** (la carpeta de la rama `feat/beta-dashboard-v1`, la que tiene `wrangler.jsonc` con el entorno `preview`), con la sesión de Wrangler iniciada. Cada orden pide el valor sin mostrarlo y guarda **uno**:
 ```
-powershell -ExecutionPolicy Bypass -File scripts/set-preview-secret.ps1 -Name SUPABASE_PUBLISHABLE_KEY -FromLocalEnv
-powershell -ExecutionPolicy Bypass -File scripts/set-preview-secret.ps1 -Name SUPABASE_SERVICE_ROLE_KEY
-powershell -ExecutionPolicy Bypass -File scripts/set-preview-secret.ps1 -Name GOOGLE_CLIENT_ID
-powershell -ExecutionPolicy Bypass -File scripts/set-preview-secret.ps1 -Name GOOGLE_CLIENT_SECRET
+npx wrangler secret put SUPABASE_PUBLISHABLE_KEY --env preview
+npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY --env preview
+npx wrangler secret put GOOGLE_CLIENT_ID --env preview
+npx wrangler secret put GOOGLE_CLIENT_SECRET --env preview
 ```
-- La primera toma `SUPABASE_PUBLISHABLE_KEY` de tu `.env.local`; si no está ahí, quita `-FromLocalEnv` y pégala desde Supabase → Project Settings → API (`hrridjfbrkewpengrmmh`).
-- La segunda es la llave `service_role` (o `sb_secret_…`) del mismo proyecto: **salta el RLS**, solo en el servidor.
+- `SUPABASE_PUBLISHABLE_KEY`: la llave **publicable** (o `anon`) de `hrridjfbrkewpengrmmh` (Supabase → Project Settings → API).
+- `SUPABASE_SERVICE_ROLE_KEY`: la llave `service_role` (o `sb_secret_…`) del mismo proyecto: **salta el RLS**, solo en el servidor. El comando estándar **no comprueba la forma**: cuida no intercambiarla con la publicable.
 - Las dos de Google salen del paso 1.
-- Alternativa sin el script: `npx wrangler secret put <NOMBRE> --env preview` (también oculta la entrada, sin comprobar la forma).
-- El script está comprobado solo en sintaxis; si falla, usa la alternativa y avisa.
-- **No ejecutes** nada para `KYNOVA_ENCRYPTION_KEY`: ya está y reemplazarla invalidaría los permisos guardados.
-- En Supabase (Authentication → URL Configuration), la URL de Preview debe figurar como **Site URL** o en «Redirect URLs», y el correo de inicio de sesión debe poder enviarse: con el SMTP por defecto de Supabase solo reciben correo los miembros del equipo del proyecto.
+- Comprobar solo nombres: `npx wrangler secret list --env preview`.
+- **No ejecutes** nada para `KYNOVA_ENCRYPTION_KEY` ni `SUPABASE_URL`: ya están.
+- Existe además `scripts/set-preview-secret.ps1`, **no probado** (solo se revisó su sintaxis; nunca se ha ejecutado): no es la vía recomendada.
+
+#### Redirección de autenticación en Supabase — ya estaba
+El inicio de sesión de la app (`/login`) usa un **código por correo** (`signInWithOtp` sin dirección de retorno). El único callback de autenticación con redirección es `<origen>/api/spike/auth/callback` (enlace mágico). La URL exacta de Preview **ya figura** en Authentication → URL Configuration → Redirect URLs: `https://kynova-os-preview.novamarketingstudiocr.workers.dev/api/spike/auth/callback`, junto a `http://localhost:3000/api/spike/auth/callback` y `http://127.0.0.1:8787/api/spike/auth/callback` (comprobado el 2026-11-24 en el panel; **no se cambió nada**, el Site URL sigue en `http://localhost:3000`). Observación sin corregir: el código admite `http://localhost:8787` y en Supabase está la variante `127.0.0.1:8787` (solo afecta a la prueba local con `wrangler dev`).
+Con el correo por defecto de Supabase solo reciben el código los miembros del equipo del proyecto; la plantilla del correo debe incluir el código (no se revisó).
 
 ### 3. Base de datos — hecho
 La migración se aplicó en `hrridjfbrkewpengrmmh` (**verificado por ChatGPT con su conector de Supabase**, no por Claude): `20261128000100_connector_connections.sql` quedó registrada como **`20261124204920` — `connector_connections`**; tablas `oauth_states` y `connector_connections` con RLS, permisos de funciones comprobados, sin acceso directo para `anon`, `authenticated` ni `service_role`, ambas vacías. **No volver a aplicarla.**
