@@ -8,17 +8,19 @@ afterEach(cleanup);
 const row = (label: string) => screen.getByRole("table", { name: "Aplicaciones conectadas" }).querySelector(`tr:has(button[aria-label$="${label}"])`) as HTMLElement;
 
 describe("ConnectedApps", () => {
-  it("lists the twelve apps as disconnected, says nothing is contacted or stored, and shows the health of the eight provider groups", () => {
+  it("lists the eleven simulated apps as disconnected (YouTube has its own real connection), says nothing is contacted or stored, and shows the health of the eight provider groups", () => {
     render(<ConnectedApps />);
-    expect(screen.getByText(/0 de 12 conectadas/)).toBeTruthy();
+    expect(screen.getByText(/0 de 11 conectadas/)).toBeTruthy();
     expect(screen.getByText(/no se contacta a ningún proveedor ni se guarda ninguna credencial/)).toBeTruthy();
     const table = screen.getByRole("table", { name: "Aplicaciones conectadas" });
-    expect(within(table).getAllByText("Desconectada")).toHaveLength(12);
+    expect(within(table).getAllByText("Desconectada")).toHaveLength(11);
     for (const header of ["Aplicación", "Estado", "Última sincronización", "Permisos", "Empresa"]) expect(within(table).getByRole("columnheader", { name: header })).toBeTruthy();
     const health = within(screen.getByRole("list", { name: "Salud por proveedor" }));
-    for (const name of ["Google", "Microsoft", "Meta", "YouTube", "WhatsApp", "LinkedIn", "TikTok", "Drive"]) expect(health.getByText(name)).toBeTruthy();
-    expect(health.getAllByText("Operativo")).toHaveLength(8);
-    for (const name of ["Gmail", "Outlook", "Google Calendar", "Microsoft Calendar", "Google Drive", "OneDrive", "WhatsApp Business", "Facebook Pages", "Instagram Business", "LinkedIn Company", "YouTube", "TikTok Business"]) {
+    for (const name of ["Google", "Microsoft", "Meta", "WhatsApp", "LinkedIn", "TikTok", "Drive"]) expect(health.getByText(name)).toBeTruthy();
+    expect(health.queryByText("YouTube")).toBeNull();
+    expect(health.getAllByText("Operativo")).toHaveLength(7);
+    expect(screen.queryByRole("button", { name: "Conectar YouTube" })).toBeNull(); // the simulation can never show YouTube as connected
+    for (const name of ["Gmail", "Outlook", "Google Calendar", "Microsoft Calendar", "Google Drive", "OneDrive", "WhatsApp Business", "Facebook Pages", "Instagram Business", "LinkedIn Company", "TikTok Business"]) {
       expect(screen.getByRole("button", { name: `Conectar ${name}` })).toBeTruthy();
     }
   });
@@ -26,7 +28,7 @@ describe("ConnectedApps", () => {
   it("connects an app through the authorization flow, shows its state, permissions (all off) and company, and offers Desconectar", () => {
     render(<ConnectedApps />);
     fireEvent.click(screen.getByRole("button", { name: "Conectar Gmail" }));
-    expect(screen.getByText(/1 de 12 conectadas/)).toBeTruthy();
+    expect(screen.getByText(/1 de 11 conectadas/)).toBeTruthy();
     const gmail = within(row("Gmail"));
     expect(gmail.getByText("Conectada")).toBeTruthy();
     expect(gmail.getByText("Leer correos: apagado")).toBeTruthy();
@@ -39,14 +41,14 @@ describe("ConnectedApps", () => {
 
   it("disconnects an app and lets it be connected again", () => {
     render(<ConnectedApps />);
-    fireEvent.click(screen.getByRole("button", { name: "Conectar YouTube" }));
+    fireEvent.click(screen.getByRole("button", { name: "Conectar Outlook" }));
     fireEvent.click(screen.getByRole("button", { name: "Conectar TikTok Business" }));
-    expect(screen.getByText(/2 de 12 conectadas/)).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Desconectar YouTube" }));
-    expect(screen.getByText(/1 de 12 conectadas/)).toBeTruthy();
-    expect(within(row("YouTube")).getByText("Desconectada")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Conectar YouTube" }));
-    expect(screen.getByText(/2 de 12 conectadas/)).toBeTruthy();
+    expect(screen.getByText(/2 de 11 conectadas/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Desconectar Outlook" }));
+    expect(screen.getByText(/1 de 11 conectadas/)).toBeTruthy();
+    expect(within(row("Outlook")).getByText("Desconectada")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Conectar Outlook" }));
+    expect(screen.getByText(/2 de 11 conectadas/)).toBeTruthy();
   });
 
   it("explains that AI agents never reach a provider and that each company authorizes only its own accounts", () => {

@@ -59,6 +59,8 @@ export function createBackend(client: SupabaseClient) {
     deleteCompany: (tenantId: string, confirmName: string) => rpc<void>(client, "delete_company", { p_tenant: tenantId, p_confirm_name: confirmName }),
 
     // Team
+    // Connector connections (ADR-0038): the status of a company's connection, for owners and administrators only (the function checks the role). Never carries a credential.
+    connectorStatus: (tenantId: string, connector: string) => rpc<unknown>(client, "connector_connection_status", { p_tenant: tenantId, p_connector: connector }),
     listTeam: async (tenantId: string) => list<TeamEntry>(await rpc(client, "list_team", { p_tenant: tenantId })),
     invite: (tenantId: string, email: string, role: Exclude<Role, "owner">) =>
       rpc<{ status: "added" | "invited" }>(client, "invite_member", { p_tenant: tenantId, p_email: email, p_role: role }),

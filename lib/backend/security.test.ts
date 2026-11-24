@@ -72,7 +72,7 @@ describe("Environment Manager", () => {
   });
 
   it("declares which variables are secrets, and the Secrets Manager hands out only those", () => {
-    expect([...SECRET_NAMES].sort()).toEqual(["KYNOVA_ENCRYPTION_KEY", "KYNOVA_HASH_PEPPER", "SUPABASE_SERVICE_ROLE_KEY"]);
+    expect([...SECRET_NAMES].sort()).toEqual(["GOOGLE_CLIENT_SECRET", "KYNOVA_ENCRYPTION_KEY", "KYNOVA_HASH_PEPPER", "SUPABASE_SERVICE_ROLE_KEY"]); // GOOGLE_CLIENT_SECRET: the YouTube connection (ADR-0038)
     expect(ENV_SPEC.every((item) => item.description.length > 10)).toBe(true);
     expect(ENV_SPEC.filter((item) => item.scope === "public").map((item) => item.name)).toEqual(["SUPABASE_PUBLISHABLE_KEY"]);
   });

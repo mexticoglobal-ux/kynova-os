@@ -352,11 +352,11 @@ describe("the rules of the Backend Core", () => {
     }
   });
 
-  it("adds no migration besides the Backend Core Integration one, the AI budget one (ADR-0036) and the subscriptions one (ADR-0037, locally authorized; none of them applied to a remote project), and no dependency: the migrations are the six that existed plus 20261110000100, 20261118000100 and 20261127000100", () => {
+  it("adds no migration besides the Backend Core Integration one, the AI budget one (ADR-0036) the subscriptions one (ADR-0037) and the connector connections one (ADR-0038), all locally authorized and none applied to a remote project, and no dependency: the migrations are the six that existed plus 20261110000100, 20261118000100, 20261127000100 and 20261128000100", () => {
     expect(readdirSync(join(ROOT, "supabase", "migrations")).sort()).toEqual([
       "20261031000000_tenancy_core.sql", "20261102000000_upgrade_disposable_tenancy.sql", "20261106000100_backend_foundations.sql",
       "20261106000200_crm_core.sql", "20261106000300_messaging_and_governance.sql", "20261106000400_business_functions.sql", "20261110000100_backend_integration.sql",
-      "20261118000100_ai_budget.sql", "20261127000100_subscriptions.sql",
+      "20261118000100_ai_budget.sql", "20261127000100_subscriptions.sql", "20261128000100_connector_connections.sql",
     ]);
   });
 
@@ -368,7 +368,7 @@ describe("the rules of the Backend Core", () => {
   });
 
   it("keeps the modules as they were: none of them imports the Backend Core yet", () => {
-    const importers = source.filter((file) => !rel(file).startsWith("lib/backend/") && rel(file) !== "lib/db/core-clients.ts" && !rel(file).startsWith("lib/ai/") && /from "@\/lib\/backend/.test(text(file))).map(rel);
+    const importers = source.filter((file) => !rel(file).startsWith("lib/backend/") && rel(file) !== "lib/db/core-clients.ts" && !rel(file).startsWith("lib/ai/") && !rel(file).startsWith("lib/integrations/youtube/") && /from "@\/lib\/backend/.test(text(file))).map(rel);
     expect(importers).toEqual(["lib/db/core-clients.ts"].filter(() => false));
   });
 

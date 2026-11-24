@@ -68,15 +68,16 @@ export function ConnectedApps() {
     setActivities((current) => [...current.filter((item) => item.connectionId !== connectionId), { connectionId, tenantId: TENANT, lastSyncAt: AT, recent: ["ok"], consecutiveFailures: 0, needsReauthorization: false, ...(connectorId === "gmail" ? { lastEmail: seen } : connectorId === "googleCalendar" ? { lastEvent: seen } : { lastFile: seen }) }]);
   };
 
-  const rows = connectedApps(state, TENANT, ENV, AT);
-  const health = connectorHealth(state, ENV, TENANT);
+  // YouTube has a REAL connection (the panel above this one, ADR-0038): it is not part of this simulation, so it can never show "Conectada" from a simulated answer.
+  const rows = connectedApps(state, TENANT, ENV, AT).filter((row) => row.connectorId !== "youtube");
+  const health = connectorHealth(state, ENV, TENANT).filter((row) => row.group !== "youtube");
   const google = workspaceView(state, activities, TENANT, AT);
   const when = (value?: string) => (value ? new Date(value).toLocaleString("es-CR") : "—");
   const connected = rows.filter((row) => row.display === "Connected").length;
 
   return (
     <div className="space-y-5">
-      <p className="text-sm text-ink-muted" aria-live="polite">{connected} de {rows.length} conectadas · simulación local: no se contacta a ningún proveedor ni se guarda ninguna credencial.</p>
+      <p className="text-sm text-ink-muted" aria-live="polite">{connected} de {rows.length} conectadas · simulación local: no se contacta a ningún proveedor ni se guarda ninguna credencial. YouTube no está en esta lista: tiene su propia conexión real, arriba.</p>
       {message && <p role="alert" className="text-sm text-danger">{message}</p>}
       <Card className="space-y-3 p-5">
         <h2 className="font-semibold">Salud por proveedor</h2>

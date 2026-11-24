@@ -66,7 +66,7 @@ begin
     and has_function_privilege('anon', p.oid, 'execute') and p.prokind = 'f';
   if n <> 0 then raise exception 'FAIL: anon can execute % function(s)', n; end if;
   select count(*) into n from pg_proc p where p.pronamespace = 'public'::regnamespace
-    and has_function_privilege('service_role', p.oid, 'execute') and p.proname not in ('ingest_inbound_event', 'maintain_partitions', 'assign_ai_budget', 'assign_ai_call_cap', 'expire_ai_reservations', 'reserve_ai_budget', 'settle_ai_budget', 'release_ai_budget', 'write_off_ai_reservation', 'create_plan_version', 'create_subscription', 'apply_payment_event', 'apply_pending_payment_events', 'subscription_access');
+    and has_function_privilege('service_role', p.oid, 'execute') and p.proname not in ('ingest_inbound_event', 'maintain_partitions', 'assign_ai_budget', 'assign_ai_call_cap', 'expire_ai_reservations', 'reserve_ai_budget', 'settle_ai_budget', 'release_ai_budget', 'write_off_ai_reservation', 'create_plan_version', 'create_subscription', 'apply_payment_event', 'apply_pending_payment_events', 'subscription_access', 'begin_connector_oauth', 'peek_connector_oauth', 'complete_connector_oauth', 'get_connector_secret', 'mark_connector_state', 'disconnect_connector');
   if n <> 0 then raise exception 'FAIL: service_role can execute % unexpected function(s)', n; end if;
   select count(*) into n from pg_proc p where p.pronamespace = 'private'::regnamespace and has_function_privilege('service_role', p.oid, 'execute');
   if n <> 0 then raise exception 'FAIL: service_role can execute % private function(s)', n; end if;

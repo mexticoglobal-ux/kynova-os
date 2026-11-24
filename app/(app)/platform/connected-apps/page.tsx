@@ -2,6 +2,7 @@ import { pageMetadata } from "@/lib/seo/metadata";
 import { sectionInfo } from "../_components/catalog";
 import { ConnectedApps } from "../_components/ConnectedApps";
 import { SectionShell } from "../_components/SectionShell";
+import { YouTubeConnection } from "../_components/YouTubeConnection";
 
 const info = sectionInfo("connectedApps");
 
@@ -10,7 +11,10 @@ export const metadata = pageMetadata({ title: info.title, description: info.summ
 export default function Page() {
   return (
     <SectionShell section="connectedApps">
-      <ConnectedApps />
+      <div className="space-y-5">
+        <YouTubeConnection />
+        <ConnectedApps />
+      </div>
     </SectionShell>
   );
 }

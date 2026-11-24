@@ -20,6 +20,8 @@ export const ENV_SPEC: readonly VarSpec[] = [
   { name: "SUPABASE_SERVICE_ROLE_KEY", scope: "secret", required: [], description: "Llave de servicio de Supabase. Se evita: salta el RLS. Solo servidor y solo con una razón escrita.", pattern: /^\S{20,}$/ },
   { name: "KYNOVA_ENCRYPTION_KEY", scope: "secret", required: ["production"], description: "Llave AES-256 (32 bytes en base64) para cifrar datos sensibles.", pattern: BASE64_32_BYTES },
   { name: "KYNOVA_HASH_PEPPER", scope: "secret", required: ["production"], description: "Pimienta del hash de tokens y llaves (mínimo 32 caracteres).", pattern: /^\S{32,}$/ },
+  { name: "GOOGLE_CLIENT_ID", scope: "server", required: [], description: "Identificador del cliente OAuth de Google (conexión de YouTube, ADR-0038). No es un secreto, pero solo se lee en el servidor.", pattern: /^[A-Za-z0-9._-]{10,200}.apps.googleusercontent.com$/ },
+  { name: "GOOGLE_CLIENT_SECRET", scope: "secret", required: [], description: "Secreto del cliente OAuth de Google (conexión de YouTube, ADR-0038). Solo servidor, solo por el Secrets Manager.", pattern: /^S{10,200}$/ },
   { name: "KYNOVA_LOG_LEVEL", scope: "server", required: [], description: "Nivel mínimo de log.", pattern: /^(debug|info|warn|error)$/ },
   { name: "KYNOVA_TRACE_SAMPLE", scope: "server", required: [], description: "Fracción de trazas que se conserva (0 a 1).", pattern: /^(0|1|0?\.\d+)$/ },
 ];
