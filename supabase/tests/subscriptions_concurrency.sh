@@ -18,7 +18,9 @@ T5='60000000-0000-4000-8000-0000000000b5'
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 psql_admin() { psql -X -q -At -v ON_ERROR_STOP=1 "$@"; }
-fail() { echo "FAIL: $*"; exit 1; }
+# a failure is also published as a workflow annotation (job logs are not readable without authentication); outside GitHub Actions the extra line is harmless
+fail() { echo "FAIL: $*"; echo "::error title=subscriptions_concurrency::$*"; exit 1; }
+trap 'echo "::error title=subscriptions_concurrency::a command failed at line $LINENO (exit $?)"' ERR
 
 psql_admin <<SQL
 insert into public.tenants (id, name) values ('$T1', 'Empresa Conc 1'), ('$T2', 'Empresa Conc 2'), ('$T3', 'Empresa Conc 3'), ('$T4', 'Empresa Conc 4'), ('$T5', 'Empresa Conc 5') on conflict do nothing;
