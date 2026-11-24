@@ -18,7 +18,9 @@ const CASES: ReadonlyArray<{ anchor: string; tz: string; count: number }> = [
   { anchor: "2026-01-31", tz: "Europe/London", count: 14 },
   { anchor: "2026-01-31", tz: "Asia/Kolkata", count: 6 }, // a half-hour offset
   { anchor: "2018-10-04", tz: "America/Sao_Paulo", count: 3 }, // 2018-11-04: midnight does not exist (the clock jumps 00:00 -> 01:00)
-  { anchor: "2026-10-01", tz: "America/Havana", count: 3 }, // 2026-11-01: midnight happens twice
+  // 2012-11-04: midnight happens twice. A HISTORICAL date on purpose: the offsets of a future date depend on the time-zone database version (in 2026 the ICU of Node, the PostgreSQL of the CI and an older local
+  // PostgreSQL did not agree on Havana's December offset), and a parity check must not depend on that.
+  { anchor: "2012-10-04", tz: "America/Havana", count: 3 },
   { anchor: "2011-11-30", tz: "Pacific/Apia", count: 3 }, // 2011-12-30 does not exist (the date line moved)
 ];
 
@@ -88,7 +90,7 @@ describe("the SQL period functions match the TypeScript reference", () => {
     expect(sql).toContain("'2026-01-31', 'America/Costa_Rica', 1, '2026-02-28T06:00:00.000Z'");
     expect(sql).toContain("'2026-01-31', 'America/Costa_Rica', 2, '2026-03-31T06:00:00.000Z'"); // not chained: back to the 31st
     expect(sql).toContain("'2018-10-04', 'America/Sao_Paulo', 1, '2018-11-04T03:00:00.000Z'");
-    expect(sql).toContain("'2026-10-01', 'America/Havana', 1, '2026-11-01T04:00:00.000Z'");
+    expect(sql).toContain("'2012-10-04', 'America/Havana', 1, '2012-11-04T04:00:00.000Z'");
     expect(sql).toContain("'2011-11-30', 'Pacific/Apia', 1, '2011-12-30T10:00:00.000Z'");
   });
 });
