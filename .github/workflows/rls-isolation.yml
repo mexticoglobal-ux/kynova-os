@@ -76,7 +76,13 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/subscriptions.sql
 
       - name: Run date-function parity (SQL against the TypeScript reference)
-        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/billing_parity.sql
+        run: |
+          # The step fails exactly as before when any case differs or a time zone's data is old; on failure the server's message is also published as an annotation so it can be read without the log.
+          set +e
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/billing_parity.sql 2>&1 | tee /tmp/billing_parity.out
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then echo "::error title=billing_parity::$(tr '\n' ' ' < /tmp/billing_parity.out | cut -c1-1800)"; fi
+          exit "$status"
 
       - name: Run subscription concurrency tests (one grant per payment with parallel sessions)
         run: bash supabase/tests/subscriptions_concurrency.sh
