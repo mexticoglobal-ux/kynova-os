@@ -9,6 +9,15 @@
 //  - What decides between a renewal and a reactivation is when the provider says the payment was CONFIRMED, never when the notification ARRIVED: a late notification of a payment confirmed in
 //    time is still a renewal and cannot move the anchor on its own. (Telling a payment that was already applied from a new one is the job of the payment identity, in the database.)
 //
+// The local DATE of the payment only picks the anchor DAY. It never grants access backwards: the first period starts at the confirmation INSTANT, so the hours of that day before the payment
+// are not covered and nothing is discounted for them. Fit with the midnight renewal: period 0 of the new cycle ends at the 00:00 local of the anchor's day one month later, and from then on
+// every period starts at 00:00 local (a payment at 19:00 on the 20th pays 19:00 -> 00:00 of the 20th of next month, then midnight to midnight).
+//
+// NOT guaranteed here: that the same payment never opens a second cycle. This module is PURE and has no memory of payment identities; it classifies the confirmation instant it is given.
+// Evaluating an already-applied reactivation again against the history that now contains it would read as a renewal. The guarantee is the job of the (still absent) persistence:
+// `unique (provider, payment_id, concept)` checked BEFORE classifying, so a repeated or different event of the same payment never reaches this function twice.
+// `paidAhead` is only a flag. This module grants nothing and changes no cycle for it; what to do with an early payment is a pending policy.
+//
 // A cycle is the snapshot of what the server stored: `paidPeriods` is the number of its periods that have been paid (granted), and the periods of a cycle are contiguous. The time zone is the
 // subscription's and never changes, so every cycle of a subscription has the same one.
 

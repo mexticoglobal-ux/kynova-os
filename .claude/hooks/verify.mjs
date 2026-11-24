@@ -22,7 +22,8 @@ if (!existsSync(join(projectDir, 'node_modules'))) process.exit(0);
 const quote = (arg) => `"${arg.replace(/"/g, '\\"')}"`;
 
 function run(args) {
-  const result = spawnSync(['npx', '--no-install', ...args].map(quote).join(' '), {
+  // The executable is NOT quoted: on Windows cmd.exe a quoted `"npx"` makes npx.cmd resolve %~dp0 to the cwd and fail with npm-prefix.js not found.
+  const result = spawnSync(['npx', '--no-install', ...args.map(quote)].join(' '), {
     cwd: projectDir,
     encoding: 'utf8',
     shell: true,

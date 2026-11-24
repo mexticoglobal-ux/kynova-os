@@ -131,6 +131,48 @@ describe("a payment after an interruption opens a NEW cycle from the reactivatio
   });
 });
 
+describe("a reactivation starts at the effective payment instant (19:00 case)", () => {
+  // 19:00 local on 20 Feb 2026 in Costa Rica (UTC-6) is 01:00Z on the 21st: the local DATE (20th) is the anchor day, the INSTANT is what starts access
+  const payment = "2026-02-21T01:00:00Z";
+  const result = classifyConfirmedPayment([first], payment, TZ);
+  if (result.kind !== "reactivation") throw new Error("expected a reactivation");
+  const history: SubscriptionHistory = [first, result.cycle];
+
+  it("anchors on the LOCAL day (the 20th, not the UTC 21st) but activates at the payment instant", () => {
+    expect(result.cycle).toMatchObject({ anchorDate: "2026-02-20", activatedAt: "2026-02-21T01:00:00.000Z" });
+    expect(cyclePeriodBounds(result.cycle, 0).startsAt).toBe("2026-02-21T01:00:00.000Z");
+  });
+
+  it("grants nothing backwards: still suspended at 18:59:59.999 local and at 00:00 local of the anchor day; active from exactly 19:00", () => {
+    expect(accessAt(history, "2026-02-20T06:00:00Z")).toMatchObject({ state: "suspended" }); // 00:00 local on the 20th: the anchor day began, but nothing is covered yet
+    expect(accessAt(history, "2026-02-21T00:59:59.999Z")).toMatchObject({ state: "suspended" });
+    expect(accessAt(history, "2026-02-21T01:00:00Z")).toMatchObject({ state: "active", cycleIndex: 1, period: { index: 0 } });
+  });
+
+  it("period 0 ends at 00:00 local of the 20th of next month (a short first period, not discounted or extended), and the renewal then starts at midnight", () => {
+    expect(cyclePeriodBounds(result.cycle, 0).endsAt).toBe("2026-03-20T06:00:00.000Z");
+    expect(accessAt(history, "2026-03-20T05:59:59.999Z")).toMatchObject({ state: "active", period: { index: 0 } });
+    expect(cyclePeriodBounds(result.cycle, 1)).toEqual({ index: 1, startsAt: "2026-03-20T06:00:00.000Z", endsAt: "2026-04-20T06:00:00.000Z" });
+  });
+
+  it("LIMIT, not a guarantee: evaluating the same payment again against the history that already contains it reads as a renewal, so the pure function does NOT prevent a double application", () => {
+    // Preventing it needs the payment identity (provider, payment_id, concept) stored and checked before classifying: persistence that does not exist yet
+    expect(classifyConfirmedPayment(history, payment, TZ).kind).toBe("renewal");
+  });
+});
+
+describe("paidAhead is only a flag", () => {
+  it("flags an early payment without granting anything or changing the cycle, the history or the access", () => {
+    const paidTwo: CycleRecord = deepFreeze({ ...first, paidPeriods: 2 });
+    const before = JSON.stringify(accessAt([paidTwo], "2026-02-10T00:00:00Z"));
+    const result = classifyConfirmedPayment([paidTwo], "2026-01-20T10:00:00Z", TZ);
+    expect(result).toMatchObject({ kind: "renewal", paidAhead: true });
+    expect("cycle" in result).toBe(false); // no new cycle
+    expect(paidTwo.paidPeriods).toBe(2); // not incremented
+    expect(JSON.stringify(accessAt([paidTwo], "2026-02-10T00:00:00Z"))).toBe(before);
+  });
+});
+
 describe("the first activation and the validation of the history", () => {
   it("with no history, the first confirmed payment opens the first cycle", () => {
     const result = classifyConfirmedPayment([], "2026-01-08T15:00:00Z", TZ);
