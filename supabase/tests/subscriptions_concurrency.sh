@@ -95,16 +95,21 @@ grants=$(psql_admin -c "select count(*) from public.ai_allocation_grants where t
 [ "$((applied + rejected + ignored))" -eq 10 ] && [ "$rejected" -ge 1 ] || fail "incompatible versions were not refused (applied=$applied ignored=$ignored rejected=$rejected)"
 echo "ok: one payment id with incompatible data produced one winner and $rejected refusals"
 
-# 5. after the paid time ended (9 Feb 06:00Z): two different payments confirmed on 20 and 21 Feb and a late one confirmed on 5 Feb arrive together
+# 5. a payment confirmed on 5 Feb (inside the first paid time, which ends 9 Feb) and two confirmed on 20 and 21 Feb arrive together. The outcome legitimately DEPENDS on which arrives first (arrival
+# is all that is known when each is judged): the late one first renews the first cycle; the 20 Feb one first reactivates and the 5 Feb one is then held as late. So only what holds in EVERY order is asserted:
+# no payment granted twice, no overlapping periods, a grant exactly for each applied event (and none for a held one), and the first payment plus at least one more applied.
 ( ev "$T5" "$S5" r-1 pay-react-1 '2026-02-20 18:00:00+00' > "$TMP/e1" ) &
 ( ev "$T5" "$S5" r-2 pay-react-2 '2026-02-21 18:00:00+00' > "$TMP/e2" ) &
 ( ev "$T5" "$S5" r-3 pay-late-1 '2026-02-05 18:00:00+00' > "$TMP/e3" ) &
 wait
 grants=$(psql_admin -c "select count(*) from public.ai_allocation_grants where tenant_id = '$T5'")
+applied=$(psql_admin -c "select count(*) from public.payment_events where subscription_id = '$S5' and status = 'applied'")
 dup=$(psql_admin -c "select count(*) from (select payment_id from public.ai_allocation_grants where tenant_id = '$T5' group by payment_id having count(*) > 1) x")
+orphans=$(psql_admin -c "select count(*) from public.ai_allocation_grants g where g.tenant_id = '$T5' and not exists (select 1 from public.payment_events e where e.subscription_id = '$S5' and e.status = 'applied' and e.provider = g.provider and e.payment_id = g.payment_id)")
+held_with_grant=$(psql_admin -c "select count(*) from public.payment_events e join public.ai_allocation_grants g on g.provider = e.provider and g.payment_id = e.payment_id where e.subscription_id = '$S5' and e.status <> 'applied'")
 overlap=$(psql_admin -c "select count(*) from public.billing_periods a join public.billing_periods b on a.tenant_id = b.tenant_id and a.id < b.id and a.starts_at < b.ends_at and b.starts_at < a.ends_at where a.tenant_id = '$T5'")
-cycles=$(psql_admin -c "select count(*) from public.subscription_cycles where subscription_id = '$S5'")
-[ "$dup" -eq 0 ] && [ "$overlap" -eq 0 ] || fail "concurrent reactivation candidates: duplicated grants=$dup, overlapping periods=$overlap"
-[ "$cycles" -ge 2 ] && [ "$grants" -ge 2 ] || fail "concurrent reactivation candidates produced cycles=$cycles grants=$grants (want a reactivation applied)"
-echo "ok: concurrent reactivation candidates and a late payment left no duplicate grant and no overlapping period ($cycles cycles, $grants grants)"
+[ "$dup" -eq 0 ] && [ "$overlap" -eq 0 ] || fail "concurrent payments after the first period: duplicated grants=$dup, overlapping periods=$overlap"
+[ "$grants" -eq "$applied" ] && [ "$orphans" -eq 0 ] && [ "$held_with_grant" -eq 0 ] || fail "a grant does not match an applied event: grants=$grants applied=$applied orphans=$orphans held_with_grant=$held_with_grant"
+[ "$applied" -ge 2 ] || fail "only $applied payment(s) applied; the first payment and at least one more must be"
+echo "ok: concurrent payments after the first period left no duplicate grant, no overlapping period and a grant for exactly each applied event ($applied applied)"
 echo "subscriptions concurrency: all checks passed"
