@@ -87,5 +87,5 @@ jobs:
       - name: Run subscription concurrency tests (one grant per payment with parallel sessions)
         run: bash supabase/tests/subscriptions_concurrency.sh
 
-      - name: Run connector connection tests (YouTube: bound states, ciphertext only, wipe on disconnect, roles, isolation)
+      - name: Run connector connection tests (YouTube connection - bound states, ciphertext only, wipe on disconnect, roles, isolation)
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/connectors.sql
