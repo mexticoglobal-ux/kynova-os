@@ -68,7 +68,7 @@ export const ENTITIES: readonly Entity[] = [
   entity("crm", "opportunities", "Oportunidades de venta.", ["contact_id:uuid->contacts.id", "stage:text", "amount_minor:bigint?"], { status: "existing", rls: "rw" }),
   entity("crm", "tasks", "Tareas de seguimiento.", ["title:text", "due_at:timestamptz?", "done:bool"], { status: "existing", rls: "rw_delete" }),
   // ---- billing
-  entity("billing", "subscriptions", "El plan y la suscripción de cada empresa.", ["plan_id:text", "status:text", "renews_at:timestamptz"], { rls: "admin" }),
+  entity("billing", "subscriptions", "La suscripción de cada empresa (ADR-0037: sus ciclos, periodos y pagos viven en tablas propias; solo el servidor escribe).", ["plan_version_id:uuid", "timezone:text", "status:text"], { status: "existing", rls: "read" }),
   entity("billing", "invoices", "Facturas emitidas: nunca se modifican.", ["number:text", "total_micros:bigint", "period_start:timestamptz", "period_end:timestamptz"], { appendOnly: true }),
   entity("billing", "payments", "Pagos y recibos registrados.", ["invoice_id:uuid->invoices.id", "amount_micros:bigint", "method:text"], { appendOnly: true }),
   entity("billing", "credits", "El libro de créditos de la cuenta.", ["amount_micros:bigint", "reason:text"], { appendOnly: true }),

@@ -34,7 +34,7 @@ begin
 
   select string_agg(c.relname, ', ') into missing from pg_class c
    where c.relnamespace = 'public'::regnamespace and c.relkind in ('r', 'p')
-     and c.relname not in ('tenants', 'memberships', 'user_profiles', 'inbound_dedup', 'metrics_daily')
+     and c.relname not in ('tenants', 'memberships', 'user_profiles', 'inbound_dedup', 'metrics_daily', 'plan_versions')
      and not exists (select 1 from pg_attribute a where a.attrelid = c.oid and a.attname = 'tenant_id' and not a.attisdropped);
   if missing is not null then raise exception 'FAIL: tables without tenant_id: %', missing; end if;
   if (select count(*) from pg_attribute a where a.attrelid = 'public.metrics_daily'::regclass and a.attname = 'tenant_id') <> 1 then
@@ -66,7 +66,7 @@ begin
     and has_function_privilege('anon', p.oid, 'execute') and p.prokind = 'f';
   if n <> 0 then raise exception 'FAIL: anon can execute % function(s)', n; end if;
   select count(*) into n from pg_proc p where p.pronamespace = 'public'::regnamespace
-    and has_function_privilege('service_role', p.oid, 'execute') and p.proname not in ('ingest_inbound_event', 'maintain_partitions', 'assign_ai_budget', 'assign_ai_call_cap', 'expire_ai_reservations', 'reserve_ai_budget', 'settle_ai_budget', 'release_ai_budget', 'write_off_ai_reservation');
+    and has_function_privilege('service_role', p.oid, 'execute') and p.proname not in ('ingest_inbound_event', 'maintain_partitions', 'assign_ai_budget', 'assign_ai_call_cap', 'expire_ai_reservations', 'reserve_ai_budget', 'settle_ai_budget', 'release_ai_budget', 'write_off_ai_reservation', 'create_plan_version', 'create_subscription', 'apply_payment_event', 'apply_pending_payment_events', 'subscription_access');
   if n <> 0 then raise exception 'FAIL: service_role can execute % unexpected function(s)', n; end if;
   select count(*) into n from pg_proc p where p.pronamespace = 'private'::regnamespace and has_function_privilege('service_role', p.oid, 'execute');
   if n <> 0 then raise exception 'FAIL: service_role can execute % private function(s)', n; end if;

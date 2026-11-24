@@ -71,3 +71,12 @@ jobs:
 
       - name: Run AI budget concurrency tests (the limit holds with parallel sessions)
         run: bash supabase/tests/ai_budget_concurrency.sh
+
+      - name: Run subscription tests (payments, cycles, periods, ledger, isolation, permissions)
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/subscriptions.sql
+
+      - name: Run date-function parity (SQL against the TypeScript reference)
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/billing_parity.sql
+
+      - name: Run subscription concurrency tests (one grant per payment with parallel sessions)
+        run: bash supabase/tests/subscriptions_concurrency.sh
