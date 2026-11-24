@@ -30,12 +30,12 @@ begin
 end $$;
 
 -- the server records an event (as service_role) and gets the answer
-create function pg_temp.ev(p_sub uuid, p_tenant uuid, p_event text, p_kind text, p_payment text, p_seq int, p_at timestamptz, p_hash text default null, p_concept text default 'included')
+create function pg_temp.ev(p_sub uuid, p_tenant uuid, p_event text, p_kind text, p_payment text, p_at timestamptz, p_hash text default null, p_concept text default 'included')
 returns jsonb language plpgsql as $$
 declare r jsonb;
 begin
   set local role service_role;
-  r := public.apply_payment_event('prov-test', p_event, p_kind, p_payment, p_concept, p_tenant, p_sub, p_seq, p_at, coalesce(p_hash, 'h-' || p_payment));
+  r := public.apply_payment_event('prov-test', p_event, p_kind, p_payment, p_concept, p_tenant, p_sub, p_at, coalesce(p_hash, 'h-' || p_payment));
   reset role;
   return r;
 end $$;
@@ -78,15 +78,15 @@ begin
   if not has_column_privilege('authenticated', 'public.plan_versions', 'included_micros', 'select') then raise exception 'FAIL: the visible columns of a plan are not readable'; end if;
 
   foreach t in array array['public.create_plan_version(text, int, text, bigint, int, bigint)', 'public.create_subscription(uuid, uuid, text)',
-    'public.apply_payment_event(text, text, text, text, text, uuid, uuid, int, timestamptz, text)', 'public.apply_pending_payment_events(uuid)', 'public.subscription_access(uuid, timestamptz)'] loop
+    'public.apply_payment_event(text, text, text, text, text, uuid, uuid, timestamptz, text)', 'public.subscription_access(uuid, timestamptz)'] loop
     if not has_function_privilege('service_role', t, 'execute') then raise exception 'FAIL: the server key cannot run %', t; end if;
     if has_function_privilege('authenticated', t, 'execute') or has_function_privilege('anon', t, 'execute') then raise exception 'FAIL: % is open to a signed-in user or anon', t; end if;
   end loop;
-  foreach t in array array['private.local_day_start(date, text)', 'private.cycle_period_bounds(date, text, timestamptz, int)', 'private.apply_confirmed_payment(uuid)', 'private.drain_payment_events(uuid)'] loop
+  foreach t in array array['private.local_day_start(date, text)', 'private.cycle_period_bounds(date, text, timestamptz, int)', 'private.apply_confirmed_payment(uuid)'] loop
     if has_function_privilege('authenticated', t, 'execute') or has_function_privilege('anon', t, 'execute') or has_function_privilege('service_role', t, 'execute') then raise exception 'FAIL: the private function % is exposed', t; end if;
   end loop;
   if exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public'
-     and p.proname in ('create_plan_version', 'create_subscription', 'apply_payment_event', 'apply_pending_payment_events', 'subscription_access')
+     and p.proname in ('create_plan_version', 'create_subscription', 'apply_payment_event', 'subscription_access')
      and (not p.prosecdef or p.proconfig is null or not ('search_path=""' = any (p.proconfig)))) then
     raise exception 'FAIL: a subscription function is not security definer with an empty search_path';
   end if;
@@ -138,13 +138,13 @@ declare
   sub uuid := (select id from public.subscriptions where tenant_id = '50000000-0000-4000-8000-0000000000b1');
 begin
   -- a payment that is not confirmed yet grants nothing; a payment for a subscription of another company is refused
-  r := pg_temp.ev(sub, t1, 'evt-fail-0', 'payment_failed', 'pay-fail-0', null, null);
+  r := pg_temp.ev(sub, t1, 'evt-fail-0', 'payment_failed', 'pay-fail-0', null);
   perform pg_temp.expect(r ->> 'status' = 'ignored' and r ->> 'reason' = 'payment_failed_no_grant', 'a failed payment is ignored: ' || r::text);
   perform pg_temp.expect((select count(*) from public.subscription_cycles where subscription_id = sub) = 0, 'a failed payment opened a cycle');
-  if pg_temp.state_of(format($q$select pg_temp.ev('%s', '50000000-0000-4000-8000-0000000000b2', 'evt-x', 'payment_confirmed', 'pay-x', 1, now())$q$, sub)) <> '42501' then raise exception 'FAIL: an event for another company was accepted'; end if;
+  if pg_temp.state_of(format($q$select pg_temp.ev('%s', '50000000-0000-4000-8000-0000000000b2', 'evt-x', 'payment_confirmed', 'pay-x', now())$q$, sub)) <> '42501' then raise exception 'FAIL: an event for another company was accepted'; end if;
 
   -- 1. first payment: confirmed 09:00 local on 8 Jan 2026
-  r := pg_temp.ev(sub, t1, 'evt-1a', 'payment_confirmed', 'pay-1', 1, '2026-01-08 15:00:00+00');
+  r := pg_temp.ev(sub, t1, 'evt-1a', 'payment_confirmed', 'pay-1', '2026-01-08 15:00:00+00');
   perform pg_temp.expect(r ->> 'status' = 'applied' and (r ->> 'duplicate') = 'false', 'the first payment was not applied: ' || r::text);
   select * into c from public.subscription_cycles where subscription_id = sub;
   perform pg_temp.expect(c.cycle_index = 0 and c.anchor_date = date '2026-01-08' and c.activated_at = timestamptz '2026-01-08 15:00:00+00', 'the first cycle is wrong');
@@ -154,33 +154,29 @@ begin
   perform pg_temp.expect((select status from public.subscriptions where id = sub) = 'active', 'the subscription did not become active');
 
   -- 2. the SAME event again (retried delivery): recognised, nothing else happens
-  r := pg_temp.ev(sub, t1, 'evt-1a', 'payment_confirmed', 'pay-1', 1, '2026-01-08 15:00:00+00');
+  r := pg_temp.ev(sub, t1, 'evt-1a', 'payment_confirmed', 'pay-1', '2026-01-08 15:00:00+00');
   perform pg_temp.expect((r ->> 'duplicate') = 'true' and r ->> 'status' = 'applied', 'a repeated event was not recognised: ' || r::text);
 
   -- 3. a DIFFERENT event of the SAME payment (the provider sends several): ignored, no second cycle, period or grant
-  r := pg_temp.ev(sub, t1, 'evt-1b', 'payment_confirmed', 'pay-1', 1, '2026-01-08 15:00:00+00');
+  r := pg_temp.ev(sub, t1, 'evt-1b', 'payment_confirmed', 'pay-1', '2026-01-08 15:00:00+00');
   perform pg_temp.expect(r ->> 'status' = 'ignored' and r ->> 'reason' = 'payment_already_recorded', 'another event of the same payment was not ignored: ' || r::text);
-  r := pg_temp.ev(sub, t1, 'evt-1c', 'other', 'pay-1', null, null);
+  r := pg_temp.ev(sub, t1, 'evt-1c', 'other', 'pay-1', null);
   perform pg_temp.expect(r ->> 'status' = 'ignored', 'an update event granted something: ' || r::text);
   perform pg_temp.expect((select count(*) from public.subscription_cycles where subscription_id = sub) = 1
     and (select count(*) from public.billing_periods where cycle_id = c.id) = 1
     and (select count(*) from public.ai_allocation_grants g join public.billing_periods b on b.id = g.period_id where b.cycle_id = c.id) = 1, 'a payment seen through several events was applied more than once');
 
   -- 4. identities reused with INCOMPATIBLE data are refused and change nothing
-  r := pg_temp.ev(sub, t1, 'evt-1a', 'payment_confirmed', 'pay-1', 1, '2026-01-08 15:00:00+00', 'other-hash');
+  r := pg_temp.ev(sub, t1, 'evt-1a', 'payment_confirmed', 'pay-1', '2026-01-08 15:00:00+00', 'other-hash');
   perform pg_temp.expect((r ->> 'ok') = 'false' and r ->> 'reason' = 'event_id_reused_with_different_data', 'an event id reused with another content was accepted: ' || r::text);
-  r := pg_temp.ev(sub, t1, 'evt-1d', 'payment_confirmed', 'pay-1', 1, '2026-01-09 15:00:00+00');
+  r := pg_temp.ev(sub, t1, 'evt-1d', 'payment_confirmed', 'pay-1', '2026-01-09 15:00:00+00');
   perform pg_temp.expect(r ->> 'status' = 'rejected' and r ->> 'reason' = 'payment_id_reused_with_different_data', 'a payment id reused with another instant was accepted: ' || r::text);
-  r := pg_temp.ev(sub, t1, 'evt-1e', 'payment_confirmed', 'pay-1', 2, '2026-01-08 15:00:00+00');
-  perform pg_temp.expect(r ->> 'status' = 'rejected' and r ->> 'reason' = 'payment_id_reused_with_different_data', 'a payment id reused with another sequence was accepted: ' || r::text);
-  r := pg_temp.ev(sub, t1, 'evt-1f', 'payment_confirmed', 'pay-other', 1, '2026-01-10 15:00:00+00');
-  perform pg_temp.expect(r ->> 'status' = 'rejected' and r ->> 'reason' = 'sequence_already_taken', 'a second payment with a taken sequence was accepted: ' || r::text);
-  r := pg_temp.ev(sub, t1, 'evt-1g', 'payment_confirmed', 'pay-1', 1, '2026-01-08 15:00:00+00', null, 'top_up');
+  r := pg_temp.ev(sub, t1, 'evt-1g', 'payment_confirmed', 'pay-1', '2026-01-08 15:00:00+00', null, 'top_up');
   perform pg_temp.expect(r ->> 'status' = 'rejected' and r ->> 'reason' = 'concept_not_supported', 'a concept without conditions was accepted: ' || r::text);
   perform pg_temp.expect((select count(*) from public.ai_allocation_grants g join public.billing_periods b on b.id = g.period_id where b.cycle_id = c.id) = 1, 'a refused event changed the ledger');
 
   -- 5. renewal paid BEFORE the end (3 Feb): same cycle, same anchor, the next period of the calendar
-  r := pg_temp.ev(sub, t1, 'evt-2a', 'payment_confirmed', 'pay-2', 2, '2026-02-03 12:00:00+00');
+  r := pg_temp.ev(sub, t1, 'evt-2a', 'payment_confirmed', 'pay-2', '2026-02-03 12:00:00+00');
   perform pg_temp.expect(r ->> 'status' = 'applied', 'the renewal was not applied: ' || r::text);
   perform pg_temp.expect((select count(*) from public.subscription_cycles where subscription_id = sub) = 1, 'a renewal paid in time opened a new cycle');
   select * into p from public.billing_periods where cycle_id = c.id and period_index = 1;
@@ -188,7 +184,7 @@ begin
   perform pg_temp.expect((select count(*) from public.ai_allocation_grants g join public.billing_periods b on b.id = g.period_id where b.cycle_id = c.id) = 2, 'the renewal did not grant exactly one more period');
 
   -- 6. a failed payment: nothing is granted, and access is suspended once the paid time ends
-  r := pg_temp.ev(sub, t1, 'evt-fail-3', 'payment_failed', 'pay-fail-3', null, null);
+  r := pg_temp.ev(sub, t1, 'evt-fail-3', 'payment_failed', 'pay-fail-3', null);
   perform pg_temp.expect(r ->> 'status' = 'ignored', 'a failed payment was not ignored');
   set local role service_role;
   perform pg_temp.expect(public.subscription_access(sub, '2026-02-08 05:59:59.999+00') ->> 'state' = 'active' and public.subscription_access(sub, '2026-02-08 06:00:00+00') ->> 'periodIndex' = '1', 'access around the first renewal');
@@ -209,7 +205,7 @@ declare
 begin
   select * into c0 from public.subscription_cycles where subscription_id = sub and cycle_index = 0;
   -- 19:00 local on 20 Apr 2026 is 01:00Z on the 21st: the anchor is the LOCAL day, the access starts at the instant
-  r := pg_temp.ev(sub, t1, 'evt-3a', 'payment_confirmed', 'pay-3', 3, '2026-04-21 01:00:00+00');
+  r := pg_temp.ev(sub, t1, 'evt-3a', 'payment_confirmed', 'pay-3', '2026-04-21 01:00:00+00');
   perform pg_temp.expect(r ->> 'status' = 'applied', 'the reactivation was not applied: ' || r::text);
   select * into c1 from public.subscription_cycles where subscription_id = sub and cycle_index = 1;
   perform pg_temp.expect(c1.anchor_date = date '2026-04-20' and c1.activated_at = timestamptz '2026-04-21 01:00:00+00' and c1.activation_payment_id = 'pay-3', 'the new cycle is wrong');
@@ -230,7 +226,7 @@ begin
   perform pg_temp.expect(public.subscription_access(sub, '2026-01-20 00:00:00+00') ->> 'state' = 'active' and public.subscription_access(sub, '2026-01-20 00:00:00+00') ->> 'cycleIndex' = '0', 'the old cycle still answers for its own time');
   reset role;
   -- a later NOTIFICATION of the first payment (a different event, long after) does not touch the anchor or open anything
-  r := pg_temp.ev(sub, t1, 'evt-late-1', 'payment_confirmed', 'pay-1', 1, '2026-01-08 15:00:00+00');
+  r := pg_temp.ev(sub, t1, 'evt-late-1', 'payment_confirmed', 'pay-1', '2026-01-08 15:00:00+00');
   perform pg_temp.expect(r ->> 'status' = 'ignored', 'a late notification of an applied payment was not ignored: ' || r::text);
   perform pg_temp.expect((select count(*) from public.subscription_cycles where subscription_id = sub) = 2 and (select anchor_date from public.subscription_cycles where id = c1.id) = date '2026-04-20', 'a late notification moved the anchor');
   -- the history cannot be rewritten
@@ -243,38 +239,60 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------------
--- Early and out-of-order events stay PENDING and are resumed in order; the anchor never depends on arrival order (T2)
+-- Notifications out of order (T2): arrival order never orders payments. A payment is judged by its CONFIRMATION instant against what is stored; one confirmed before the current cycle began is
+-- kept pending (it cannot rewrite history or move the anchor), and nothing that is pending or failed blocks the payments that follow.
 -- ---------------------------------------------------------------------------
 do $$
 declare
   r jsonb; sub uuid; pa uuid := (select id from public.plan_versions where code = 'test-plan-a');
   t2 constant uuid := '50000000-0000-4000-8000-0000000000b2';
-  n int;
 begin
   set local role service_role;
   sub := public.create_subscription(t2, pa, 'America/Costa_Rica');
   reset role;
-  perform pg_temp.ev(sub, t2, 'o-1', 'payment_confirmed', 'po-1', 1, '2026-01-08 15:00:00+00');
-  -- the payment made on 20 Feb (sequence 3) is notified BEFORE the one made on 5 Feb (sequence 2): it is kept, nothing is granted yet
-  r := pg_temp.ev(sub, t2, 'o-3', 'payment_confirmed', 'po-3', 3, '2026-02-20 18:00:00+00');
-  perform pg_temp.expect(r ->> 'status' = 'pending', 'an early event was not kept pending: ' || r::text);
-  perform pg_temp.expect((select count(*) from public.billing_periods b join public.subscription_cycles c on c.id = b.cycle_id where c.subscription_id = sub) = 1, 'an early event granted something');
-  -- a sequence that is two ahead also waits; resuming with nothing applicable does nothing
-  r := pg_temp.ev(sub, t2, 'o-5', 'payment_confirmed', 'po-5', 5, '2026-04-20 18:00:00+00');
-  perform pg_temp.expect(r ->> 'status' = 'pending', 'an event with a gap was applied');
-  set local role service_role; n := public.apply_pending_payment_events(sub); reset role;
-  perform pg_temp.expect(n = 0, 'resuming applied something that cannot be applied yet');
-  -- the missing one arrives: it is applied, and the waiting one right after it, in order. 20 Feb is inside the paid time (until 8 Mar): a RENEWAL of the same cycle, not a reactivation
-  r := pg_temp.ev(sub, t2, 'o-2', 'payment_confirmed', 'po-2', 2, '2026-02-05 18:00:00+00');
-  perform pg_temp.expect(r ->> 'status' = 'applied', 'the missing event was not applied: ' || r::text);
-  perform pg_temp.expect((select status from public.payment_events where external_event_id = 'o-3') = 'applied', 'the waiting event was not resumed');
-  perform pg_temp.expect((select status from public.payment_events where external_event_id = 'o-5') = 'pending', 'an event with a gap was resumed');
-  perform pg_temp.expect((select count(*) from public.subscription_cycles where subscription_id = sub) = 1 and (select anchor_date from public.subscription_cycles where subscription_id = sub) = date '2026-01-08', 'arrival order moved the anchor or opened a cycle');
-  perform pg_temp.expect((select string_agg(b.period_index::text || '@' || to_char(b.starts_at at time zone 'UTC', 'MM-DD'), ',' order by b.period_index) from public.billing_periods b join public.subscription_cycles c on c.id = b.cycle_id where c.subscription_id = sub) = '0@01-08,1@02-08,2@03-08', 'the periods are not the contiguous calendar');
-  -- the gap closes (sequence 4) and the last one follows
-  r := pg_temp.ev(sub, t2, 'o-4', 'payment_confirmed', 'po-4', 4, '2026-03-20 18:00:00+00');
-  perform pg_temp.expect(r ->> 'status' = 'applied' and (select status from public.payment_events where external_event_id = 'o-5') = 'applied', 'the chain was not resumed after the gap closed');
-  perform pg_temp.expect((select count(*) from public.ai_allocation_grants g where g.tenant_id = t2) = 5, 'the ledger of T2 is not 5 grants');
+  perform pg_temp.ev(sub, t2, 'o-1', 'payment_confirmed', 'po-1', '2026-01-08 15:00:00+00');
+  -- the payment confirmed on 20 Feb (the paid time ended on 8 Feb) is notified FIRST: a reactivation
+  r := pg_temp.ev(sub, t2, 'o-3', 'payment_confirmed', 'po-3', '2026-02-20 18:00:00+00');
+  perform pg_temp.expect(r ->> 'status' = 'applied' and r ->> 'obligation' = 'reactivation', 'the payment of 20 Feb was not a reactivation: ' || r::text);
+  -- the payment confirmed on 5 Feb (in time for the first cycle) is notified LATE: it cannot rewrite history, so it is kept, with no grant, and the anchor does not move
+  r := pg_temp.ev(sub, t2, 'o-2', 'payment_confirmed', 'po-2', '2026-02-05 18:00:00+00');
+  perform pg_temp.expect(r ->> 'status' = 'pending' and r ->> 'reason' = 'confirmed_before_current_cycle' and r ->> 'obligation' = 'late', 'a late notification was not kept pending: ' || r::text);
+  perform pg_temp.expect((select count(*) from public.subscription_cycles where subscription_id = sub) = 2 and (select anchor_date from public.subscription_cycles where subscription_id = sub and cycle_index = 1) = date '2026-02-20',
+    'a late notification moved the anchor or opened a cycle');
+  perform pg_temp.expect((select count(*) from public.ai_allocation_grants where tenant_id = t2) = 2, 'a late notification granted something');
+  -- another event of the same late payment (a repeated delivery under a new id) is recognised, not applied
+  r := pg_temp.ev(sub, t2, 'o-2b', 'payment_confirmed', 'po-2', '2026-02-05 18:00:00+00');
+  perform pg_temp.expect(r ->> 'status' = 'ignored' and r ->> 'reason' = 'payment_already_recorded', 'a repeat of a held payment was not ignored: ' || r::text);
+  -- what is held blocks NOTHING: the next payment (10 Mar, inside the new cycle) renews it
+  r := pg_temp.ev(sub, t2, 'o-4', 'payment_confirmed', 'po-4', '2026-03-10 12:00:00+00');
+  perform pg_temp.expect(r ->> 'status' = 'applied' and r ->> 'obligation' = 'renewal', 'a payment after a held one was blocked: ' || r::text);
+  perform pg_temp.expect((select starts_at from public.billing_periods b join public.subscription_cycles c on c.id = b.cycle_id where c.subscription_id = sub and c.cycle_index = 1 and b.period_index = 1) = timestamptz '2026-03-20 06:00:00+00',
+    'the renewal of the new cycle is not on its calendar');
+  perform pg_temp.expect((select count(*) from public.ai_allocation_grants where tenant_id = t2) = 3 and (select status from public.payment_events where external_event_id = 'o-2') = 'pending', 'the ledger or the held payment changed');
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- A failed payment, then a rejected one, then a valid one (T9): neither blocks the valid payment
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  r jsonb; sub uuid; pa uuid := (select id from public.plan_versions where code = 'test-plan-a');
+  t9 constant uuid := '50000000-0000-4000-8000-0000000000b9';
+begin
+  insert into public.tenants (id, name) values (t9, 'Empresa Nueve');
+  set local role service_role; sub := public.create_subscription(t9, pa, 'America/Costa_Rica'); reset role;
+  r := pg_temp.ev(sub, t9, 'f-1', 'payment_failed', 'pf-1', null);
+  perform pg_temp.expect(r ->> 'status' = 'ignored', 'a failed payment was not ignored');
+  r := pg_temp.ev(sub, t9, 'f-2', 'payment_confirmed', 'pf-2', '2026-01-08 15:00:00+00', null, 'top_up'); -- a concept without approved conditions: rejected
+  perform pg_temp.expect(r ->> 'status' = 'rejected', 'an unsupported concept was not rejected');
+  r := pg_temp.ev(sub, t9, 'f-3', 'payment_confirmed', 'pf-3', '2026-01-08 15:00:00+00');
+  perform pg_temp.expect(r ->> 'status' = 'applied' and r ->> 'obligation' = 'first_activation', 'a valid payment after a failed and a rejected one was blocked: ' || r::text);
+  -- a payment id reused with another instant is rejected, and the next valid payment is still not blocked
+  r := pg_temp.ev(sub, t9, 'f-4', 'payment_confirmed', 'pf-3', '2026-01-09 15:00:00+00');
+  perform pg_temp.expect(r ->> 'status' = 'rejected', 'an incompatible identity was accepted');
+  r := pg_temp.ev(sub, t9, 'f-5', 'payment_confirmed', 'pf-5', '2026-02-01 12:00:00+00');
+  perform pg_temp.expect(r ->> 'status' = 'applied' and r ->> 'obligation' = 'renewal', 'a valid payment after a rejected one was blocked: ' || r::text);
+  perform pg_temp.expect((select count(*) from public.ai_allocation_grants where tenant_id = t9) = 2, 'the ledger of T9 is not 2 grants');
 end $$;
 
 -- ---------------------------------------------------------------------------
@@ -282,23 +300,25 @@ end $$;
 -- ---------------------------------------------------------------------------
 do $$
 declare
-  r jsonb; sub uuid; n int; pa uuid := (select id from public.plan_versions where code = 'test-plan-a');
+  r jsonb; sub uuid; pa uuid := (select id from public.plan_versions where code = 'test-plan-a');
   t3 constant uuid := '50000000-0000-4000-8000-0000000000b3';
 begin
   set local role service_role; sub := public.create_subscription(t3, pa, 'America/Costa_Rica'); reset role;
-  perform pg_temp.ev(sub, t3, 'a-1', 'payment_confirmed', 'pa-1', 1, '2026-01-08 15:00:00+00');
-  r := pg_temp.ev(sub, t3, 'a-2', 'payment_confirmed', 'pa-2', 2, '2026-01-20 10:00:00+00'); -- pays the period that starts on 8 Feb
+  perform pg_temp.ev(sub, t3, 'a-1', 'payment_confirmed', 'pa-1', '2026-01-08 15:00:00+00');
+  r := pg_temp.ev(sub, t3, 'a-2', 'payment_confirmed', 'pa-2', '2026-01-20 10:00:00+00'); -- pays the period that starts on 8 Feb
   perform pg_temp.expect(r ->> 'status' = 'applied', 'the early renewal was not applied');
-  r := pg_temp.ev(sub, t3, 'a-3', 'payment_confirmed', 'pa-3', 3, '2026-01-25 10:00:00+00'); -- the next period is already paid
-  perform pg_temp.expect(r ->> 'status' = 'pending' and r ->> 'reason' = 'paid_ahead_policy_pending', 'a payment made ahead was not held: ' || r::text);
+  r := pg_temp.ev(sub, t3, 'a-3', 'payment_confirmed', 'pa-3', '2026-01-25 10:00:00+00'); -- the next period is already paid
+  perform pg_temp.expect(r ->> 'status' = 'pending' and r ->> 'reason' = 'paid_ahead_policy_pending' and r ->> 'obligation' = 'paid_ahead', 'a payment made ahead was not held: ' || r::text);
   perform pg_temp.expect((select count(*) from public.billing_periods b where b.tenant_id = t3) = 2 and (select count(*) from public.ai_allocation_grants where tenant_id = t3) = 2 and (select count(*) from public.subscription_cycles where tenant_id = t3) = 1,
     'a payment made ahead granted something or changed a cycle');
-  -- it stays held however many times it is resumed, and it blocks the ones after it (nothing skips a payment)
-  set local role service_role; n := public.apply_pending_payment_events(sub); reset role;
-  perform pg_temp.expect(n = 0 and (select status from public.payment_events where external_event_id = 'a-3') = 'pending', 'resuming applied a payment made ahead');
-  r := pg_temp.ev(sub, t3, 'a-4', 'payment_confirmed', 'pa-4', 4, '2026-02-01 10:00:00+00');
-  perform pg_temp.expect(r ->> 'status' = 'pending', 'an event after a held one was applied');
-  perform pg_temp.expect((select count(*) from public.ai_allocation_grants where tenant_id = t3) = 2, 'the ledger grew while a payment was held');
+  -- it stays held (its policy is undecided), a repeat of it is recognised, and it blocks nothing: the payment of 12 Feb (inside the paid time, from the start of the latest period) renews
+  r := pg_temp.ev(sub, t3, 'a-3b', 'payment_confirmed', 'pa-3', '2026-01-25 10:00:00+00');
+  perform pg_temp.expect(r ->> 'status' = 'ignored' and r ->> 'reason' = 'payment_already_recorded', 'a repeat of a held payment was not ignored: ' || r::text);
+  r := pg_temp.ev(sub, t3, 'a-4', 'payment_confirmed', 'pa-4', '2026-02-12 10:00:00+00');
+  perform pg_temp.expect(r ->> 'status' = 'applied' and r ->> 'obligation' = 'renewal', 'a payment after a held one was blocked: ' || r::text);
+  perform pg_temp.expect((select status from public.payment_events where external_event_id = 'a-3') = 'pending' and (select reason from public.payment_events where external_event_id = 'a-3') = 'paid_ahead_policy_pending', 'the payment made ahead was applied or lost');
+  perform pg_temp.expect((select count(*) from public.billing_periods where tenant_id = t3) = 3 and (select count(*) from public.ai_allocation_grants where tenant_id = t3) = 3 and (select count(*) from public.subscription_cycles where tenant_id = t3) = 1,
+    'the ledger of T3 is not 3 periods and 3 grants in one cycle');
 end $$;
 
 -- ---------------------------------------------------------------------------
@@ -314,28 +334,28 @@ begin
   sub4 := public.create_subscription(t4, pa, 'America/Costa_Rica'); sub5 := public.create_subscription(t5, pa, 'America/Costa_Rica');
   sub6 := public.create_subscription(t6, pa, 'America/Costa_Rica'); sub7 := public.create_subscription(t7, pa, 'America/Costa_Rica');
   reset role;
-  perform pg_temp.ev(sub4, t4, 'b-1', 'payment_confirmed', 'pb-1', 1, '2026-01-08 15:00:00+00');
-  perform pg_temp.ev(sub5, t5, 'c-1', 'payment_confirmed', 'pc-1', 1, '2026-01-08 15:00:00+00');
-  perform pg_temp.ev(sub6, t6, 'd-1', 'payment_confirmed', 'pd-1', 1, '2026-01-08 15:00:00+00');
-  perform pg_temp.ev(sub7, t7, 'e-1', 'payment_confirmed', 'pe-1', 1, '2026-01-08 15:00:00+00');
+  perform pg_temp.ev(sub4, t4, 'b-1', 'payment_confirmed', 'pb-1', '2026-01-08 15:00:00+00');
+  perform pg_temp.ev(sub5, t5, 'c-1', 'payment_confirmed', 'pc-1', '2026-01-08 15:00:00+00');
+  perform pg_temp.ev(sub6, t6, 'd-1', 'payment_confirmed', 'pd-1', '2026-01-08 15:00:00+00');
+  perform pg_temp.ev(sub7, t7, 'e-1', 'payment_confirmed', 'pe-1', '2026-01-08 15:00:00+00');
 
-  r := pg_temp.ev(sub4, t4, 'b-2', 'payment_confirmed', 'pb-2', 2, '2026-02-08 06:00:00+00');
+  r := pg_temp.ev(sub4, t4, 'b-2', 'payment_confirmed', 'pb-2', '2026-02-08 06:00:00+00');
   perform pg_temp.expect(r ->> 'status' = 'applied' and (select count(*) from public.subscription_cycles where subscription_id = sub4) = 1, 'a payment confirmed at the exact end instant was not a renewal');
-  r := pg_temp.ev(sub5, t5, 'c-2', 'payment_confirmed', 'pc-2', 2, '2026-02-08 06:00:00.001+00');
+  r := pg_temp.ev(sub5, t5, 'c-2', 'payment_confirmed', 'pc-2', '2026-02-08 06:00:00.001+00');
   perform pg_temp.expect(r ->> 'status' = 'applied' and (select count(*) from public.subscription_cycles where subscription_id = sub5) = 2, 'a payment one millisecond after the end was not a reactivation');
 
-  -- a cancelled subscription is not renewed (the sequence is free again after a rejection) ...
+  -- a cancelled subscription is not renewed (a rejection blocks nothing that follows) ...
   update public.subscriptions set status = 'cancel_at_period_end' where id = sub6;
-  r := pg_temp.ev(sub6, t6, 'd-2', 'payment_confirmed', 'pd-2', 2, '2026-02-03 12:00:00+00');
+  r := pg_temp.ev(sub6, t6, 'd-2', 'payment_confirmed', 'pd-2', '2026-02-03 12:00:00+00');
   perform pg_temp.expect(r ->> 'status' = 'rejected' and r ->> 'reason' = 'renewal_after_cancellation', 'a cancelled subscription was renewed: ' || r::text);
   -- ... and a payment confirmed AFTER its paid time ended reactivates it with a new cycle
-  r := pg_temp.ev(sub6, t6, 'd-3', 'payment_confirmed', 'pd-3', 2, '2026-03-15 20:00:00+00');
+  r := pg_temp.ev(sub6, t6, 'd-3', 'payment_confirmed', 'pd-3', '2026-03-15 20:00:00+00');
   perform pg_temp.expect(r ->> 'status' = 'applied' and (select count(*) from public.subscription_cycles where subscription_id = sub6) = 2 and (select status from public.subscriptions where id = sub6) = 'active',
     'a payment after the end of a cancelled subscription did not reactivate it: ' || r::text);
 
   -- an ended subscription accepts nothing
   update public.subscriptions set status = 'ended' where id = sub7;
-  r := pg_temp.ev(sub7, t7, 'e-2', 'payment_confirmed', 'pe-2', 2, '2026-02-03 12:00:00+00');
+  r := pg_temp.ev(sub7, t7, 'e-2', 'payment_confirmed', 'pe-2', '2026-02-03 12:00:00+00');
   perform pg_temp.expect(r ->> 'status' = 'rejected' and r ->> 'reason' = 'subscription_ended', 'an ended subscription accepted a payment: ' || r::text);
 end $$;
 
@@ -361,7 +381,7 @@ begin
   -- nobody records anything directly or through a function
   if pg_temp.state_of($q$insert into public.subscriptions (tenant_id, plan_version_id, timezone) select tenant_id, plan_version_id, timezone from public.subscriptions$q$) <> '42501' then raise exception 'FAIL: the owner inserted a subscription'; end if;
   if pg_temp.state_of($q$update public.payment_events set status = 'applied'$q$) <> '42501' then raise exception 'FAIL: the owner edited a payment event'; end if;
-  if pg_temp.state_of($q$select public.apply_payment_event('p', 'e', 'payment_confirmed', 'x', 'included', '50000000-0000-4000-8000-0000000000b1', gen_random_uuid(), 1, now(), 'h')$q$) <> '42501' then raise exception 'FAIL: the owner ran the payment function'; end if;
+  if pg_temp.state_of($q$select public.apply_payment_event('p', 'e', 'payment_confirmed', 'x', 'included', '50000000-0000-4000-8000-0000000000b1', gen_random_uuid(), now(), 'h')$q$) <> '42501' then raise exception 'FAIL: the owner ran the payment function'; end if;
   if pg_temp.state_of($q$select public.create_plan_version('hack', 1, 'x', 1)$q$) <> '42501' then raise exception 'FAIL: the owner created a plan'; end if;
   reset role;
 
@@ -374,10 +394,10 @@ begin
   if (select count(*) from public.subscriptions) + (select count(*) from public.ai_allocation_grants) <> 0 then raise exception 'FAIL: a viewer reads billing records'; end if;
   reset role;
 
-  -- the owner of T2 sees only T2 (5 grants: the chain of the out-of-order test)
+  -- the owner of T2 sees only T2 (3 grants: the first payment, the reactivation and the renewal of the out-of-order test)
   perform pg_temp.as_user('50000000-0000-4000-8000-000000000004', 'sub-x@example.test');
   if exists (select 1 from public.subscriptions where tenant_id <> t2) or exists (select 1 from public.billing_periods where tenant_id <> t2) or exists (select 1 from public.ai_allocation_grants where tenant_id <> t2) then raise exception 'FAIL: the owner of T2 sees another company'; end if;
-  if (select count(*) from public.ai_allocation_grants) <> 5 then raise exception 'FAIL: the owner of T2 does not see its 5 grants'; end if;
+  if (select count(*) from public.ai_allocation_grants) <> 3 then raise exception 'FAIL: the owner of T2 does not see its 3 grants'; end if;
   reset role;
 
   -- anon sees nothing
@@ -396,7 +416,7 @@ declare
   sub uuid; pa uuid := (select id from public.plan_versions where code = 'test-plan-a');
 begin
   set local role service_role; sub := public.create_subscription(t8, pa, 'America/Costa_Rica'); reset role;
-  perform pg_temp.ev(sub, t8, 'z-1', 'payment_confirmed', 'pz-1', 1, '2026-01-08 15:00:00+00');
+  perform pg_temp.ev(sub, t8, 'z-1', 'payment_confirmed', 'pz-1', '2026-01-08 15:00:00+00');
   perform pg_temp.expect((select count(*) from public.ai_allocation_grants where tenant_id = t8) = 1, 'setup of the deletion test');
   perform pg_temp.as_user(uo, 'sub-o@example.test');
   perform public.delete_company(t8, 'Empresa Ocho');

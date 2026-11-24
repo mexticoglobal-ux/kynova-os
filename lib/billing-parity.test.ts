@@ -44,13 +44,18 @@ function build(): string {
 -- original anchor, with the daylight-saving and date-line cases. Run with: psql -v ON_ERROR_STOP=1 -f supabase/tests/billing_parity.sql   (after every migration). Needs no data.
 do $$
 declare r record; bad text := ''; stale text := ''; compared int := 0; skipped int := 0;
+  -- LOCAL ONLY: a developer machine whose PostgreSQL carries old time-zone data may set it (alter database ... set kynova.parity_allow_stale_tz = 'on'). The CI never sets it, so there EVERY case must be compared.
+  allow_stale boolean := coalesce(current_setting('kynova.parity_allow_stale_tz', true), '') = 'on';
 begin
   for r in select * from (values
 ${controlRows.join(",\n")}
   ) as c(tz, day, starts_at) loop
-    if private.local_day_start(r.day::date, r.tz) is distinct from r.starts_at::timestamptz and position(r.tz in stale) = 0 then stale := stale || ' ' || r.tz; end if;
+    if private.local_day_start(r.day::date, r.tz) is distinct from r.starts_at::timestamptz and position(r.tz in stale) = 0 then
+      if not allow_stale then raise exception 'FAIL: the time-zone data of this server disagrees with the reference on a plain day (%): update the server data. Only a local machine may skip such zones, explicitly, with kynova.parity_allow_stale_tz = on', r.tz; end if;
+      stale := stale || ' ' || r.tz;
+    end if;
   end loop;
-  if stale <> '' then raise warning 'the time-zone data of this server disagrees with the reference on a plain day: cases skipped for:%', stale; end if;
+  if stale <> '' then raise warning 'LOCAL ONLY (kynova.parity_allow_stale_tz = on): the time-zone data of this server is old, cases skipped for:%', stale; end if;
   for r in select * from (values
 ${rows.join(",\n")}
   ) as v(anchor, tz, idx, starts_at, ends_at) loop
@@ -62,7 +67,7 @@ ${rows.join(",\n")}
     end if;
   end loop;
   if bad <> '' then raise exception 'FAIL: the SQL period dates differ from the TypeScript reference for:%', bad; end if;
-  if compared = 0 then raise exception 'FAIL: no case was compared'; end if;
+  if compared + skipped <> ${rows.length} or (stale = '' and compared <> ${rows.length}) then raise exception 'FAIL: % cases compared and % skipped of ${rows.length}', compared, skipped; end if;
   raise notice 'billing_parity: % of ${rows.length} cases compared and equal, % skipped (stale time-zone data:%)', compared, skipped, coalesce(nullif(stale, ''), ' none');
 end $$;
 

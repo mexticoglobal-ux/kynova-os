@@ -98,7 +98,9 @@ export type PaymentClassification =
   | { kind: "first_activation"; cycle: CycleRecord }
   /** the next period of the current cycle, with the calendar and the anchor unchanged; `paidAhead` means the next period was already paid (a decision still pending) */
   | { kind: "renewal"; cycleIndex: number; periodIndex: number; period: CommercialPeriod; paidAhead: boolean }
-  | { kind: "reactivation"; previousCycleIndex: number; cycle: CycleRecord };
+  | { kind: "reactivation"; previousCycleIndex: number; cycle: CycleRecord }
+  /** confirmed BEFORE the current cycle began (notified after a later payment had already opened it): it cannot be applied without rewriting history or overlapping the new cycle, so it is kept for a decision and grants nothing */
+  | { kind: "late"; cycleIndex: number };
 
 /**
  * What a payment CONFIRMED at `confirmedAt` is: the first activation, a renewal (confirmed up to and including the instant the paid time ends) or a reactivation (confirmed after it, so the
@@ -110,6 +112,7 @@ export function classifyConfirmedPayment(history: SubscriptionHistory, confirmed
   const last = history[history.length - 1];
   if (!last) return { kind: "first_activation", cycle: openCycle(ms, timeZone) };
   if (last.timeZone !== timeZone) throw new Error("the time zone of a subscription never changes");
+  if (ms < toMs(last.activatedAt)) return { kind: "late", cycleIndex: history.length - 1 };
   if (ms <= toMs(paidUntil(last))) {
     const period = cyclePeriodBounds(last, last.paidPeriods);
     const currentStart = cyclePeriodBounds(last, last.paidPeriods - 1).startsAt;

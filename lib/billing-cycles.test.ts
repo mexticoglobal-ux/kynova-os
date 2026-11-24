@@ -73,6 +73,14 @@ describe("a paid period ends without a confirmed renewal: access is suspended", 
     expect(accessAt([renewed], "2026-03-08T06:00:00Z")).toMatchObject({ state: "suspended", since: "2026-03-08T06:00:00.000Z" });
   });
 
+  it("a payment confirmed BEFORE the current cycle began (notified late) is neither a renewal nor a reactivation: it is late, and the history it is given is not touched", () => {
+    const reactivation = classifyConfirmedPayment([first], "2026-02-20T18:00:00Z", TZ);
+    if (reactivation.kind !== "reactivation") throw new Error("expected a reactivation");
+    const history = deepFreeze([first, reactivation.cycle]) as SubscriptionHistory;
+    expect(classifyConfirmedPayment(history, "2026-02-05T18:00:00Z", TZ)).toEqual({ kind: "late", cycleIndex: 1 });
+    expect(history.map((cycle) => cycle.anchorDate)).toEqual(["2026-01-08", "2026-02-20"]); // the anchor did not move
+  });
+
   it("a cancelled subscription simply stops getting new periods: it is suspended after the paid time and a later payment is a reactivation", () => {
     expect(accessAt([first], "2026-02-09T00:00:00Z").state).toBe("suspended");
     expect(classifyConfirmedPayment([first], "2026-03-15T20:00:00Z", TZ).kind).toBe("reactivation");

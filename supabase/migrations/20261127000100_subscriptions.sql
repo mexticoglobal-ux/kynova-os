@@ -10,15 +10,15 @@
 --     first period starts at the confirmation INSTANT (no retroactive access). Nothing is charged or granted for the suspended interval: no period covers it. Cycles and periods are never overwritten.
 --   * What decides is the CONFIRMATION instant the provider reports, never when the event arrived.
 --   * One payment never grants twice: (provider, payment_id, concept) is checked BEFORE classifying, under the lock of the subscription, and is unique in the ledger and among live events.
---   * Events that arrive early or out of order are kept PENDING (nothing skips a payment) and resumed in order. A payment made while the next period is already paid ("paid ahead") is NOT applied
---     automatically: it stays pending (its policy is still undecided). A failed payment grants nothing.
+--   * There is NO sequence number and arrival order never orders payments. Each confirmed payment is identified by (provider, payment_id, concept) and judged by its CONFIRMATION instant against the stored
+--     history: first activation, renewal, reactivation, paid ahead (the next period is already paid) or late (confirmed before the current cycle began, notified after a later payment opened it).
+--     Paid-ahead and late payments are kept PENDING with their reason: they grant nothing, change no cycle and move no anchor, and they never block another payment. A failed, rejected or absent
+--     payment therefore blocks nothing. Whether a late or paid-ahead payment is applied, credited or refunded is a pending decision.
 --   * "Suspended" is DERIVED from the stored periods (public.subscription_access), not a flag that a timer must flip.
---   * sequence_no is the ordinal of a CONFIRMED payment within the subscription (1, 2, 3...), established by the server from the provider's data (the provider's semantics are still undecided).
 --
 -- NOT APPLIED to any remote project: review first (AGENTS.md 7.11).
 --
--- Reversal plan (development only, destroys these records): drop the functions public.create_plan_version, create_subscription, apply_payment_event, apply_pending_payment_events,
--- subscription_access and private.local_day_start, cycle_period_bounds, apply_confirmed_payment, drain_payment_events, protect_subscription; then drop the tables ai_allocation_grants, payment_events,
+-- Reversal plan (development only, destroys these records): drop the functions public.create_plan_version, create_subscription, apply_payment_event, subscription_access and private.local_day_start, cycle_period_bounds, apply_confirmed_payment, protect_subscription; then drop the tables ai_allocation_grants, payment_events,
 -- billing_periods, subscription_cycles, subscriptions and plan_versions, in that order.
 
 -- ---------------------------------------------------------------------------
@@ -94,7 +94,8 @@ create table public.payment_events (
   payment_id text not null check (char_length(payment_id) between 1 and 200),
   concept text not null check (concept ~ '^[a-z][a-z0-9._:-]{0,79}$'),
   kind text not null check (kind in ('payment_confirmed', 'payment_failed', 'other')),
-  sequence_no int check (sequence_no is null or sequence_no >= 1),
+  -- what the payment is for, decided when it is classified: first_activation, renewal, reactivation, paid_ahead (kept pending) or late (kept pending)
+  obligation text check (obligation in ('first_activation', 'renewal', 'reactivation', 'paid_ahead', 'late')),
   confirmed_at timestamptz,
   content_hash text not null check (char_length(content_hash) between 1 and 128),
   status text not null default 'received' check (status in ('received', 'pending', 'applied', 'ignored', 'rejected')),
@@ -102,15 +103,14 @@ create table public.payment_events (
   period_id uuid,
   received_at timestamptz not null default now(),
   applied_at timestamptz,
-  check (kind <> 'payment_confirmed' or (sequence_no is not null and confirmed_at is not null)),
+  check (kind <> 'payment_confirmed' or confirmed_at is not null),
   unique (provider, external_event_id),
   foreign key (tenant_id, subscription_id) references public.subscriptions (tenant_id, id) on delete cascade,
   foreign key (tenant_id, period_id) references public.billing_periods (tenant_id, id) on delete cascade
 );
--- backstops of the function's own checks: one live event per payment identity and per sequence number
+-- backstop of the function's own check: one live event per payment identity
 create unique index payment_events_live_identity on public.payment_events (provider, payment_id, concept) where kind = 'payment_confirmed' and status in ('pending', 'applied');
-create unique index payment_events_live_sequence on public.payment_events (subscription_id, sequence_no) where kind = 'payment_confirmed' and status in ('pending', 'applied');
-create index payment_events_pending_idx on public.payment_events (subscription_id, sequence_no) where status = 'pending';
+create index payment_events_pending_idx on public.payment_events (subscription_id, confirmed_at) where status = 'pending';
 
 -- The ledger of consumption granted by paid periods, append-only. It is NOT connected to the AI budget.
 create table public.ai_allocation_grants (
@@ -213,7 +213,14 @@ $$;
 -- Applying a confirmed payment (always called with the subscription row LOCKED)
 -- ---------------------------------------------------------------------------
 
--- Applies ONE confirmed payment event that is next in line. Returns 'applied', 'held' (stays pending: paid ahead) or 'blocked' (rejected: it was marked and the sequence does not advance).
+-- Classifies ONE confirmed payment against the stored history by its CONFIRMATION instant, and applies it when it is a first activation, a renewal or a reactivation. It depends on no other payment being
+-- present and never on arrival order: each payment is judged against what is stored when it is processed, and what cannot be applied is kept PENDING with its reason (nothing is lost, nothing blocks).
+--   first_activation: no cycle yet.
+--   renewal: confirmed from the start of the current cycle's latest period up to the end of the paid time (inclusive): the next period of the same cycle (same anchor and calendar).
+--   reactivation: confirmed after the paid time ended: a NEW cycle anchored on the local date of the confirmation, starting at the confirmation instant.
+--   paid_ahead: confirmed inside the paid time but BEFORE the start of the latest paid period (the next period is already paid): pending, no grant, no cycle change; its policy is undecided.
+--   late: confirmed BEFORE the current cycle began (notified after a later payment had already opened it): pending, no grant; applying it would rewrite history or overlap the new cycle.
+-- Returns 'applied', 'held' (kept pending) or 'rejected'.
 create function private.apply_confirmed_payment(p_event uuid)
 returns text
 language plpgsql
@@ -232,39 +239,44 @@ declare
   v_latest_start timestamptz;
   v_period uuid;
   v_plan public.plan_versions;
-  v_new_cycle boolean := false;
+  v_obligation text;
 begin
   select * into e from public.payment_events where id = p_event;
   select * into s from public.subscriptions where id = e.subscription_id;
   select * into v_cycle from public.subscription_cycles where subscription_id = s.id order by cycle_index desc limit 1;
 
   if not found then
-    -- first activation
-    v_new_cycle := true;
+    v_obligation := 'first_activation';
   else
-    select max(ends_at), (select starts_at from public.billing_periods where cycle_id = v_cycle.id order by period_index desc limit 1)
-      into v_until, v_latest_start from public.billing_periods where cycle_id = v_cycle.id;
-    if e.confirmed_at <= v_until then
-      -- renewal of the current cycle: same anchor and calendar
+    select max(ends_at) into v_until from public.billing_periods where cycle_id = v_cycle.id;
+    select starts_at into v_latest_start from public.billing_periods where cycle_id = v_cycle.id order by period_index desc limit 1;
+    if e.confirmed_at < v_cycle.activated_at then
+      v_obligation := 'late';
+    elsif e.confirmed_at <= v_until then
       if s.status = 'cancel_at_period_end' then
-        update public.payment_events set status = 'rejected', reason = 'renewal_after_cancellation' where id = e.id;
-        return 'blocked';
+        update public.payment_events set status = 'rejected', reason = 'renewal_after_cancellation', obligation = 'renewal' where id = e.id;
+        return 'rejected';
       end if;
-      if e.confirmed_at < v_latest_start then
-        -- the next period is already paid: nothing is granted and no cycle changes until the policy is decided
-        update public.payment_events set status = 'pending', reason = 'paid_ahead_policy_pending' where id = e.id;
-        return 'held';
-      end if;
-      v_cycle_id := v_cycle.id;
-      select count(*) into v_index from public.billing_periods where cycle_id = v_cycle.id;
-      select b.starts_at, b.ends_at into v_start, v_end from private.cycle_period_bounds(v_cycle.anchor_date, s.timezone, v_cycle.activated_at, v_index) b;
-      v_start := v_until; -- contiguous with the previous period
+      v_obligation := case when e.confirmed_at < v_latest_start then 'paid_ahead' else 'renewal' end;
     else
-      v_new_cycle := true;
+      v_obligation := 'reactivation';
     end if;
   end if;
 
-  if v_new_cycle then
+  if v_obligation in ('late', 'paid_ahead') then
+    update public.payment_events
+       set status = 'pending', obligation = v_obligation,
+           reason = case v_obligation when 'late' then 'confirmed_before_current_cycle' else 'paid_ahead_policy_pending' end
+     where id = e.id;
+    return 'held';
+  end if;
+
+  if v_obligation = 'renewal' then
+    v_cycle_id := v_cycle.id;
+    select count(*) into v_index from public.billing_periods where cycle_id = v_cycle.id;
+    select b.ends_at into v_end from private.cycle_period_bounds(v_cycle.anchor_date, s.timezone, v_cycle.activated_at, v_index) b;
+    v_start := v_until; -- contiguous with the previous period
+  else
     -- first activation or reactivation: a new cycle anchored on the LOCAL date of the confirmation, starting at the confirmation instant
     v_index := 0;
     v_anchor := (e.confirmed_at at time zone s.timezone)::date;
@@ -281,35 +293,11 @@ begin
   insert into public.ai_allocation_grants (tenant_id, period_id, kind, provider, payment_id, concept, micros, calls)
   values (s.tenant_id, v_period, 'included', e.provider, e.payment_id, e.concept, v_plan.included_micros, v_plan.included_calls);
 
-  update public.payment_events set status = 'applied', reason = null, period_id = v_period, applied_at = now() where id = e.id;
-  if s.status in ('pending', 'cancel_at_period_end') and v_new_cycle then
-    update public.subscriptions set status = 'active' where id = s.id;
-  elsif s.status = 'pending' then
+  update public.payment_events set status = 'applied', reason = null, obligation = v_obligation, period_id = v_period, applied_at = now() where id = e.id;
+  if s.status = 'pending' or (s.status = 'cancel_at_period_end' and v_obligation = 'reactivation') then
     update public.subscriptions set status = 'active' where id = s.id;
   end if;
   return 'applied';
-end;
-$$;
-
--- Applies the pending events of a subscription IN ORDER of sequence_no, while the next expected one is there. Stops at the first gap or at an event that stays held. Returns how many it applied.
-create function private.drain_payment_events(p_subscription uuid)
-returns int
-language plpgsql
-set search_path = ''
-as $$
-declare
-  v_next int;
-  v_event uuid;
-  v_applied int := 0;
-begin
-  loop
-    select coalesce(max(sequence_no), 0) + 1 into v_next from public.payment_events where subscription_id = p_subscription and kind = 'payment_confirmed' and status = 'applied';
-    select id into v_event from public.payment_events where subscription_id = p_subscription and kind = 'payment_confirmed' and status = 'pending' and sequence_no = v_next;
-    exit when v_event is null;
-    exit when private.apply_confirmed_payment(v_event) <> 'applied';
-    v_applied := v_applied + 1;
-  end loop;
-  return v_applied;
 end;
 $$;
 
@@ -350,15 +338,15 @@ begin
 end;
 $$;
 
--- Records a payment event and applies it when it can be. Answers {ok, duplicate, status, reason}.
+-- Records a payment event and applies it when it can be. Answers {ok, duplicate, status, reason, obligation}.
 -- Order of the checks (all under the lock of the subscription, so concurrent events of the same payment are serialized):
 --   1. the same (provider, event id): the same data answers the stored result; DIFFERENT data under a reused id is refused (nothing changes);
---   2. a failed payment or any other kind grants nothing;
+--   2. a failed payment or any other kind grants nothing and blocks nothing;
 --   3. the payment identity (provider, payment_id, concept) is checked BEFORE classifying: a payment already recorded is ignored if its data is compatible and REJECTED if not;
---   4. only then is the payment classified (renewal or reactivation, by its confirmation instant) and applied in sequence order; an early or out-of-order event stays pending.
+--   4. only then is the payment classified by its confirmation instant (see private.apply_confirmed_payment).
 create function public.apply_payment_event(
   p_provider text, p_external_event_id text, p_kind text, p_payment_id text, p_concept text,
-  p_tenant uuid, p_subscription uuid, p_sequence_no int, p_confirmed_at timestamptz, p_content_hash text
+  p_tenant uuid, p_subscription uuid, p_confirmed_at timestamptz, p_content_hash text
 )
 returns jsonb
 language plpgsql
@@ -372,12 +360,13 @@ declare
   v_id uuid;
   v_status text;
   v_reason text;
+  v_obligation text;
 begin
   if p_provider is null or char_length(p_provider) not between 1 and 40 or p_external_event_id is null or char_length(p_external_event_id) not between 1 and 200
      or p_payment_id is null or char_length(p_payment_id) not between 1 and 200 or p_content_hash is null or char_length(p_content_hash) not between 1 and 128
      or p_concept is null or p_concept !~ '^[a-z][a-z0-9._:-]{0,79}$' then raise exception 'invalid payment event' using errcode = '22023'; end if;
   if p_kind is null or p_kind not in ('payment_confirmed', 'payment_failed', 'other') then raise exception 'invalid kind' using errcode = '22023'; end if;
-  if p_kind = 'payment_confirmed' and (p_sequence_no is null or p_sequence_no < 1 or p_confirmed_at is null) then raise exception 'a confirmed payment needs its sequence and confirmation instant' using errcode = '22023'; end if;
+  if p_kind = 'payment_confirmed' and p_confirmed_at is null then raise exception 'a confirmed payment needs its confirmation instant' using errcode = '22023'; end if;
 
   -- the lock that serializes everything that touches this subscription
   select * into s from public.subscriptions where id = p_subscription and tenant_id = p_tenant for update;
@@ -387,14 +376,14 @@ begin
   select * into x from public.payment_events where provider = p_provider and external_event_id = p_external_event_id;
   if found then
     if x.tenant_id = p_tenant and x.subscription_id = p_subscription and x.kind = p_kind and x.payment_id = p_payment_id and x.concept = p_concept
-       and x.sequence_no is not distinct from p_sequence_no and x.confirmed_at is not distinct from p_confirmed_at and x.content_hash = p_content_hash then
-      return jsonb_build_object('ok', true, 'duplicate', true, 'status', x.status, 'reason', x.reason);
+       and x.confirmed_at is not distinct from p_confirmed_at and x.content_hash = p_content_hash then
+      return jsonb_build_object('ok', true, 'duplicate', true, 'status', x.status, 'reason', x.reason, 'obligation', x.obligation);
     end if;
     return jsonb_build_object('ok', false, 'duplicate', false, 'status', 'rejected', 'reason', 'event_id_reused_with_different_data');
   end if;
 
-  insert into public.payment_events (tenant_id, subscription_id, provider, external_event_id, payment_id, concept, kind, sequence_no, confirmed_at, content_hash)
-  values (p_tenant, p_subscription, p_provider, p_external_event_id, p_payment_id, p_concept, p_kind, p_sequence_no, p_confirmed_at, p_content_hash)
+  insert into public.payment_events (tenant_id, subscription_id, provider, external_event_id, payment_id, concept, kind, confirmed_at, content_hash)
+  values (p_tenant, p_subscription, p_provider, p_external_event_id, p_payment_id, p_concept, p_kind, p_confirmed_at, p_content_hash)
   returning id into v_id;
 
   -- 2. what grants nothing
@@ -409,40 +398,24 @@ begin
     select * into o from public.payment_events
      where provider = p_provider and payment_id = p_payment_id and concept = p_concept and kind = 'payment_confirmed' and status in ('pending', 'applied') and id <> v_id;
     if found then
-      if o.tenant_id = p_tenant and o.subscription_id = p_subscription and o.confirmed_at = p_confirmed_at and o.sequence_no = p_sequence_no then
+      if o.tenant_id = p_tenant and o.subscription_id = p_subscription and o.confirmed_at = p_confirmed_at then
         v_status := 'ignored'; v_reason := 'payment_already_recorded';
       else
         v_status := 'rejected'; v_reason := 'payment_id_reused_with_different_data';
       end if;
-    elsif exists (select 1 from public.payment_events where subscription_id = p_subscription and sequence_no = p_sequence_no and kind = 'payment_confirmed' and status in ('pending', 'applied') and id <> v_id) then
-      v_status := 'rejected'; v_reason := 'sequence_already_taken';
     elsif exists (select 1 from public.ai_allocation_grants where provider = p_provider and payment_id = p_payment_id and concept = p_concept) then
       v_status := 'rejected'; v_reason := 'payment_id_reused_with_different_data';
     else
-      -- 4. kept pending, then applied in order (this one and any that were waiting for it)
+      -- 4. classified by its confirmation instant and applied, or kept pending with its reason
       update public.payment_events set status = 'pending' where id = v_id;
-      perform private.drain_payment_events(p_subscription);
-      select status, reason into v_status, v_reason from public.payment_events where id = v_id;
-      return jsonb_build_object('ok', true, 'duplicate', false, 'status', v_status, 'reason', v_reason);
+      perform private.apply_confirmed_payment(v_id);
+      select status, reason, obligation into v_status, v_reason, v_obligation from public.payment_events where id = v_id;
+      return jsonb_build_object('ok', v_status <> 'rejected', 'duplicate', false, 'status', v_status, 'reason', v_reason, 'obligation', v_obligation);
     end if;
   end if;
 
   update public.payment_events set status = v_status, reason = v_reason where id = v_id;
   return jsonb_build_object('ok', v_status <> 'rejected', 'duplicate', false, 'status', v_status, 'reason', v_reason);
-end;
-$$;
-
--- Resumes the pending events of a subscription in order (the same drain that runs after each event). Safe to call any time, and from a maintenance job. Returns how many it applied.
-create function public.apply_pending_payment_events(p_subscription uuid)
-returns int
-language plpgsql
-security definer
-set search_path = ''
-as $$
-begin
-  perform 1 from public.subscriptions where id = p_subscription for update;
-  if not found then raise exception 'subscription not found' using errcode = '42501'; end if;
-  return private.drain_payment_events(p_subscription);
 end;
 $$;
 
@@ -476,13 +449,13 @@ $$;
 
 revoke execute on function
   private.protect_subscription(), private.local_day_start(date, text), private.cycle_period_bounds(date, text, timestamptz, int),
-  private.apply_confirmed_payment(uuid), private.drain_payment_events(uuid),
+  private.apply_confirmed_payment(uuid),
   public.create_plan_version(text, int, text, bigint, int, bigint), public.create_subscription(uuid, uuid, text),
-  public.apply_payment_event(text, text, text, text, text, uuid, uuid, int, timestamptz, text), public.apply_pending_payment_events(uuid), public.subscription_access(uuid, timestamptz)
+  public.apply_payment_event(text, text, text, text, text, uuid, uuid, timestamptz, text), public.subscription_access(uuid, timestamptz)
   from public, anon, authenticated, service_role;
 
 -- Only the server key runs the public ones (it neither reads nor writes a table); no signed-in role records a payment, a plan or a subscription.
 grant execute on function
   public.create_plan_version(text, int, text, bigint, int, bigint), public.create_subscription(uuid, uuid, text),
-  public.apply_payment_event(text, text, text, text, text, uuid, uuid, int, timestamptz, text), public.apply_pending_payment_events(uuid), public.subscription_access(uuid, timestamptz)
+  public.apply_payment_event(text, text, text, text, text, uuid, uuid, timestamptz, text), public.subscription_access(uuid, timestamptz)
   to service_role;
