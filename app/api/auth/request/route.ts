@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { parseSpikeEmail } from "@/lib/contracts/supabase-spike";
+import { logAuthFailure } from "@/lib/db/supabase-auth-diagnostics";
 import { createSupabaseSpikeRouteClient } from "@/lib/db/supabase-spike-route";
 import { getSupabaseSpikeConfig, SPIKE_EMAIL_COOKIE, spikeEmailCookieOptions } from "@/lib/db/supabase-spike";
 import { hasSameOrigin, isWithinBodyLimit, noStore } from "@/lib/db/supabase-spike-http";
@@ -21,8 +22,12 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = createSupabaseSpikeRouteClient(request, response);
     const { error } = await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: true } });
-    if (error) return fail("send_failed", error.status === 429 ? 429 : 502);
-  } catch {
+    if (error) {
+      logAuthFailure("auth.request", error);
+      return fail("send_failed", error.status === 429 ? 429 : 502);
+    }
+  } catch (error) {
+    logAuthFailure("auth.request.thrown", error);
     return fail("unavailable", 503);
   }
   response.cookies.set(SPIKE_EMAIL_COOKIE, email, spikeEmailCookieOptions(10 * 60));
