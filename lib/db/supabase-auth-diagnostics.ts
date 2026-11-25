@@ -23,7 +23,22 @@ export function describeSupabaseKey(key: string | undefined): SupabaseKeyKind {
 export type AuthFailureReport = {
   where: string; name: string | null; status: number | null; code: string | null;
   urlHost: string | null; urlHeaderSafe: boolean; keyKind: SupabaseKeyKind; keyHeaderSafe: boolean;
+  /** the SHAPE of the other configured values (never the values): enough to tell a badly pasted one */
+  others: { serviceKeyKind: SupabaseKeyKind; serviceKeyHeaderSafe: boolean; googleClientIdShape: boolean; googleClientSecretShape: boolean; encryptionKeyShape: boolean };
 };
+
+function otherShapes(vars: Readonly<Record<string, string | undefined>>): AuthFailureReport["others"] {
+  const read = (name: string) => vars[name]?.trim() ?? "";
+  const service = read("SUPABASE_SERVICE_ROLE_KEY");
+  const secret = read("GOOGLE_CLIENT_SECRET");
+  return {
+    serviceKeyKind: describeSupabaseKey(service || undefined),
+    serviceKeyHeaderSafe: HEADER_SAFE.test(service),
+    googleClientIdShape: /^[A-Za-z0-9._-]{10,200}\.apps\.googleusercontent\.com$/.test(read("GOOGLE_CLIENT_ID")),
+    googleClientSecretShape: HEADER_SAFE.test(secret) && secret.length >= 10 && secret.length <= 200 && !secret.endsWith("apps.googleusercontent.com"),
+    encryptionKeyShape: /^[A-Za-z0-9+/]{43}=$/.test(read("KYNOVA_ENCRYPTION_KEY")),
+  };
+}
 
 export function authFailureReport(where: string, error: unknown, vars: Readonly<Record<string, string | undefined>> = process.env): AuthFailureReport {
   const source = (typeof error === "object" && error !== null ? error : {}) as { name?: unknown; status?: unknown; code?: unknown };
@@ -40,6 +55,7 @@ export function authFailureReport(where: string, error: unknown, vars: Readonly<
     urlHeaderSafe: HEADER_SAFE.test(url),
     keyKind: describeSupabaseKey(key || undefined),
     keyHeaderSafe: HEADER_SAFE.test(key),
+    others: otherShapes(vars),
   };
 }
 

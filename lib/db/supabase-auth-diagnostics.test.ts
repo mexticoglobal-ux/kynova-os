@@ -21,6 +21,7 @@ describe("authFailureReport", () => {
     expect(authFailureReport("auth.request", { name: "AuthApiError", status: 429, code: "over_email_send_rate_limit", message: "no se registra" }, vars)).toEqual({
       where: "auth.request", name: "AuthApiError", status: 429, code: "over_email_send_rate_limit",
       urlHost: "abcdefghijklmnop.supabase.co", urlHeaderSafe: true, keyKind: "publishable", keyHeaderSafe: true,
+      others: { serviceKeyKind: "missing", serviceKeyHeaderSafe: false, googleClientIdShape: false, googleClientSecretShape: false, encryptionKeyShape: false },
     });
   });
 
@@ -28,6 +29,24 @@ describe("authFailureReport", () => {
     const broken = { ...vars, SUPABASE_PUBLISHABLE_KEY: "\u0016" };
     expect(authFailureReport("auth.request", { name: "AuthRetryableFetchError", status: 0 }, broken)).toMatchObject({ status: 0, keyKind: "unknown", keyHeaderSafe: false });
     expect(authFailureReport("auth.request", {}, { ...vars, SUPABASE_PUBLISHABLE_KEY: `${KEY}é` }).keyHeaderSafe).toBe(false);
+  });
+
+  it("tells the shape of the other values without showing them", () => {
+    const others = { SUPABASE_SERVICE_ROLE_KEY: "sb_secret_valorFalsoDeServicio", GOOGLE_CLIENT_ID: "123456-abcdef.apps.googleusercontent.com", GOOGLE_CLIENT_SECRET: "valor-falso-del-secreto", KYNOVA_ENCRYPTION_KEY: `${"A".repeat(43)}=` };
+    const report = authFailureReport("x", null, { ...vars, ...others });
+    expect(report.others).toEqual({ serviceKeyKind: "secret", serviceKeyHeaderSafe: true, googleClientIdShape: true, googleClientSecretShape: true, encryptionKeyShape: true });
+    for (const value of Object.values(others)) expect(JSON.stringify(report)).not.toContain(value);
+    expect(authFailureReport("x", null, { ...vars, GOOGLE_CLIENT_ID: "\u0016", GOOGLE_CLIENT_SECRET: "\u0016" }).others).toMatchObject({ googleClientIdShape: false, googleClientSecretShape: false });
+  });
+
+  it("a key that cannot travel in a header is a configuration that is not ready", async () => {
+    const { getSupabaseSpikeConfig } = await import("./supabase-spike-config");
+    vi.stubEnv("SUPABASE_URL", vars.SUPABASE_URL);
+    vi.stubEnv("SUPABASE_PUBLISHABLE_KEY", "\u0016");
+    expect(getSupabaseSpikeConfig()).toBeNull();
+    vi.stubEnv("SUPABASE_PUBLISHABLE_KEY", KEY);
+    expect(getSupabaseSpikeConfig()).not.toBeNull();
+    vi.unstubAllEnvs();
   });
 
   it("never carries the key, an email, a code or the provider's message", () => {

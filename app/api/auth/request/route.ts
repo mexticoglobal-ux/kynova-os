@@ -13,7 +13,10 @@ export const dynamic = "force-dynamic";
 export async function POST(request: NextRequest) {
   if (!hasSameOrigin(request)) return fail("invalid_origin", 403);
   if (!isWithinBodyLimit(request, 1024)) return fail("request_too_large", 413);
-  if (!getSupabaseSpikeConfig()) return fail("not_configured", 503);
+  if (!getSupabaseSpikeConfig()) {
+    logAuthFailure("auth.request.not_configured", null);
+    return fail("not_configured", 503);
+  }
   const body = await readBody(request);
   const email = parseSpikeEmail(asText(body, "email"));
   if (!email) return fail("invalid_email", 400);

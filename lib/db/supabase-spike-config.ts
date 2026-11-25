@@ -31,6 +31,8 @@ export function getSupabaseSpikeConfig(): SupabaseSpikeConfig | null {
   const url = process.env.SUPABASE_URL?.trim();
   const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY?.trim();
   if (!url || !publishableKey) return null;
+  // A value that cannot travel in an HTTP header (a pasted control character, a space) makes every call fail inside the Worker with an opaque error: it is a configuration problem, reported as one.
+  if (!/^[\x21-\x7e]+$/.test(publishableKey)) return null;
 
   try {
     const parsed = new URL(url);
