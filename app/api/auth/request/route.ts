@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
 
   const response = noStore(NextResponse.json({ ok: true }));
   try {
-    const supabase = createSupabaseSpikeRouteClient(request, response);
+    const supabase = createSupabaseSpikeRouteClient(request, response, { signingIn: true });
     const { error } = await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: true } });
     if (error) {
       logAuthFailure("auth.request", error);

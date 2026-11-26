@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
   noStore(response);
   if (!otp || !email || !config) return response;
 
-  const supabase = createSupabaseSpikeRouteClient(request, response);
+  const supabase = createSupabaseSpikeRouteClient(request, response, { signingIn: true });
   try {
     const { error } = await supabase.auth.verifyOtp({ email, token: otp, type: "email" });
     if (error) response.headers.set("Location", new URL("/spike/login?status=error", request.url).toString());

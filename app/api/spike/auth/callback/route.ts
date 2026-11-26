@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
   // Whether the browser that opened the link carries the PKCE verifier of the request (read BEFORE the exchange): without it the link was opened in another browser or profile. Only a yes/no is logged.
   const withVerifier = request.cookies.getAll().some(({ name }) => name.endsWith("-code-verifier"));
   const where = `spike.callback.${withVerifier ? "with" : "without"}_verifier`;
-  const supabase = createSupabaseSpikeRouteClient(request, response);
+  const supabase = createSupabaseSpikeRouteClient(request, response, { signingIn: true });
   try {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (error) {

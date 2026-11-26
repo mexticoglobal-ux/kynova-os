@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
+import { keepPendingSignIn } from "./supabase-auth-cookies";
 import { getSupabaseSpikeConfig } from "./supabase-spike-config";
 
 export { getSupabaseSpikeConfig } from "./supabase-spike-config";
@@ -23,7 +24,7 @@ export async function createSupabaseSpikeServerClient() {
       getAll: () => cookieStore.getAll(),
       setAll(cookiesToSet) {
         try {
-          cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
+          keepPendingSignIn(cookiesToSet).forEach(({ name, value, options }) => cookieStore.set(name, value, options));
         } catch {
           // Server Components cannot write cookies; middleware refreshes the session for this spike.
         }

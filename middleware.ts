@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { keepPendingSignIn } from "@/lib/db/supabase-auth-cookies";
 import { getSupabaseSpikeConfig } from "@/lib/db/supabase-spike-config";
 import { APP_PATHS } from "@/lib/auth/paths";
 
@@ -25,7 +26,9 @@ export async function middleware(request: NextRequest) {
     cookieOptions: { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/" },
     cookies: {
       getAll: () => request.cookies.getAll(),
-      setAll(cookiesToSet) {
+      setAll(batch) {
+        // keeping a session alive never deletes the PKCE verifier of a sign-in in progress
+        const cookiesToSet = keepPendingSignIn(batch);
         cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
         response = noStore(NextResponse.next({ request }));
         cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
