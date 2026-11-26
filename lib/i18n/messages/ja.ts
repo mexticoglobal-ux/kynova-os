@@ -325,6 +325,7 @@ export const ja: Messages = {
     user: "テストアカウント",
     rows: "RLS により表示された行",
     noRows: "このアカウントには所属先も表示可能な行もありません。",
+    notProvisioned: "セッションは有効ですが、この環境にはテスト用テーブル（spike_items）がありません。RLSで表示される行のテストは実行されていません。",
     sampleData: "架空のデータ",
     tenantId: "テナント ID",
     signOut: "サインアウト",

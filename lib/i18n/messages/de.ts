@@ -329,6 +329,7 @@ export const de: Messages = {
     user: "Testkonto",
     rows: "Über RLS sichtbare Zeilen",
     noRows: "Dieses Konto hat keine Mitgliedschaft und keine sichtbaren Zeilen.",
+    notProvisioned: "Deine Sitzung ist gültig, aber die Testtabelle (spike_items) ist in dieser Umgebung nicht vorhanden. Der RLS-Test der sichtbaren Zeilen wurde nicht ausgeführt.",
     sampleData: "Fiktiver Datensatz",
     tenantId: "Tenant-ID",
     signOut: "Abmelden",

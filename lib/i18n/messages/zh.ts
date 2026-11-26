@@ -308,6 +308,7 @@ export const zh: Messages = {
     user: "测试账户",
     rows: "通过 RLS 可见的数据行",
     noRows: "此账户没有所属公司，也没有可见数据行。",
+    notProvisioned: "您的会话有效，但此环境中不存在测试表（spike_items）。尚未执行 RLS 可见数据行测试。",
     sampleData: "虚构数据",
     tenantId: "租户 ID",
     signOut: "退出登录",

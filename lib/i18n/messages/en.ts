@@ -329,6 +329,7 @@ export const en: Messages = {
     user: "Test account",
     rows: "Rows visible through RLS",
     noRows: "This account has no membership and no visible rows.",
+    notProvisioned: "Your session is valid, but the test table (spike_items) does not exist in this environment. The row-level security test was not run.",
     sampleData: "Fictional item",
     tenantId: "Tenant ID",
     signOut: "Sign out",

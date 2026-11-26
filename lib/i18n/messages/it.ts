@@ -329,6 +329,7 @@ export const it: Messages = {
     user: "Account di prova",
     rows: "Righe visibili tramite RLS",
     noRows: "Questo account non ha appartenenze né righe visibili.",
+    notProvisioned: "La tua sessione è valida, ma la tabella di prova (spike_items) non esiste in questo ambiente. La prova delle righe visibili tramite RLS non è stata eseguita.",
     sampleData: "Dato fittizio",
     tenantId: "ID tenant",
     signOut: "Esci",

@@ -329,6 +329,7 @@ export const pt: Messages = {
     user: "Conta de teste",
     rows: "Linhas visíveis por RLS",
     noRows: "Esta conta não tem associação nem linhas visíveis.",
+    notProvisioned: "Sua sessão é válida, mas a tabela de teste (spike_items) não existe neste ambiente. O teste de linhas visíveis por RLS não foi executado.",
     sampleData: "Dado fictício",
     tenantId: "ID do tenant",
     signOut: "Sair",

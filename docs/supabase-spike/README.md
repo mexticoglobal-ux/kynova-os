@@ -19,7 +19,7 @@ La migración `supabase/migrations/20261031000000_tenancy_core.sql` reemplaza a 
 2. La migración `20261031000000_tenancy_core.sql`.
 3. `supabase/seed.sql`, sustituyendo los dos correos de los usuarios A y B. Usa los mismos UUID de empresa que el spike.
 4. Verificación del proyecto: ejecuta `supabase/tests/verify_project.sql` (solo lectura, no necesita correos). Debe devolver todas las filas en `PASS`. **No ejecutes `supabase/tests/isolation.sql` en Supabase:** está pensado para el Postgres efímero de CI (inserta usuarios en un `auth` simulado y crea sus propios datos); en Supabase el aislamiento se prueba con la API (abajo).
-5. Opcional, para seguir probando `/spike` y `/api/spike/items`: ejecuta solo las sentencias de `spike_items` de `schema.sql` (tabla, índice, permisos, RLS, políticas y filas ficticias). Dependen de `private.is_member`, que ya crea la migración.
+5. Opcional, para seguir probando `/spike` y `/api/spike/items`: ejecuta solo las sentencias de `spike_items` de `schema.sql` (tabla, índice, permisos, RLS, políticas y filas ficticias). Dependen de `private.is_member`, que ya crea la migración. Sin esa tabla no hay fallo: con una sesión válida `/api/spike/items` responde 200 `{"items":[],"provisioned":false}` y `/spike` avisa que la prueba de RLS no se ejecutó.
 
 Prueba manual del perfil (inicio de sesión por código en `/spike/login`, luego en la misma sesión del navegador):
 

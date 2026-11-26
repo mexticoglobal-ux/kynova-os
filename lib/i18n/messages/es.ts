@@ -388,6 +388,7 @@ export const es = {
     user: "Cuenta de prueba",
     rows: "Filas visibles mediante RLS",
     noRows: "Esta cuenta no tiene membresía ni filas visibles.",
+    notProvisioned: "Tu sesión es válida, pero la tabla de prueba (spike_items) no existe en este entorno. La prueba de filas visibles mediante RLS no se ha ejecutado.",
     sampleData: "Dato ficticio",
     tenantId: "ID del tenant",
     signOut: "Cerrar sesión",

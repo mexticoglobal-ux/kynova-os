@@ -2,18 +2,15 @@
 
 import { useI18n } from "@/components/i18n/I18nProvider";
 import { buttonClass } from "@/components/ui/Button";
-
-type SpikeItem = { id: string; tenant_id: string; label: string };
+import type { SpikeItemsResult } from "@/lib/db/spike-items";
 
 export function SpikeDashboard({
   email,
-  items,
-  hasError,
+  result,
   canaryConfigured,
 }: {
   email: string;
-  items: SpikeItem[];
-  hasError: boolean;
+  result: SpikeItemsResult;
   canaryConfigured: boolean;
 }) {
   const { m } = useI18n();
@@ -43,15 +40,17 @@ export function SpikeDashboard({
           </a>
         </div>
 
-        {hasError ? (
+        {result.status === "unavailable" ? (
           <p className="mt-5 rounded-xl border border-danger/30 bg-danger/10 p-4 text-sm text-danger-soft" role="alert">{copy.error}</p>
-        ) : items.length === 0 ? (
+        ) : result.status === "not_provisioned" ? (
+          <p className="mt-5 rounded-xl border border-line bg-shade p-4 text-sm text-ink-soft" role="status">{copy.notProvisioned}</p>
+        ) : result.items.length === 0 ? (
           <p className="mt-5 rounded-xl border border-line bg-shade p-4 text-sm text-ink-soft">{copy.noRows}</p>
         ) : (
           <div className="mt-5 overflow-x-auto">
             <table className="w-full min-w-[30rem] border-collapse text-left text-sm">
               <thead><tr className="border-b border-line text-ink-muted"><th scope="col" className="py-3 pr-4">{copy.sampleData}</th><th scope="col" className="py-3">{copy.tenantId}</th></tr></thead>
-              <tbody>{items.map((item) => <tr key={item.id} className="border-b border-line-soft"><td className="py-3 pr-4 text-ink">{item.label}</td><td className="py-3 font-mono text-xs text-ink-muted">{item.tenant_id}</td></tr>)}</tbody>
+              <tbody>{result.items.map((item) => <tr key={item.id} className="border-b border-line-soft"><td className="py-3 pr-4 text-ink">{item.label}</td><td className="py-3 font-mono text-xs text-ink-muted">{item.tenant_id}</td></tr>)}</tbody>
             </table>
           </div>
         )}
